@@ -789,6 +789,9 @@ HTokenType h_get_token_type_number(const char* name);
 const char* h_get_token_type_name(HTokenType token_type);
 // }}}
 
+/// Make an allocator that draws from the given memory area.
+HAllocator *h_sloballoc(void *mem, size_t size);
+
 #ifdef __cplusplus
 }
 #endif
