@@ -71,7 +71,7 @@ void *sloballoc(SLOB *slob, size_t size)
 void slobfree(SLOB *slob, void *a_)
 {
     struct alloc *a = a_ - sizeof(struct alloc);
-    struct block *b, **p, *left=NULL, *right=NULL, **rightp;
+    struct block *b, **p, *left=NULL, *right=NULL, **rightp=NULL;
 
     // sanity check: a lies inside slob
     assert((void *)a >= (void *)slob->data);
