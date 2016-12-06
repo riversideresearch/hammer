@@ -1,23 +1,24 @@
 # -*- python -*-
 import os.path
+
 Import('env testruns')
 
 dist_headers = [
-    "hammer.h",
-    "allocator.h",
-    "compiler_specifics.h",
-    "glue.h",
-    "internal.h",
-    "platform.h"
+    'hammer.h',
+    'allocator.h',
+    'compiler_specifics.h',
+    'glue.h',
+    'internal.h',
+    'platform.h'
 ]
 
 parsers_headers = [
-    "parsers/parser_internal.h"
+    'parsers/parser_internal.h'
 ]
 
 backends_headers = [
-    "backends/regex.h",
-    "backends/contextfree.h"
+    'backends/regex.h',
+    'backends/contextfree.h'
 ]
 
 parsers = ['parsers/%s.c'%s for s in
@@ -48,7 +49,7 @@ parsers = ['parsers/%s.c'%s for s in
             'unimplemented',
             'whitespace',
             'xor',
-            'value']] 
+            'value']]
 
 backends = ['backends/%s.c' % s for s in
             ['packrat', 'llk', 'regex', 'glr', 'lalr', 'lr', 'lr0']]
@@ -63,11 +64,18 @@ misc_hammer_parts = [
     'desugar.c',
     'glue.c',
     'hammer.c',
-    'platform_bsdlike.c',
     'pprint.c',
     'registry.c',
     'system_allocator.c',
     'sloballoc.c']
+
+if env['PLATFORM'] == 'win32':
+    misc_hammer_parts += [
+        'platform_win32.c',
+        'tsearch.c',
+    ]
+else:
+    misc_hammer_parts += ['platform_bsdlike.c']
 
 ctests = ['t_benchmark.c',
           't_bitreader.c',
@@ -78,26 +86,40 @@ ctests = ['t_benchmark.c',
           't_mm.c',
           't_regression.c']
 
+
+static_library_name = 'hammer'
+build_shared_library=True
+if env['PLATFORM'] == 'win32':
+    # FIXME(windows): symbols in hammer are not exported yet, a shared lib would be useless
+    build_shared_library=False
+    # prevent collision between .lib from dll and .lib for static lib
+    static_library_name = 'hammer_s'
+
 libhammer_shared = env.SharedLibrary('hammer', parsers + backends + misc_hammer_parts)
-libhammer_static = env.StaticLibrary('hammer', parsers + backends + misc_hammer_parts)
-Default(libhammer_shared, libhammer_static)
+libhammer_static = env.StaticLibrary(static_library_name, parsers + backends + misc_hammer_parts)
+if build_shared_library:
+    Default(libhammer_shared, libhammer_static)
+    env.Install('$libpath', [libhammer_static, libhammer_shared])
+else:
+    Default(libhammer_static)
+    env.Install('$libpath', [libhammer_static])
 
-env.Install("$libpath", [libhammer_static, libhammer_shared])
-env.Install("$incpath", dist_headers)
-env.Install("$parsersincpath", parsers_headers)
-env.Install("$backendsincpath", backends_headers)
-env.Install("$pkgconfigpath", "../../../libhammer.pc")
+env.Install('$incpath', dist_headers)
+env.Install('$parsersincpath', parsers_headers)
+env.Install('$backendsincpath', backends_headers)
+env.Install('$pkgconfigpath', '../../../libhammer.pc')
 
-testenv = env.Clone()
-testenv.ParseConfig('pkg-config --cflags --libs glib-2.0')
-testenv.Append(LIBS=['hammer'])
-testenv.Prepend(LIBPATH=['.'])
-ctestexec = testenv.Program('test_suite', ctests + ['test_suite.c'], LINKFLAGS="--coverage" if testenv.GetOption("coverage") else None)
-ctest = Alias('testc', [ctestexec], "".join(["env LD_LIBRARY_PATH=", os.path.dirname(ctestexec[0].path), " ", ctestexec[0].path]))
-AlwaysBuild(ctest)
-testruns.append(ctest)
+if GetOption('with_tests'):
+    testenv = env.Clone()
+    testenv.ParseConfig('pkg-config --cflags --libs glib-2.0')
+    testenv.Append(LIBS=['hammer'])
+    testenv.Prepend(LIBPATH=['.'])
+    ctestexec = testenv.Program('test_suite', ctests + ['test_suite.c'], LINKFLAGS='--coverage' if testenv.GetOption('coverage') else None)
+    ctest = Alias('testc', [ctestexec], ''.join(['env LD_LIBRARY_PATH=', os.path.dirname(ctestexec[0].path), ' ', ctestexec[0].path]))
+    AlwaysBuild(ctest)
+    testruns.append(ctest)
 
-Export("libhammer_static libhammer_shared")
+Export('libhammer_static libhammer_shared')
 
 for b in env['bindings']:
-    env.SConscript(["bindings/%s/SConscript" % b])
+    env.SConscript(['bindings/%s/SConscript' % b])

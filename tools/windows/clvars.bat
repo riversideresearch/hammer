@@ -7,6 +7,16 @@ set WARNINGS=-W4 -Wall -WX
 REM c4464 (relative include path contains '..')
 set WARNINGS=%WARNINGS% -wd4464
 
+REM c4189 (local variable is initialized but not referenced)
+set WARNINGS=%WARNINGS% -wd4189
+
+REM c4018/c4388 (signed/unsigned mismatch)
+REM basically useless. Complains about obviously correct code like:
+REM     uint8_t x = 60;
+REM     size_t i = 9;
+REM     i < x/8
+set WARNINGS=%WARNINGS% -wd4018 -wd4388
+
 REM c4457 (declaration shadowing function parameter)
 REM FIXME(windows) TODO(uucidl): remove occurence of c4457 and reactivate
 REM FIXME(windows) TODO(uucidl): remove occurence of c4456 and reactivate

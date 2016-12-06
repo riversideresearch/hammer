@@ -21,11 +21,36 @@ Ruby bindings for [hammer](https://github.com/UpstandingHackers/hammer), a parsi
 
 ## Installation
 
-TODO
+1. Download the hammer source code, and make it available system wide with the bindings. 
+  
+  `git clone https://github.com/UpstandingHackers/hammer`
 
+  `cd hammer`
+
+  `scons bindings=ruby`
+
+  `sudo scons bindings=ruby install`
+
+2. On linux, you will have to do 
+
+  `sudo ldconfig`
+  
+3. Build the gem
+  `gem build hammer-parser.gemspec`
+
+4. Install the gem
+  `gem install hammer-parser-x.x.x.gem`
 
 
 ## Examples
+
+Add hammer to your Gemfile. 
+
+  `gem 'hammer-parser'`
+
+Use hammer in your project.
+
+  `require 'hammer'`
 
 ### Building a parser
 

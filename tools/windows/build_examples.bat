@@ -15,7 +15,7 @@ call %HEREPATH%\clvars.bat
 echo SRC=%SRC%, BUILD=%BUILD%
 echo CLFLAGS=%CLFLAGS%
 
-set HAMMERLIB=%BUILD%\hammer.lib
+set HAMMERLIB=%BUILD%\lib\hammer_s.lib
 
 REM Now let's build some example programs
 

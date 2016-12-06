@@ -422,6 +422,18 @@ struct HParserVtable_ {
   bool higher; // false if primitive
 };
 
+// {{{ Token type registry internal
+
+typedef struct HTTEntry_ {
+  const char* name;
+  HTokenType value;
+  void (*unamb_sub)(const HParsedToken *tok, struct result_buf *buf);
+} HTTEntry;
+
+const HTTEntry* h_get_token_type_entry(HTokenType token_type);
+
+// }}}
+
 bool h_false(void*);
 bool h_true(void*);
 bool h_not_regular(HRVMProg*, void*);

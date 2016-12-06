@@ -52,14 +52,14 @@ HSlist* h_slist_copy(HSlist *slist) {
     h_slist_push(ret, head->elem);
     tail = ret->head;
     head = head->next;
-  }
-  while (head != NULL) {
-    // append head item to tail in a new node
-    HSlistNode *node = h_arena_malloc(slist->arena, sizeof(HSlistNode));
-    node->elem = head->elem;
-    node->next = NULL;
-    tail = tail->next = node;
-    head = head->next;
+    while (head != NULL) {
+      // append head item to tail in a new node
+      HSlistNode *node = h_arena_malloc(slist->arena, sizeof(HSlistNode));
+      node->elem = head->elem;
+      node->next = NULL;
+      tail = tail->next = node;
+      head = head->next;
+    }
   }
   return ret;
 }

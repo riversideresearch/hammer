@@ -778,9 +778,24 @@ void h_benchmark_report(FILE* stream, HBenchmarkResults* results);
 //void h_benchmark_dump_optimized_code(FILE* stream, HBenchmarkResults* results);
 // }}}
 
+// {{{ result_buf printers (used by token type registry)
+
+struct result_buf;
+
+bool h_append_buf(struct result_buf *buf, const char* input, int len);
+bool h_append_buf_c(struct result_buf *buf, char v);
+bool h_append_buf_formatted(struct result_buf *buf, char* format, ...);
+
+// }}}
+
 // {{{ Token type registry
 /// Allocate a new, unused (as far as this function knows) token type.
 HTokenType h_allocate_token_type(const char* name);
+
+/// Allocate a new token type with an unambiguous print function.
+HTokenType h_allocate_token_new(
+    const char* name,
+    void (*unamb_sub)(const HParsedToken *tok, struct result_buf *buf));
 
 /// Get the token type associated with name. Returns -1 if name is unkown
 HTokenType h_get_token_type_number(const char* name);

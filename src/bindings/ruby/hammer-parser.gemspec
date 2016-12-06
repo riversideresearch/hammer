@@ -5,9 +5,9 @@ Gem::Specification.new do |s|
   s.summary       = 'Ruby bindings to the hammer parsing library.'
   s.description   = s.summary # TODO: longer description?
   s.authors       = ['Meredith L. Patterson', 'TQ Hirsch', 'Jakob Rath']
-  # TODO:
-  # s.email = ...
-  # s.homepage = ...
+  s.email         = 'hammer@upstandinghackers.com'
+  s.homepage      = 'https://github.com/UpstandingHackers/hammer'
+  s.license       = 'GPL-2.0'
 
   files = []
   files << 'README.md'

@@ -24,8 +24,8 @@ cl.exe -nologo -FC -EHsc -Z7 -Oi -GR- -Gm- %CLFLAGS% -c ^
        -Fo%BUILD%\obj\
 if %errorlevel% neq 0 goto err
 
-lib.exe %BUILD%\obj\*.obj -OUT:%BUILD%\hammer.lib
-echo STATIC_LIBRARY %BUILD%\hammer.lib
+lib.exe %BUILD%\obj\*.obj -OUT:%BUILD%\lib\hammer_s.lib
+echo STATIC_LIBRARY %BUILD%\lib\hammer_s.lib
 if %errorlevel% neq 0 goto err
 popd
 

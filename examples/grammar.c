@@ -22,11 +22,12 @@
 const char *nonterminal_name(const HCFGrammar *g, const HCFChoice *nt) {
   // if user_data exists and is printable:
   if(nt->user_data != NULL && *(char*)(nt->user_data) > ' ' && *(char*)(nt->user_data) < 127) {
-    if(*(char*)(nt->user_data) != '0') {
+    char* user_str = (char*)(nt->user_data);
+    if(*user_str != '\0') {
       // user_data is a non-empty string
-      return nt->user_data;
+      return user_str;
     } else {
-      return nt->user_data+1;
+      return user_str+1;
     }
   }
   

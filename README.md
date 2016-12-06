@@ -29,19 +29,19 @@ Features
 Installing
 ==========
 ### Prerequisites
-* SCons
+* [SCons](http://scons.org/)
 
 ### Optional Dependencies
 * pkg-config (for `scons test`)
 * glib-2.0 (>= 2.29) (for `scons test`)
 * glib-2.0-dev (for `scons test`)
-* swig (for Python/Perl/PHP bindings; Perl requires >= 2.0.8)
+* [swig](http://swig.org/) (for Python/Perl/PHP bindings; Perl requires >= 2.0.8)
 * python2.7-dev (for Python bindings)
 * a JDK (for Java bindings)
 * a working [phpenv](https://github.com/CHH/phpenv) configuration (for PHP bindings)
-* Ruby >= 1.9.3 and bundler, for the Ruby bindings
+* [Ruby](https://www.ruby-lang.org/) >= 1.9.3 and bundler, for the Ruby bindings
 * mono-devel and mono-mcs (>= 3.0.6) (for .NET bindings)
-* nunit (for testing .NET bindings)
+* [nunit](http://www.nunit.org/) (for testing .NET bindings)
 
 To build, type `scons`. To run the built-in test suite, type `scons test`. For a debug build, add `--variant=debug`.
 
@@ -60,13 +60,16 @@ Just `#include <hammer/hammer.h>` (also `#include <hammer/glue.h>` if you plan t
 
 If you've installed Hammer system-wide, you can use `pkg-config` in the usual way.
 
-For documentation, see the [user guide](https://github.com/UpstandingHackers/hammer/wiki/User-guide).
+To learn about hammer check
+* the [user guide](https://github.com/UpstandingHackers/hammer/wiki/User-guide)
+* [Hammer Primer](https://github.com/sergeybratus/HammerPrimer) (outdated in terms of code, but good to get the general thinking)
+* [Try Hammer](https://github.com/sboesen/TryHammer)
 
 Examples
 ========
 The `examples/` directory contains some simple examples, currently including:
-* base64
-* DNS
+* [base64](https://en.wikipedia.org/wiki/Base64)
+* [DNS](https://en.wikipedia.org/wiki/Domain_Name_System)
 
 Known Issues
 ============

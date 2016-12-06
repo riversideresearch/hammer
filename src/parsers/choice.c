@@ -1,6 +1,20 @@
 #include <stdarg.h>
 #include "parser_internal.h"
 
+#if defined(__STDC_VERSION__) && (                                  \
+      (__STDC_VERSION__ >= 201112L && !defined(__STDC_NO_VLA__)) ||   \
+      (__STDC_VERSION__ >= 199901L) \
+    )
+#  define STACK_VLA(type,name,size) type name[size]
+#else
+#  if defined(_MSC_VER)
+#    include <malloc.h> // for _alloca
+#    define STACK_VLA(type,name,size) type* name = _alloca(size)
+#  else
+#    error "Missing VLA implementation for this compiler"
+#  endif
+#endif
+
 typedef struct {
   size_t len;
   HParser **p_array;
@@ -53,11 +67,14 @@ static void desugar_choice(HAllocator *mm__, HCFStack *stk__, void *env) {
 
 static bool choice_ctrvm(HRVMProg *prog, void* env) {
   HSequence *s = (HSequence*)env;
-  uint16_t gotos[s->len];
+  // NOTE(uucidl): stack allocation since this backend uses
+  // setjmp/longjmp for error handling.
+  STACK_VLA(uint16_t, gotos, s->len);
   for (size_t i=0; i<s->len; ++i) {
     uint16_t insn = h_rvm_insert_insn(prog, RVM_FORK, 0);
-    if (!h_compile_regex(prog, s->p_array[i]))
+    if (!h_compile_regex(prog, s->p_array[i])) {
       return false;
+    }
     gotos[i] = h_rvm_insert_insn(prog, RVM_GOTO, 65535);
     h_rvm_patch_arg(prog, insn, h_rvm_get_ip(prog));
   }
