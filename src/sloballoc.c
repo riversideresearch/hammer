@@ -55,7 +55,7 @@ void *sloballoc(SLOB *slob, size_t size)
         if(b->alloc.size >= remblock) {
             // cut from the end of the block
             b->alloc.size -= sizeof(struct alloc) + size;
-            struct alloc *a = (void *)b->alloc.data + b->alloc.size;
+            struct alloc *a = (struct alloc *)(b->alloc.data + b->alloc.size);
             a->size = size;
             return a->data;
         } else if(b->alloc.size >= size) {
@@ -74,16 +74,16 @@ void slobfree(SLOB *slob, void *a_)
     struct block *b, **p, *left=NULL, *right=NULL, **rightp=NULL;
 
     // sanity check: a lies inside slob
-    assert((void *)a >= (void *)slob->data);
-    assert((void *)a->data + a->size <= (void *)slob->data + slob->size);
+    assert((uint8_t *)a >= slob->data);
+    assert(a->data + a->size <= slob->data + slob->size);
 
     // scan list for blocks adjacent to a
     for(p=&slob->head; (b=*p); p=&b->next) {
-        if((void *)a == b->alloc.data + b->alloc.size) {
+        if((uint8_t *)a == b->alloc.data + b->alloc.size) {
             assert(!left);
             left = b;
         }
-        if((void *)a->data + a->size == b) {
+        if(a->data + a->size == (uint8_t *)b) {
             assert(!right);
             right = b;
             rightp = p;
@@ -121,7 +121,7 @@ int slobcheck(SLOB *slob)
     // 4. every element of the free list is one of the valid blocks.
     // 5. every block appears at most once in the free list.
 
-    void *p;
+    uint8_t *p;
     size_t nblocks=0, nfree=0;
 
     #define FORBLOCKS \
@@ -131,13 +131,13 @@ int slobcheck(SLOB *slob)
 
     // 1. memory area is divided seamlessly and exactly into n blocks
     FORBLOCKS {
-        if(p < (void *)slob->data)
+        if(p < slob->data)
             return 1;
-        if(p > (void *)slob->data + slob->size)
+        if(p > slob->data + slob->size)
             return 2;
         nblocks++;
 
-        struct alloc *a = p;
+        struct alloc *a = (struct alloc *)p;
         if(a->size > UINTPTR_MAX - (uintptr_t)p)
             return 3;
 
@@ -154,7 +154,7 @@ int slobcheck(SLOB *slob)
 
         // 4. every element of the free list is one of the valid blocks.
         FORBLOCKS
-            if(p == b) break;
+            if(p == (uint8_t *)b) break;
         if(!p)
             return 6;
     }
@@ -163,7 +163,7 @@ int slobcheck(SLOB *slob)
     FORBLOCKS {
         size_t count=0;
         for(struct block *b=slob->head; b; b=b->next)
-            if(p == b) count++;
+            if(p == (uint8_t *)b) count++;
         if(count > 1)
             return 7;
     }
