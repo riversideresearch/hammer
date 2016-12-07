@@ -10,7 +10,7 @@ struct alloc {
 };
 
 struct block {
-    struct alloc alloc;
+    size_t size; // read: struct alloc
     struct block *next;
 };
 
@@ -31,7 +31,7 @@ SLOB *slobinit(void *mem, size_t size)
     slob = mem;
     slob->size = size - sizeof(SLOB);
     slob->head = (struct block *)((uint8_t *)mem + sizeof(SLOB));
-    slob->head->alloc.size = slob->size - sizeof(struct alloc);
+    slob->head->size = slob->size - sizeof(struct alloc);
     slob->head->next = NULL;
 
     return slob;
@@ -52,16 +52,16 @@ void *sloballoc(SLOB *slob, size_t size)
 
     // scan list for the first block of sufficient size
     for(p=&slob->head; (b=*p); p=&b->next) {
-        if(b->alloc.size >= remblock) {
+        if(b->size >= remblock) {
             // cut from the end of the block
-            b->alloc.size -= sizeof(struct alloc) + size;
-            struct alloc *a = (struct alloc *)(b->alloc.data + b->alloc.size);
+            b->size -= sizeof(struct alloc) + size;
+            struct alloc *a = (struct alloc *)(((struct alloc *)b)->data + b->size);
             a->size = size;
             return a->data;
-        } else if(b->alloc.size >= size) {
+        } else if(b->size >= size) {
             // when a block fills, it converts directly to a struct alloc
             *p = b->next;       // unlink
-            return b->alloc.data;
+            return ((struct alloc *)b)->data;
         }
     }
 
@@ -79,7 +79,7 @@ void slobfree(SLOB *slob, void *a_)
 
     // scan list for blocks adjacent to a
     for(p=&slob->head; (b=*p); p=&b->next) {
-        if((uint8_t *)a == b->alloc.data + b->alloc.size) {
+        if((uint8_t *)a == ((struct alloc *)b)->data + b->size) {
             assert(!left);
             left = b;
         }
@@ -91,8 +91,8 @@ void slobfree(SLOB *slob, void *a_)
 
         if(left && right) {
             // extend left and unlink right
-            left->alloc.size += sizeof(*a) + a->size +
-                                sizeof(right->alloc) + right->alloc.size;
+            left->size += sizeof(*a) + a->size +
+                          sizeof(struct alloc) + right->size;
             *rightp = right->next;
             return;
         }
@@ -100,10 +100,10 @@ void slobfree(SLOB *slob, void *a_)
 
     if(left) {
         // extend left to absorb a
-        left->alloc.size += sizeof(*a) + a->size;
+        left->size += sizeof(*a) + a->size;
     } else if(right) {
         // shift and extend right to absorb a
-        right->alloc.size += sizeof(*a) + a->size;
+        right->size += sizeof(*a) + a->size;
         *rightp = (struct block *)a; **rightp = *right;
     } else {
         // spawn new block over a
