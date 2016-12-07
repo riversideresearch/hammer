@@ -30,7 +30,7 @@ SLOB *slobinit(void *mem, size_t size)
 
     slob = mem;
     slob->size = size - sizeof(SLOB);
-    slob->head = mem + sizeof(SLOB);
+    slob->head = (struct block *)((uint8_t *)mem + sizeof(SLOB));
     slob->head->alloc.size = slob->size - sizeof(struct alloc);
     slob->head->next = NULL;
 
@@ -70,7 +70,7 @@ void *sloballoc(SLOB *slob, size_t size)
 
 void slobfree(SLOB *slob, void *a_)
 {
-    struct alloc *a = a_ - sizeof(struct alloc);
+    struct alloc *a = (struct alloc *)((uint8_t *)a_ - sizeof(struct alloc));
     struct block *b, **p, *left=NULL, *right=NULL, **rightp=NULL;
 
     // sanity check: a lies inside slob
@@ -203,7 +203,7 @@ HAllocator *h_sloballoc(void *mem, size_t size)
         return NULL;
 
     HAllocator *mm = mem;
-    SLOB *slob = slobinit(mem + sizeof(HAllocator), size - sizeof(HAllocator));
+    SLOB *slob = slobinit((uint8_t *)mem + sizeof(HAllocator), size - sizeof(HAllocator));
     if(!slob)
         return NULL;
     assert(slob == (SLOB *)(mm+1));
