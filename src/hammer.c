@@ -105,6 +105,21 @@ HParserBackendWithParams * h_copy_backend_with_params__m(HAllocator *mm__,
   return r;
 }
 
+/*
+ * copy_params for backends where the parameter is actually a number cast to
+ * void *, such as LLk, LALR and GLR.  Use NULL for free_params in this
+ * case.
+ */
+
+int h_copy_numeric_param(HAllocator *mm__, void **out, void *in) {
+  int rv = 0;
+
+  if (out) *out = in; 
+  else rv = -1; /* error return, nowhere to write result */
+
+  return rv; 
+}
+
 /* Free this HParserBackendWithParams, and free the params too */
 
 void h_free_backend_with_params(HParserBackendWithParams *be_with_params) {

@@ -614,7 +614,10 @@ HParserBackendVTable h__llk_backend_vtable = {
 
   .parse_start = h_llk_parse_start,
   .parse_chunk = h_llk_parse_chunk,
-  .parse_finish = h_llk_parse_finish
+  .parse_finish = h_llk_parse_finish,
+
+  .copy_params = h_copy_numeric_param
+  /* No free_param needed, since it's not actually allocated */
 };
 
 

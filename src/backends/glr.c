@@ -244,7 +244,10 @@ HParseResult *h_glr_parse(HAllocator* mm__, const HParser* parser, HInputStream*
 HParserBackendVTable h__glr_backend_vtable = {
   .compile = h_glr_compile,
   .parse = h_glr_parse,
-  .free = h_glr_free
+  .free = h_glr_free,
+
+  .copy_params = h_copy_numeric_param
+  /* No free_param needed, since it's not actually allocated */
 };
 
 

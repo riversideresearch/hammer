@@ -357,6 +357,10 @@ static inline HParserBackend h_get_default_backend__int(void) {
   return PB_PACKRAT;
 }
 
+/* copy_params for backends where the parameter is not actually a pointer */
+
+int h_copy_numeric_param(HAllocator *mm__, void **out, void *in);
+
 static inline
 HParser *h_new_parser(HAllocator *mm__, const HParserVtable *vt, void *env) {
   HParser *p = h_new(HParser, 1);

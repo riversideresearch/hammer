@@ -368,7 +368,9 @@ HParserBackendVTable h__lalr_backend_vtable = {
   .free = h_lalr_free,
   .parse_start = h_lr_parse_start,
   .parse_chunk = h_lr_parse_chunk,
-  .parse_finish = h_lr_parse_finish
+  .parse_finish = h_lr_parse_finish,
+  .copy_params = h_copy_numeric_param
+  /* No free_param needed, since it's not actually allocated */
 };
 
 
