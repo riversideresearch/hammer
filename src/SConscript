@@ -6,6 +6,9 @@ import os.path
 
 Import('env testruns')
 
+# Bump this if you break binary compatibility (e.g. renumber backends)
+hammer_shlib_version = "1.0.0"
+
 dist_headers = [
     'hammer.h',
     'allocator.h',
@@ -99,7 +102,8 @@ if env['PLATFORM'] == 'win32':
     # prevent collision between .lib from dll and .lib for static lib
     static_library_name = 'hammer_s'
 
-libhammer_shared = env.SharedLibrary('hammer', parsers + backends + misc_hammer_parts)
+libhammer_shared = env.SharedLibrary('hammer', parsers + backends + misc_hammer_parts, \
+                                     SHLIBVERSION=hammer_shlib_version)
 libhammer_static = env.StaticLibrary(static_library_name, parsers + backends + misc_hammer_parts)
 if build_shared_library:
     Default(libhammer_shared, libhammer_static)
