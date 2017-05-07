@@ -318,6 +318,7 @@ struct HBitWriter_ {
 
 
 // Backends {{{
+extern HParserBackendVTable h__missing_backend_vtable;
 extern HParserBackendVTable h__packrat_backend_vtable;
 extern HParserBackendVTable h__llk_backend_vtable;
 extern HParserBackendVTable h__lalr_backend_vtable;
@@ -334,12 +335,25 @@ static inline size_t h_input_stream_pos(HInputStream* state) {
 HParseResult* h_do_parse(const HParser* parser, HParseState *state);
 void put_cached(HParseState *ps, const HParser *p, HParseResult *cached);
 
+/*
+ * Inline this for benefit of h_new_parser() below, then make
+ * the API h_get_default_backend() call it.
+ */
+static inline HParserBackend h_get_default_backend__int(void) {
+  return PB_PACKRAT;
+}
+
 static inline
 HParser *h_new_parser(HAllocator *mm__, const HParserVtable *vt, void *env) {
   HParser *p = h_new(HParser, 1);
   memset(p, 0, sizeof(HParser));
   p->vtable = vt;
   p->env = env;
+  /*
+   * Current limitation: if we specify backends solely by HParserBackend, we
+   * can't set a default backend that requires any parameters to h_compile()
+   */
+  p->backend = h_get_default_backend__int();
   return p;
 }
 

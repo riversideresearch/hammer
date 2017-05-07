@@ -41,7 +41,12 @@ typedef struct HParseState_ HParseState;
 
 typedef enum HParserBackend_ {
   PB_MIN = 0,
-  PB_PACKRAT = PB_MIN, // PB_MIN is always the default.
+  /*
+   * Have a backend that always fails to pass around "no such backend"
+   * indications
+   */
+  PB_INVALID = PB_MIN,
+  PB_PACKRAT,
   PB_REGULAR,
   PB_LLk,
   PB_LALR,
@@ -260,6 +265,17 @@ typedef struct HBenchmarkResults_ {
 #endif // SWIG
 // }}}
 
+/**
+ * Ask if this backend is available
+ */
+
+int h_is_backend_available(HParserBackend backend);
+
+/**
+ * Ask what the default backend is (currently always PB_PACKRAT)
+ */
+
+HParserBackend h_get_default_backend(void);
 
 /**
  * Top-level function to call a parser that has been built over some

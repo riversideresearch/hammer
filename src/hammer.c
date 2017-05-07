@@ -26,11 +26,12 @@
 #include "parsers/parser_internal.h"
 
 static HParserBackendVTable *backends[PB_MAX + 1] = {
-  &h__packrat_backend_vtable,
-  &h__regex_backend_vtable,
-  &h__llk_backend_vtable,
-  &h__lalr_backend_vtable,
-  &h__glr_backend_vtable,
+  &h__missing_backend_vtable, /* For PB_INVALID */
+  &h__packrat_backend_vtable, /* For PB_PACKRAT */
+  &h__regex_backend_vtable, /* For PB_REGULAR */
+  &h__llk_backend_vtable, /* For PB_LLk */
+  &h__lalr_backend_vtable, /* For PB_LALR */
+  &h__glr_backend_vtable /* For PB_GLR */
 };
 
 
@@ -41,7 +42,18 @@ typedef struct {
   const HParser *p2;
 } HTwoParsers;
 
+/* Backend-related inquiries */
 
+int h_is_backend_available(HParserBackend backend) {
+  if (backend >= PB_MIN && backend <= PB_MAX) {
+    return (backends[backend] != &h__missing_backend_vtable) ? 1 : 0;
+  } else return 0;
+}
+
+HParserBackend h_get_default_backend(void) {
+  /* Call the inline version in internal.h */
+  return h_get_default_backend__int();
+}
 
 #define DEFAULT_ENDIANNESS (BIT_BIG_ENDIAN | BYTE_BIG_ENDIAN)
 
@@ -93,7 +105,10 @@ int h_compile(HParser* parser, HParserBackend backend, const void* params) {
 }
 
 int h_compile__m(HAllocator* mm__, HParser* parser, HParserBackend backend, const void* params) {
-  backends[parser->backend]->free(parser);
+  if (parser->backend >= PB_MIN && parser->backend <= PB_MAX &&
+      backends[parser->backend]->free != NULL) {
+    backends[parser->backend]->free(parser);
+  }
   int ret = backends[backend]->compile(mm__, parser, params);
   if (!ret)
     parser->backend = backend;
