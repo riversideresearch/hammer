@@ -238,6 +238,20 @@ typedef struct HParserBackendVTable_ {
   HParseResult *(*parse_finish)(HSuspendedParser *s);
     // parse_finish must free s->backend_state.
     // parse_finish will not be called before parse_chunk reports done.
+
+  /* The backend knows how to free its params */
+  void (*free_params)(HAllocator *mm__, void *p);
+  /*
+   * ..and how to copy them
+   *
+   * Since the backend params need not actually be an allocated object,
+   * (and in fact no current backends use this, although it is permissible),
+   * but might (as in PB_GLR) be some numeric constant cast to void * which
+   * copy_params() should just pass through, we can't use returning NULL
+   * to signal allocation failure.  Hence, passing the result out in a
+   * void ** and returning a status code (0 indicates success).
+   */
+  int (*copy_params)(HAllocator *mm__, void **out, void *in);
 } HParserBackendVTable;
 
 

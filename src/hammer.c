@@ -55,6 +55,75 @@ HParserBackend h_get_default_backend(void) {
   return h_get_default_backend__int();
 }
 
+/*
+ * Copy an HParserBackendWithParams, using the backend-supplied copy
+ * method.
+ */
+
+HParserBackendWithParams * h_copy_backend_with_params(
+    HParserBackendWithParams *be_with_params) {
+  return h_copy_backend_with_params__m(&system_allocator, be_with_params);
+}
+
+HParserBackendWithParams * h_copy_backend_with_params__m(HAllocator *mm__,
+    HParserBackendWithParams *be_with_params) {
+  HParserBackendWithParams *r = NULL;
+  int s;
+
+  if (be_with_params && be_with_params->backend >= PB_MIN &&
+      be_with_params->backend <= PB_MAX) {
+    if (mm__ == NULL) {
+      /* use the allocator from the input */
+      mm__ = be_with_params->mm__;
+    }
+
+    /* got an allocator? */
+    if (mm__) {
+      r = h_new(HParserBackendWithParams, 1);
+      if (r) {
+        r->mm__ = mm__;
+        r->backend = be_with_params->backend;
+        if (backends[be_with_params->backend]->copy_params) {
+          s = backends[be_with_params->backend]->copy_params(mm__,
+              &(r->params), be_with_params->params);
+          if (s != 0) {
+            /* copy_params() failed */
+            h_free(r);
+            r = NULL;
+          }
+        } else {
+          /* else just ignore it and set it to NULL */
+          r->params = NULL;
+        }
+      }
+      /* else fail out */
+    }
+    /* else give up and return NULL */
+  }
+  /* else return NULL, nothing to copy */
+
+  return r;
+}
+
+/* Free this HParserBackendWithParams, and free the params too */
+
+void h_free_backend_with_params(HParserBackendWithParams *be_with_params) {
+  HAllocator *mm__ = &system_allocator;
+
+  if (be_with_params) {
+    if (be_with_params->mm__) mm__ = be_with_params->mm__;
+
+    if (h_is_backend_available(be_with_params->backend)) {
+      if (backends[be_with_params->backend]->free_params) {
+        backends[be_with_params->backend]->
+          free_params(be_with_params->mm__, be_with_params->params);
+      }
+    }
+
+    h_free(be_with_params);
+  }
+}
+
 #define DEFAULT_ENDIANNESS (BIT_BIG_ENDIAN | BYTE_BIG_ENDIAN)
 
 HParseResult* h_parse(const HParser* parser, const uint8_t* input, size_t length) {

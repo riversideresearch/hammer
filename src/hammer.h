@@ -54,6 +54,20 @@ typedef enum HParserBackend_ {
   PB_MAX = PB_GLR
 } HParserBackend;
 
+typedef struct HParserBackendWithParams_ {
+  /* The backend */
+  HParserBackend backend;
+  /*
+   * Backend-specific parameters - if this needs to be freed, the backend
+   * should provide a free_params method in its vtable; currently no backends
+   * do this - PB_PACKRAT and PB_REGULAR take no params, and PB_LLk, PB_LALR
+   * and PB_GLR take an integer cast to void *
+   */
+  void *params;
+  /* Allocator to use to free this (and the params if necessary) */
+  HAllocator *mm__;
+} HParserBackendWithParams;
+
 typedef enum HTokenType_ {
   // Before you change the explicit values of these, think of the poor bindings ;_;
   TT_INVALID = 0,
@@ -276,6 +290,21 @@ int h_is_backend_available(HParserBackend backend);
  */
 
 HParserBackend h_get_default_backend(void);
+
+/**
+ * Copy a backend+params, using the backend-supplied copy method; the
+ * allocator used is the one passed in, or call the __m version with
+ * a NULL allocator to use the one from the source HParserBackendWithParams
+ */
+
+HAMMER_FN_DECL(HParserBackendWithParams *, h_copy_backend_with_params,
+               HParserBackendWithParams *be_with_params);
+
+/**
+ * Free a backend+params
+ */
+
+void h_free_backend_with_params(HParserBackendWithParams *be_with_params);
 
 /**
  * Top-level function to call a parser that has been built over some
