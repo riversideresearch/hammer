@@ -139,6 +139,136 @@ void h_free_backend_with_params(HParserBackendWithParams *be_with_params) {
   }
 }
 
+/*
+ * Internal function to query name or descriptive text; the logic is
+ * the same in both cases.
+ */
+
+static const char * h_get_string_for_backend(
+    HParserBackend be, int description) {
+  /*
+   * For names, failure to resolve should return null - those are
+   * cases we can't look up by name either.  Human readable descriptions
+   * should have human-readable error strings
+   */
+  const char *text = description ? "this is a bug!" : NULL;
+  const char **ptr;
+
+  if (be >= PB_MIN && be <= PB_MAX) {
+    /* the invalid backend is special */
+    if (be == PB_INVALID) {
+      text = description ? "invalid backend" : NULL;
+    } else {
+      if (backends[be] != backends[PB_INVALID]) {
+        /* Point to the name or description */
+        ptr = description ?
+          &(backends[be]->backend_description) :
+          &(backends[be]->backend_short_name);
+        /* See if the backend knows how to describe itself */
+        if (*ptr != NULL) {
+          text = *ptr;
+        } else {
+          /* nope */
+          text = description ? "no description available" : NULL;
+        }
+      } else {
+        /*
+         * This is the case for backends which weren't compiled into this
+         * library.
+         */
+        text = description ? "unsupported backend" : NULL;
+      }
+    }
+  } else {
+    text = description ? "bad backend number" : NULL;
+  }
+
+  return text;
+}
+
+/* Return an identifying name for this backend */
+
+const char * h_get_name_for_backend(HParserBackend be) {
+  /*
+   * call h_get_string_for_backend(), 0 indicates name
+   * rather than description requested
+   */
+  return h_get_string_for_backend(be, 0);
+}
+
+/*
+ * Return some human-readable descriptive text for this backend
+ */
+
+const char * h_get_descriptive_text_for_backend(HParserBackend be) {
+  /*
+   * call h_get_string_for_backend(), 1 indicates a
+   * description is requested.
+   */
+  return h_get_string_for_backend(be, 1);
+}
+
+/*
+ * Internal function to query name or descriptive text for a backend with
+ * params; the logic is the same in both cases.
+ */
+
+static char * h_get_string_for_backend_with_params__m(HAllocator *mm__,
+    HParserBackendWithParams *be_with_params, int description) {
+  char *text = NULL;
+  const char *generic_text = NULL;
+  HParserBackend be = PB_INVALID;
+  char * (**text_getter_func)(HAllocator *mm__,
+                              HParserBackend be,
+                              void *params) = NULL;
+
+
+  if (mm__ == NULL || be_with_params == NULL) goto done;
+
+  /* check if we can compute custom text with params for this backend */
+  be = be_with_params->backend;
+  if (be >= PB_MIN && be <= PB_MAX && be != PB_INVALID &&
+      backends[be] != backends[PB_INVALID]) {
+    text_getter_func = description ?
+      &(backends[be]->get_description_with_params) :
+      &(backends[be]->get_short_name_with_params);
+
+    if (*text_getter_func != NULL) {
+        text = (*text_getter_func)(mm__, be,
+            be_with_params->params);
+    }
+  }
+
+  /* got it? */
+  if (!text) {
+    /* fall back to the generic descriptive text */
+    generic_text = h_get_string_for_backend(be, description);
+    if (generic_text) {
+      text = h_new(char, strlen(generic_text) + 1);
+      strncpy(text, generic_text, strlen(generic_text) + 1);
+    }
+  }
+
+ done:
+  return text;
+}
+
+/*
+ * Allocate and return some human-readable descriptive text for this backend
+ * with parameters.  The caller is responsible for freeing the result.
+ */
+
+char * h_get_descriptive_text_for_backend_with_params__m(HAllocator *mm__,
+    HParserBackendWithParams *be_with_params) {
+  return h_get_string_for_backend_with_params__m(mm__, be_with_params, 1);
+}
+
+char * h_get_descriptive_text_for_backend_with_params(
+    HParserBackendWithParams *be_with_params) {
+  return h_get_descriptive_text_for_backend_with_params__m(
+      &system_allocator, be_with_params);
+}
+
 #define DEFAULT_ENDIANNESS (BIT_BIG_ENDIAN | BYTE_BIG_ENDIAN)
 
 HParseResult* h_parse(const HParser* parser, const uint8_t* input, size_t length) {

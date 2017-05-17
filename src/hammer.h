@@ -307,6 +307,40 @@ HAMMER_FN_DECL(HParserBackendWithParams *, h_copy_backend_with_params,
 void h_free_backend_with_params(HParserBackendWithParams *be_with_params);
 
 /**
+ * Get a name string for a backend; this is constant per backend and so
+ * need not be freed; it will resolve to the backend under
+ * h_get_backend_by_name().
+ */
+
+const char * h_get_name_for_backend(HParserBackend be);
+
+/**
+ * Get a name string for a backend with parameters; it is the caller's
+ * responsibility to free it later.  This will resolve to the same
+ * backend and parameters under h_get_backend_with_params_by_name().
+ */
+
+HAMMER_FN_DECL(char *, h_get_name_for_backend_with_params,
+               HParserBackendWithParams *be_with_params);
+
+/**
+ * Get a human-readable descriptive string for a backend; this is constant
+ * per backend and so need not be freed.
+ */
+
+const char * h_get_descriptive_text_for_backend(HParserBackend be);
+
+/**
+ * Get a human-readable descriptive string for a backend with params; it is
+ * the caller's responsibility to free it later.  Sorry, but it's allowed
+ * to depend on the params and putting keeping the buffer elsewhere and
+ * replacing it on the next call wouldn't be thread-safe.
+ */
+
+HAMMER_FN_DECL(char *, h_get_descriptive_text_for_backend_with_params,
+               HParserBackendWithParams *be_with_params);
+
+/**
  * Top-level function to call a parser that has been built over some
  * piece of input (of known size).
  */

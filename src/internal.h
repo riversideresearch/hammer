@@ -252,6 +252,16 @@ typedef struct HParserBackendVTable_ {
    * void ** and returning a status code (0 indicates success).
    */
   int (*copy_params)(HAllocator *mm__, void **out, void *in);
+
+  /* Description/name handling */
+  const char *backend_short_name;
+  const char *backend_description;
+  char * (*get_description_with_params)(HAllocator *mm__,
+                                        HParserBackend be,
+                                        void *params);
+  char * (*get_short_name_with_params)(HAllocator *mm__,
+                                       HParserBackend be,
+                                       void *params);
 } HParserBackendVTable;
 
 
