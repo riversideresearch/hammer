@@ -606,6 +606,70 @@ HParseResult *h_llk_parse_finish(HSuspendedParser *s)
   return llk_parse_finish_(s->mm__, s->backend_state);
 }
 
+char * h_llk_get_description(HAllocator *mm__,
+                             HParserBackend be, void *param) {
+  const char *format_str = "LL(%zu) parser backend";
+  const char *generic_descr_format_str =
+    "LL(k) parser backend (default k is %zu)";
+  uintptr_t params_int;
+  size_t k, len;
+  char *descr = NULL;
+
+  params_int = (uintptr_t)param;
+  if (params_int > 0) {
+    /* A specific k was given */
+    k = (size_t)params_int;
+    /* Measure how big a buffer we need */
+    len = snprintf(NULL, 0, format_str, k);
+    /* Allocate it and do the real snprintf */
+    descr = h_new(char, len + 1);
+    if (descr) {
+      snprintf(descr, len + 1, format_str, k);
+    }
+  } else {
+    /*
+     * No specific k, would use DEFAULT_KMAX.  We say what DEFAULT_KMAX
+     * was compiled in in the description.
+     */
+    len = snprintf(NULL, 0, generic_descr_format_str, DEFAULT_KMAX);
+    /* Allocate and do the real snprintf */
+    descr = h_new(char, len + 1);
+    if (descr) {
+      snprintf(descr, len + 1, generic_descr_format_str, DEFAULT_KMAX);
+    }
+  }
+
+  return descr;
+}
+
+char * h_llk_get_short_name(HAllocator *mm__,
+                            HParserBackend be, void *param) {
+  const char *format_str = "LL(%zu)", *generic_name = "LL(k)";
+  uintptr_t params_int;
+  size_t k, len;
+  char *name = NULL;
+
+  params_int = (uintptr_t)param;
+  if (params_int > 0) {
+    /* A specific k was given */
+    k = (size_t)params_int;
+    /* Measure how big a buffer we need */
+    len = snprintf(NULL, 0, format_str, k);
+    /* Allocate it and do the real snprintf */
+    name = h_new(char, len + 1);
+    if (name) {
+      snprintf(name, len + 1, format_str, k);
+    }
+  } else {
+    /* No specific k, would use DEFAULT_KMAX */
+    len = strlen(generic_name);
+    name = h_new(char, len + 1);
+    strncpy(name, generic_name, len + 1);
+  }
+
+  return name;
+}
+
 
 HParserBackendVTable h__llk_backend_vtable = {
   .compile = h_llk_compile,
@@ -616,8 +680,14 @@ HParserBackendVTable h__llk_backend_vtable = {
   .parse_chunk = h_llk_parse_chunk,
   .parse_finish = h_llk_parse_finish,
 
-  .copy_params = h_copy_numeric_param
+  .copy_params = h_copy_numeric_param,
   /* No free_param needed, since it's not actually allocated */
+
+  /* Name/param resolution functions */
+  .backend_short_name = "llk",
+  .backend_description = "LL(k) parser backend",
+  .get_description_with_params = h_llk_get_description,
+  .get_short_name_with_params = h_llk_get_short_name
 };
 
 
