@@ -285,5 +285,10 @@ HParseResult *h_packrat_parse(HAllocator* mm__, const HParser* parser, HInputStr
 HParserBackendVTable h__packrat_backend_vtable = {
   .compile = h_packrat_compile,
   .parse = h_packrat_parse,
-  .free = h_packrat_free
+  .free = h_packrat_free,
+  /* Name/param resolution functions */
+  .backend_short_name = "packrat",
+  .backend_description = "Packrat parser with Warth's recursion",
+  .get_description_with_params = h_get_description_with_no_params,
+  .get_short_name_with_params = h_get_short_name_with_no_params
 };

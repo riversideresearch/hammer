@@ -269,6 +269,42 @@ char * h_get_descriptive_text_for_backend_with_params(
       &system_allocator, be_with_params);
 }
 
+/* Helpers for the above for backends with no params */
+
+static char * h_get_backend_text_with_no_params(HAllocator *mm__,
+                                                HParserBackend be,
+                                                int description) {
+  char *text = NULL;
+  const char *src = NULL;
+  int size;
+
+  if (!(mm__ != NULL && be != PB_INVALID &&
+        be >= PB_MIN && be <= PB_MAX)) goto done;
+
+  src = description ?
+    backends[be]->backend_description :
+    backends[be]->backend_short_name;
+
+  if (src) {
+    size = strlen(src) + 1;
+    text = h_new(char, size);
+    if (text) strncpy(text, src, size);
+  }
+
+ done:
+  return text;
+}
+
+char * h_get_description_with_no_params(HAllocator *mm__,
+                                        HParserBackend be, void *params) {
+  return h_get_backend_text_with_no_params(mm__, be, 1);
+}
+
+char * h_get_short_name_with_no_params(HAllocator *mm__,
+                                           HParserBackend be, void *params) {
+  return h_get_backend_text_with_no_params(mm__, be, 0);
+}
+
 #define DEFAULT_ENDIANNESS (BIT_BIG_ENDIAN | BYTE_BIG_ENDIAN)
 
 HParseResult* h_parse(const HParser* parser, const uint8_t* input, size_t length) {

@@ -351,6 +351,16 @@ extern HParserBackendVTable h__glr_backend_vtable;
 
 // TODO(thequux): Set symbol visibility for these functions so that they aren't exported.
 
+/*
+ * Helper functions for backend with params names and descriptions for
+ * backends which take no params.
+ */
+
+char * h_get_description_with_no_params(HAllocator *mm__,
+                                        HParserBackend be, void *params);
+char * h_get_short_name_with_no_params(HAllocator *mm__,
+                                       HParserBackend be, void *params);
+
 int64_t h_read_bits(HInputStream* state, int count, char signed_p);
 static inline size_t h_input_stream_pos(HInputStream* state) {
   return state->index * 8 + state->bit_offset + state->margin;
