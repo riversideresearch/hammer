@@ -360,7 +360,69 @@ void h_lalr_free(HParser *parser)
   parser->backend = PB_PACKRAT;
 }
 
+char * h_lalr_get_description(HAllocator *mm__,
+                              HParserBackend be, void *param) {
+  const char *format_str = "LALR(%zu) parser backend";
+  /* TODO fix the backend */
+  const char *generic_descr_format_str =
+    "LALR(k) parser backend (actually using the param is broken)";
+  uintptr_t params_int;
+  size_t k, len;
+  char *descr = NULL;
 
+  params_int = (uintptr_t)param;
+  if (params_int > 0) {
+    /* A specific k was given */
+    k = (size_t)params_int;
+    /* Measure how big a buffer we need */
+    len = snprintf(NULL, 0, format_str, k);
+    /* Allocate it and do the real snprintf */
+    descr = h_new(char, len + 1);
+    if (descr) {
+      snprintf(descr, len + 1, format_str, k);
+    }
+  } else {
+    /*
+     * No specific k; TODO actually have a default and fix the backend
+     */
+    len = snprintf(NULL, 0, generic_descr_format_str);
+    /* Allocate and do the real snprintf */
+    descr = h_new(char, len + 1);
+    if (descr) {
+      snprintf(descr, len + 1, generic_descr_format_str);
+    }
+  }
+
+  return descr;
+}
+
+char * h_lalr_get_short_name(HAllocator *mm__,
+                            HParserBackend be, void *param) {
+  const char *format_str = "LALR(%zu)", *generic_name = "LALR(k)";
+  uintptr_t params_int;
+  size_t k, len;
+  char *name = NULL;
+
+  params_int = (uintptr_t)param;
+  if (params_int > 0) {
+    /* A specific k was given */
+    k = (size_t)params_int;
+    /* Measure how big a buffer we need */
+    len = snprintf(NULL, 0, format_str, k);
+    /* Allocate it and do the real snprintf */
+    name = h_new(char, len + 1);
+    if (name) {
+      snprintf(name, len + 1, format_str, k);
+    }
+  } else {
+    /* No specific k */
+    len = strlen(generic_name);
+    name = h_new(char, len + 1);
+    strncpy(name, generic_name, len + 1);
+  }
+
+  return name;
+}
 
 HParserBackendVTable h__lalr_backend_vtable = {
   .compile = h_lalr_compile,
@@ -369,12 +431,15 @@ HParserBackendVTable h__lalr_backend_vtable = {
   .parse_start = h_lr_parse_start,
   .parse_chunk = h_lr_parse_chunk,
   .parse_finish = h_lr_parse_finish,
-  .copy_params = h_copy_numeric_param
+  .copy_params = h_copy_numeric_param,
   /* No free_param needed, since it's not actually allocated */
+
+  /* Name/param resolution functions */
+  .backend_short_name = "lalr",
+  .backend_description = "LALR(k) parser backend",
+  .get_description_with_params = h_lalr_get_description,
+  .get_short_name_with_params = h_lalr_get_short_name
 };
-
-
-
 
 // dummy!
 int test_lalr(void)
