@@ -13,12 +13,18 @@ static void test_tt_backend_description(void) {
   g_check_cmp_ptr(desc, !=, NULL);
   desc = h_get_descriptive_text_for_backend(PB_LLk);
   g_check_cmp_ptr(desc, !=, NULL);
+  desc = h_get_descriptive_text_for_backend(PB_LALR);
+  g_check_cmp_ptr(desc, !=, NULL);
+  desc = h_get_descriptive_text_for_backend(PB_GLR);
+  g_check_cmp_ptr(desc, !=, NULL);
 }
 
 /* Reference backend names */
 static const char * packrat_name = "packrat";
 static const char * regular_name = "regex";
 static const char * llk_name = "llk";
+static const char * lalr_name = "lalr";
+static const char * glr_name = "glr";
 
 static void test_tt_backend_short_name(void) {
   const char *name = NULL;
@@ -29,6 +35,10 @@ static void test_tt_backend_short_name(void) {
   g_check_maybe_string_eq(name, regular_name);
   name = h_get_name_for_backend(PB_LLk);
   g_check_maybe_string_eq(name, llk_name);
+  name = h_get_name_for_backend(PB_LALR);
+  g_check_maybe_string_eq(name, lalr_name);
+  name = h_get_name_for_backend(PB_GLR);
+  g_check_maybe_string_eq(name, glr_name);
 }
 
 void register_names_tests(void) {
