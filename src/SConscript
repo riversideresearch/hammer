@@ -91,6 +91,7 @@ ctests = ['t_benchmark.c',
           't_grammar.c',
           't_misc.c',
           't_mm.c',
+          't_names.c',
           't_regression.c']
 
 

@@ -35,6 +35,18 @@
     }									\
   } while(0)
 
+/* Comparison for ptr types; only == and != will work */
+#define g_check_cmp_ptr(p1, op, p2) do { \
+    const void *_p1 = (p1); \
+    const void *_p2 = (p2); \
+    if (!(_p1 op _p2)) { \
+      g_test_message("Check failed: (%s): (%p %s %p)", \
+        #p1 " " #op " " #p2, \
+        _p1, #op, _p2); \
+      g_test_fail(); \
+    } \
+  } while (0);
+
 #define g_check_bytes(len, n1, op, n2) do {	\
     const uint8_t *_n1 = (n1);			\
     const uint8_t *_n2 = (n2);			\
@@ -54,6 +66,32 @@
 		     _n1, #op, _n2);			\
       g_test_fail();					\
     }							\
+  } while(0)
+
+#define g_check_maybe_string_eq(n1, n2) do { \
+    const char *_n1 = (n1); \
+    const char *_n2 = (n2); \
+    if (_n1 != _n2 && _n1 != NULL && _n2 != NULL) { \
+      if (!(strcmp(_n1, _n2) == 0)) { \
+        g_test_message("Check failed: (%s) (\"%s\" == \"%s\")",	\
+		                   #n1 " == " #n2, _n1, _n2); \
+        g_test_fail(); \
+      } \
+    } else { \
+      if (_n1 != NULL || _n2 != NULL) { \
+        if (_n1 != NULL && _n2 == NULL) { \
+          g_test_message("Check failed: (%s) (\"%s\" == NULL)", \
+                         #n1 " == " #n2, _n1); \
+          g_test_fail(); \
+        } else if (_n1 == NULL && _n2 != NULL) { \
+          g_test_message("Check failed: (%s) (NULL == \"%s\")", \
+                         #n1 " == " #n2, _n2); \
+          g_test_fail(); \
+        } \
+        /* else both are not-NULL, but point to the same string - succeed */ \
+      } \
+      /* else both are NULL, succeed */ \
+    } \
   } while(0)
 
 #define g_check_regular(lang) do {			\
@@ -321,7 +359,6 @@
 #define g_check_cmp_int64(n1, op, n2) g_check_inttype("%" PRId64, int64_t, n1, op, n2)
 #define g_check_cmp_uint32(n1, op, n2) g_check_inttype("%u", uint32_t, n1, op, n2)
 #define g_check_cmp_uint64(n1, op, n2) g_check_inttype("%" PRIu64, uint64_t, n1, op, n2)
-#define g_check_cmp_ptr(n1, op, n2) g_check_inttype("%p", void *, n1, op, n2)
 #define g_check_cmpfloat(n1, op, n2) g_check_inttype("%g", float, n1, op, n2)
 #define g_check_cmpdouble(n1, op, n2) g_check_inttype("%g", double, n1, op, n2)
 
