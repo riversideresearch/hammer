@@ -1,4 +1,7 @@
 %module hammer
+%begin %{
+#define SWIG_PYTHON_STRICT_BYTE_CHAR
+%}
 
 %nodefaultctor;
 
@@ -83,11 +86,11 @@
     PyErr_SetString(PyExc_ValueError, "Expecting a string");
     return NULL;
   } else {
-    $1 = *(uint8_t*)PyString_AsString($input);
+    $1 = *(uint8_t*)PyBytes_AsString($input);
   }
  }
 %typemap(out) HBytes* {
-  $result = PyString_FromStringAndSize((char*)$1->token, $1->len);
+  $result = PyBytes_FromStringAndSize((char*)$1->token, $1->len);
  }
 %typemap(out) struct HCountedArray_* {
   int i;
@@ -187,7 +190,7 @@
       return PyObject_CallFunctionObjArgs(_helper_Placeholder, NULL);
       break;
     case TT_BYTES:
-      return PyString_FromStringAndSize((char*)token->token_data.bytes.token, token->token_data.bytes.len);
+      return PyBytes_FromStringAndSize((char*)token->token_data.bytes.token, token->token_data.bytes.len);
     case TT_SINT:
       // TODO: return PyINT if appropriate
       return PyLong_FromLong(token->token_data.sint);
