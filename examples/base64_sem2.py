@@ -28,7 +28,7 @@ import hammer as h
 def bsfdig_value(p):
     """Return the numeric value of a parsed base64 digit.
     """
-    c = p if isinstance(p, (int, long)) else ord(p)
+    c = p if isinstance(p, h.INTEGER_TYPES) else ord(p)
     if c:
         if 0x41 <= c <= 0x5A: # A-Z
             return  c - 0x41

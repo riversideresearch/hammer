@@ -26,7 +26,7 @@ import hammer as h
 
 def act_bsfdig(p, user_data=None):
     # FIXME See the note in init_parser()
-    c = p if isinstance(p, (int, long)) else ord(p)
+    c = p if isinstance(p, h.INTEGER_TYPES) else ord(p)
 
     if 0x41 <= c <= 0x5A: # A-Z
         return c - 0x41
@@ -65,14 +65,14 @@ def act_base64_n(n, p, user_data=None):
 
     x = 0
     bits = 0
-    for i in xrange(0, n+1):
+    for i in range(0, n+1):
         x <<= 6
         x |= p[i] or 0
         bits += 6
 
     x >>= bits % 8 # align, i.e. cut off extra bits
 
-    for i in xrange(n):
+    for i in range(n):
         item = x & 0xFF
 
         res[n-1-i] = item   # output the last byte and
