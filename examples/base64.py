@@ -10,7 +10,7 @@
 # base64_sem1.py and base64_sem2.py for examples how to attach appropriate
 # semantic actions to the grammar.
 
-from __future__ import print_function
+from __future__ import absolute_import, division, print_function
 
 import sys
 

@@ -30,6 +30,8 @@
 #  This is an attempt to meld to two based initially on the Microsoft C# tool with amendmnets from the Mono
 #  tool.
 
+from __future__ import absolute_import, division, print_function
+
 import os.path
 import SCons.Builder
 import SCons.Node.FS

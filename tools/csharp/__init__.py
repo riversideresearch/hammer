@@ -21,4 +21,6 @@
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 # WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-from csharp import exists, generate
+from __future__ import absolute_import, division, print_function
+
+from .csharp import exists, generate

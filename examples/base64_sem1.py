@@ -13,7 +13,7 @@
 # transform the parse tree in small steps in a bottom-up fashion. Compare
 # base64_sem2.py for an alternative approach using a single top-level action.
 
-from __future__ import print_function
+from __future__ import absolute_import, division, print_function
 
 import functools
 import sys

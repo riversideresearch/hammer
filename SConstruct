@@ -1,4 +1,7 @@
 # -*- python -*-
+
+from __future__ import absolute_import, division, print_function
+
 import os
 import os.path
 import platform
@@ -43,9 +46,9 @@ env['prefix'] = os.path.abspath(env['prefix'])
 if 'DESTDIR' in env:
     env['DESTDIR'] = os.path.abspath(env['DESTDIR'])
     if rel_prefix:
-        print >>sys.stderr, '--!!-- You used a relative prefix with a DESTDIR. This is probably not what you'
-        print >>sys.stderr, '--!!-- you want; files will be installed in'
-        print >>sys.stderr, '--!!--    %s' % (calcInstallPath('$prefix'),)
+        print('--!!-- You used a relative prefix with a DESTDIR. This is probably not what you', file=sys.stderr)
+        print('--!!-- you want; files will be installed in', file=sys.stderr)
+        print('--!!--    %s' % (calcInstallPath('$prefix'),), file=sys.stderr)
 
 
 env['libpath'] = calcInstallPath('$prefix', 'lib')

@@ -14,7 +14,7 @@
 # for an alternative approach using a fine-grained piece-by-piece
 # transformation.
 
-from __future__ import print_function
+from __future__ import absolute_import, division, print_function
 
 import functools
 import sys
