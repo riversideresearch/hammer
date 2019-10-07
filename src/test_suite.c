@@ -24,6 +24,7 @@ extern void register_bitwriter_tests();
 extern void register_parser_tests();
 extern void register_grammar_tests();
 extern void register_misc_tests();
+extern void register_mm_tests();
 extern void register_benchmark_tests();
 extern void register_regression_tests();
 
@@ -36,6 +37,7 @@ int main(int argc, char** argv) {
   register_parser_tests();
   register_grammar_tests();
   register_misc_tests();
+  register_mm_tests();
   register_regression_tests();
   if (g_test_slow() || g_test_perf())
     register_benchmark_tests();
