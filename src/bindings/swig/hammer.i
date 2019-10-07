@@ -1,4 +1,7 @@
 %module hammer
+%begin %{
+#define SWIG_PYTHON_STRICT_BYTE_CHAR
+%}
 
 %nodefaultctor;
 
@@ -25,6 +28,20 @@
  }
 
 %pythoncode %{
+  try:
+      INTEGER_TYPES = (int, long)
+  except NameError:
+      INTEGER_TYPES = (int,)
+
+  try:
+      TEXT_TYPE = unicode
+      def bchr(i):
+          return chr(i)
+  except NameError:
+      TEXT_TYPE = str
+      def bchr(i):
+          return bytes([i])
+
   class Placeholder(object):
       """The python equivalent of TT_NONE"""
       def __str__(self):
@@ -69,11 +86,11 @@
     PyErr_SetString(PyExc_ValueError, "Expecting a string");
     return NULL;
   } else {
-    $1 = *(uint8_t*)PyString_AsString($input);
+    $1 = *(uint8_t*)PyBytes_AsString($input);
   }
  }
 %typemap(out) HBytes* {
-  $result = PyString_FromStringAndSize((char*)$1->token, $1->len);
+  $result = PyBytes_FromStringAndSize((char*)$1->token, $1->len);
  }
 %typemap(out) struct HCountedArray_* {
   int i;
@@ -173,7 +190,7 @@
       return PyObject_CallFunctionObjArgs(_helper_Placeholder, NULL);
       break;
     case TT_BYTES:
-      return PyString_FromStringAndSize((char*)token->token_data.bytes.token, token->token_data.bytes.len);
+      return PyBytes_FromStringAndSize((char*)token->token_data.bytes.token, token->token_data.bytes.len);
     case TT_SINT:
       // TODO: return PyINT if appropriate
       return PyLong_FromLong(token->token_data.sint);
@@ -250,36 +267,35 @@
 }
 
 %pythoncode %{
-
 def action(p, act):
     return _h_action(p, act)
 def attr_bool(p, pred):
     return _h_attr_bool(p, pred)
 
 def ch(ch):
-    if isinstance(ch, str) or isinstance(ch, unicode):
+    if isinstance(ch, (bytes, TEXT_TYPE)):
         return token(ch)
     else:
         return  _h_ch(ch)
 
 def ch_range(c1, c2):
-    dostr = isinstance(c1, str)
-    dostr2 = isinstance(c2, str)
-    if isinstance(c1, unicode) or isinstance(c2, unicode):
+    dostr = isinstance(c1, bytes)
+    dostr2 = isinstance(c2, bytes)
+    if isinstance(c1, TEXT_TYPE) or isinstance(c2, TEXT_TYPE):
         raise TypeError("ch_range only works on bytes")
     if dostr != dostr2:
         raise TypeError("Both arguments to ch_range must be the same type")
     if dostr:
-        return action(_h_ch_range(c1, c2), chr)
+        return action(_h_ch_range(c1, c2), bchr)
     else:
         return _h_ch_range(c1, c2)
 def epsilon_p(): return _h_epsilon_p()
 def end_p():
     return _h_end_p()
 def in_(charset):
-    return action(_h_in(charset), chr)
+    return action(_h_in(charset), bchr)
 def not_in(charset):
-    return action(_h_not_in(charset), chr)
+    return action(_h_not_in(charset), bchr)
 def not_(p): return _h_not(p)
 def int_range(p, i1, i2):
     return _h_int_range(p, i1, i2)

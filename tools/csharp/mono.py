@@ -25,6 +25,8 @@
 
 #  This C# Tool for Mono taken from http://www.scons.org/wiki/CsharpBuilder.
 
+from __future__ import absolute_import, division, print_function
+
 import os.path
 import SCons.Builder
 import SCons.Node.FS

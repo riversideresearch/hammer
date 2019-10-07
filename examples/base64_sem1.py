@@ -13,7 +13,7 @@
 # transform the parse tree in small steps in a bottom-up fashion. Compare
 # base64_sem2.py for an alternative approach using a single top-level action.
 
-from __future__ import print_function
+from __future__ import absolute_import, division, print_function
 
 import functools
 import sys
@@ -26,7 +26,7 @@ import hammer as h
 
 def act_bsfdig(p, user_data=None):
     # FIXME See the note in init_parser()
-    c = p if isinstance(p, (int, long)) else ord(p)
+    c = p if isinstance(p, h.INTEGER_TYPES) else ord(p)
 
     if 0x41 <= c <= 0x5A: # A-Z
         return c - 0x41
@@ -34,9 +34,9 @@ def act_bsfdig(p, user_data=None):
         return c - 0x61 + 26
     elif 0x30 <= c <= 0x39: # 0-9
         return c - 0x30 + 52
-    elif c == '+':
+    elif c == b'+':
         return 62
-    elif c == '/':
+    elif c == b'/':
         return 63
     else:
         raise ValueError
@@ -65,14 +65,14 @@ def act_base64_n(n, p, user_data=None):
 
     x = 0
     bits = 0
-    for i in xrange(0, n+1):
+    for i in range(0, n+1):
         x <<= 6
         x |= p[i] or 0
         bits += 6
 
     x >>= bits % 8 # align, i.e. cut off extra bits
 
-    for i in xrange(n):
+    for i in range(n):
         item = x & 0xFF
 
         res[n-1-i] = item   # output the last byte and
@@ -118,16 +118,16 @@ def init_parser():
     #      literals, or integers
     digit   = h.ch_range(0x30, 0x39)
     alpha   = h.choice(h.ch_range(0x41, 0x5a), h.ch_range(0x61, 0x7a))
-    space   = h.in_(" \t\n\r\f\v")
+    space   = h.in_(b" \t\n\r\f\v")
 
     # AUX.
-    plus    = h.ch('+')
-    slash   = h.ch('/')
-    equals  = h.action(h.ch('='), act_equals)
+    plus    = h.ch(b'+')
+    slash   = h.ch(b'/')
+    equals  = h.action(h.ch(b'='), act_equals)
 
     bsfdig      = h.action(h.choice(alpha, digit, plus, slash), act_bsfdig)
-    bsfdig_4bit = h.action(h.in_("AEIMQUYcgkosw048"), act_bsfdig_4bit)
-    bsfdig_2bit = h.action(h.in_("AQgw"), act_bsfdig_2bit)
+    bsfdig_4bit = h.action(h.in_(b"AEIMQUYcgkosw048"), act_bsfdig_4bit)
+    bsfdig_2bit = h.action(h.in_(b"AQgw"), act_bsfdig_2bit)
     base64_3    = h.action(h.repeat_n(bsfdig, 4), act_base64_3)
     base64_2    = h.action(h.sequence(bsfdig, bsfdig, bsfdig_4bit, equals),
                            act_base64_2)

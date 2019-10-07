@@ -1,3 +1,5 @@
+from __future__ import absolute_import, division, print_function
+
 from string import Template
 
 def replace_action(target, source, env):

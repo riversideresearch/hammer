@@ -10,7 +10,7 @@
 # base64_sem1.py and base64_sem2.py for examples how to attach appropriate
 # semantic actions to the grammar.
 
-from __future__ import print_function
+from __future__ import absolute_import, division, print_function
 
 import sys
 
@@ -23,13 +23,13 @@ def init_parser():
     alpha = h.choice(h.ch_range(0x41, 0x5a), h.ch_range(0x61, 0x7a))
 
     # AUX.
-    plus = h.ch('+')
-    slash = h.ch('/')
-    equals = h.ch('=')
+    plus = h.ch(b'+')
+    slash = h.ch(b'/')
+    equals = h.ch(b'=')
 
     bsfdig = h.choice(alpha, digit, plus, slash)
-    bsfdig_4bit = h.in_('AEIMQUYcgkosw048')
-    bsfdig_2bit = h.in_('AQgw')
+    bsfdig_4bit = h.in_(b'AEIMQUYcgkosw048')
+    bsfdig_2bit = h.in_(b'AQgw')
     base64_3 = h.repeat_n(bsfdig, 4)
     base64_2 = h.sequence(bsfdig, bsfdig, bsfdig_4bit, equals)
     base64_1 = h.sequence(bsfdig, bsfdig_2bit, equals, equals)
