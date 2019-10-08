@@ -14,7 +14,7 @@
 # for an alternative approach using a fine-grained piece-by-piece
 # transformation.
 
-from __future__ import print_function
+from __future__ import absolute_import, division, print_function
 
 import functools
 import sys
@@ -28,7 +28,7 @@ import hammer as h
 def bsfdig_value(p):
     """Return the numeric value of a parsed base64 digit.
     """
-    c = p if isinstance(p, (int, long)) else ord(p)
+    c = p if isinstance(p, h.INTEGER_TYPES) else ord(p)
     if c:
         if 0x41 <= c <= 0x5A: # A-Z
             return  c - 0x41
@@ -36,9 +36,9 @@ def bsfdig_value(p):
             return  c - 0x61 + 26
         elif 0x30 <= c <= 0x39: # 0-9
             return  c - 0x30 + 52
-        elif c == '+':
+        elif c == b'+':
             return  62
-        elif c == '/':
+        elif c == b'/':
             return  63
     return 0
 
@@ -109,16 +109,16 @@ def init_parser():
     # CORE
     digit   = h.ch_range(0x30, 0x39)
     alpha   = h.choice(h.ch_range(0x41, 0x5a), h.ch_range(0x61, 0x7a))
-    space   = h.in_(" \t\n\r\f\v")
+    space   = h.in_(b" \t\n\r\f\v")
 
     # AUX.
-    plus    = h.ch('+')
-    slash   = h.ch('/')
-    equals  = h.ch('=')
+    plus    = h.ch(b'+')
+    slash   = h.ch(b'/')
+    equals  = h.ch(b'=')
 
     bsfdig      = h.choice(alpha, digit, plus, slash)
-    bsfdig_4bit = h.in_("AEIMQUYcgkosw048")
-    bsfdig_2bit = h.in_("AQgw")
+    bsfdig_4bit = h.in_(b"AEIMQUYcgkosw048")
+    bsfdig_2bit = h.in_(b"AQgw")
     base64_3    = h.repeat_n(bsfdig, 4)
     base64_2    = h.sequence(bsfdig, bsfdig, bsfdig_4bit, equals)
     base64_1    = h.sequence(bsfdig, bsfdig_2bit, equals, equals)

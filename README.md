@@ -35,8 +35,9 @@ Installing
 * pkg-config (for `scons test`)
 * glib-2.0 (>= 2.29) (for `scons test`)
 * glib-2.0-dev (for `scons test`)
-* [swig](http://swig.org/) (for Python/Perl/PHP bindings; Perl requires >= 2.0.8)
-* python2.7-dev (for Python bindings)
+* [swig](http://swig.org/) (for Python/Perl/PHP bindings; Perl requires >= 2.0.8; Python 3.x requires >= 3.0.0)
+* python2.7-dev (for Python 2 bindings)
+* python3-dev (>= 3.5) (for Python 3 bindings)
 * a JDK (for Java bindings)
 * a working [phpenv](https://github.com/CHH/phpenv) configuration (for PHP bindings)
 * [Ruby](https://www.ruby-lang.org/) >= 1.9.3 and bundler, for the Ruby bindings
@@ -73,7 +74,7 @@ The `examples/` directory contains some simple examples, currently including:
 
 Known Issues
 ============
-The Python bindings only work with Python 2.7. SCons doesn't work with Python 3, and PyCapsule isn't available in 2.6 and below, so 2.7 is all you get. Sorry about that.
+The Python bindings work with Python 2.7, and Python 3.5+.
 
 The requirement for SWIG >= 2.0.8 for Perl bindings is due to a [known bug](http://sourceforge.net/p/swig/patches/324/) in SWIG. [ppa:dns/irc](https://launchpad.net/~dns/+archive/irc) has backports of SWIG 2.0.8 for Ubuntu versions 10.04-12.10; you can also [build SWIG from source](http://www.swig.org/download.html).
 

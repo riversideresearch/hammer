@@ -1,4 +1,7 @@
 # -*- python -*-
+
+from __future__ import absolute_import, division, print_function
+
 import os, os.path
 Import('env libhammer_shared testruns targets')
 
@@ -7,17 +10,18 @@ pythonenv = env.Clone(IMPLICIT_COMMAND_DEPENDENCIES = 0)
 swig = pythonenv.Command("hammer.i", "../swig/hammer.i", Copy("$TARGET", "$SOURCE"))
 setup = ['setup.py']
 pydir = os.path.join(env['BUILD_BASE'], 'src/bindings/python')
-libhammer_python = pythonenv.Command(['hammer.py', 'hammer_wrap.c'], [swig, setup], 'python ' + os.path.join(pydir, 'setup.py') + ' build_ext --swig=swig3.0 --inplace')
+pysetup = os.path.join(pydir, 'setup.py')
+libhammer_python = pythonenv.Command(['hammer.py', 'hammer_wrap.c'], [swig, setup],  '%s %s build_ext --inplace' % (env['python'], pysetup))
 Default(libhammer_python)
 
 pytestenv = pythonenv.Clone()
 pytestenv['ENV']['LD_LIBRARY_PATH'] = os.path.dirname(str(libhammer_shared[0]))
 pytests = ['hammer_tests.py']
-pytestexec = pytestenv.Command(['hammer.pyc', 'hammer_tests.pyc'], pytests + libhammer_python, "LD_LIBRARY_PATH=" + os.path.dirname(str(libhammer_shared[0])) + " nosetests -vv $SOURCE")
+pytestexec = pytestenv.Command(['hammer.pyc', 'hammer_tests.pyc'], pytests + libhammer_python, "LD_LIBRARY_PATH=%s %s -mnose -vv $SOURCE" % (os.path.dirname(str(libhammer_shared[0])), env['python']))
 pytest = Alias("testpython", [pytestexec], pytestexec)
 AlwaysBuild(pytestexec)
 testruns.append(pytest)
 
-pyinstallexec = pythonenv.Command(None, libhammer_python, 'python ' + os.path.join(pydir, 'setup.py ') + ' install')
+pyinstallexec = pythonenv.Command(None, libhammer_python, '%s %s install' % (env['python'], pysetup))
 pyinstall = Alias("installpython", [pyinstallexec], pyinstallexec)
 targets.append(pyinstall)

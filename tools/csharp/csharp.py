@@ -30,6 +30,8 @@
 #  This is an attempt to meld to two based initially on the Microsoft C# tool with amendmnets from the Mono
 #  tool.
 
+from __future__ import absolute_import, division, print_function
+
 import os.path
 import SCons.Builder
 import SCons.Node.FS
@@ -203,7 +205,7 @@ def AddToModPaths(env, files, **kw):
 
 def cscFlags(target, source, env, for_signature):
     listCmd = []
-    if (env.has_key('WINEXE')):
+    if ('WINEXE' in env):
         if (env['WINEXE'] == 1):
             listCmd.append('-t:winexe')
     return listCmd
@@ -243,7 +245,7 @@ def cscSourcesNoResources(target, source, env, for_signature):
 def cscRefs(target, source, env, for_signature):
     listCmd = []
 
-    if (env.has_key('ASSEMBLYREFS')):
+    if ('ASSEMBLYREFS' in env):
         refs = SCons.Util.flatten(env['ASSEMBLYREFS'])
         for ref in refs:
             if SCons.Util.is_String(ref):
@@ -256,7 +258,7 @@ def cscRefs(target, source, env, for_signature):
 def cscMods(target, source, env, for_signature):
     listCmd = []
 
-    if (env.has_key('NETMODULES')):
+    if ('NETMODULES' in env):
         mods = SCons.Util.flatten(env['NETMODULES'])
         for mod in mods:
             listCmd.append('-addmodule:%s' % mod)
@@ -274,7 +276,7 @@ def alLinkSources(target, source, env, for_signature):
             # just treat this as a generic unidentified source file
             listCmd.append('-link:%s' % s.get_string(for_signature))
 
-    if env.has_key('VERSION'):
+    if 'VERSION' in env:
         version = parseVersion(env)
         listCmd.append('-version:%d.%d.%d.%d' % version)
 
@@ -296,7 +298,7 @@ def cliLinkSources(target, source, env, for_signature):
     return listCmd
 
 def add_version(target, source, env):
-    if env.has_key('VERSION'):
+    if 'VERSION' in env:
         if SCons.Util.is_String(target[0]):
             versionfile = target[0] + '_VersionInfo.cs'
         else:
@@ -319,14 +321,14 @@ def lib_emitter(target, source, env):
 def add_depends(target, source, env):
     """Add dependency information before the build order is established"""
 
-    if (env.has_key('NETMODULES')):
+    if ('NETMODULES' in env):
         mods = SCons.Util.flatten(env['NETMODULES'])
         for mod in mods:
             # add as dependency
             for t in target:
                 env.Depends(t, mod)
 
-    if (env.has_key('ASSEMBLYREFS')):
+    if ('ASSEMBLYREFS' in env):
         refs = SCons.Util.flatten(env['ASSEMBLYREFS'])
         for ref in refs:
             # add as dependency
@@ -417,7 +419,7 @@ res_action = SCons.Action.Action('$CLIRCCOM', '$CLIRCCOMSTR')
 
 def res_emitter(target, source, env):
     # prepend NAMESPACE if provided
-    if (env.has_key('NAMESPACE')):
+    if ('NAMESPACE' in env):
         newtargets = []
         for t in target:
             tname = t.name
