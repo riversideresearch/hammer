@@ -341,6 +341,13 @@ HAMMER_FN_DECL(char *, h_get_descriptive_text_for_backend_with_params,
                HParserBackendWithParams *be_with_params);
 
 /**
+ * Look up an HParserBackend by name; this should round-trip with
+ * h_get_name_for_backend().
+ */
+
+HParserBackend h_query_backend_by_name(const char *name);
+
+/**
  * Top-level function to call a parser that has been built over some
  * piece of input (of known size).
  */

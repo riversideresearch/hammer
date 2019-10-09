@@ -295,6 +295,29 @@ static char * h_get_backend_text_with_no_params(HAllocator *mm__,
   return text;
 }
 
+/* Query a backend by short name; return PB_INVALID if no match */
+
+HParserBackend h_query_backend_by_name(const char *name) {
+  HParserBackend result = PB_INVALID, i;
+
+  if (name != NULL) {
+    /* Okay, iterate over the backends PB_MIN <= i <= PB_MAX and check */
+    i = PB_MIN;
+    do {
+      if (i != PB_INVALID) {
+        if (backends[i]->backend_short_name != NULL) {
+          if (strcmp(name, backends[i]->backend_short_name) == 0) {
+            result = i;
+          }
+        }
+      }
+      ++i;
+    } while (i <= PB_MAX && result == PB_INVALID);
+  }
+
+  return result;
+}
+
 char * h_get_description_with_no_params(HAllocator *mm__,
                                         HParserBackend be, void *params) {
   return h_get_backend_text_with_no_params(mm__, be, 1);
