@@ -63,8 +63,10 @@ void assert_parse(int expected, char *data) {
 #ifdef DEBUG
     else {
         fprintf(stderr, "Test succeeded: %s\n", data);
-        fprintf(stderr, "parsed=%" PRId64 " bytes\n", result->bit_length/8);
-        h_pprint(stdout, result->ast, 0, 0);
+        if(result != NULL) {
+            fprintf(stderr, "parsed=%" PRId64 " bytes\n", result->bit_length/8);
+            h_pprint(stdout, result->ast, 0, 0);
+        }
     }
 #endif
 }
