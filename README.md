@@ -1,14 +1,13 @@
 Hammer is a parsing library. Like many modern parsing libraries, it provides a parser combinator interface for writing grammars as inline domain-specific languages, but Hammer also provides a variety of parsing backends. It's also bit-oriented rather than character-oriented, making it ideal for parsing binary data such as images, network packets, audio, and executables.
 
-Hammer is written in C, but will provide bindings for other languages. If you don't see a language you're interested in on the list, just ask.
+Hammer is written in C, but provides bindings for other languages. If you don't see a language you're interested in on the list, just ask.
 
-Hammer currently builds under Linux and OS X. (Windows is coming.)
+Hammer currently builds under Linux, OS X, and Windows. 
 
-[![Build Status](https://travis-ci.org/UpstandingHackers/hammer.png)](https://travis-ci.org/UpstandingHackers/hammer)
 Features
 ========
 * Bit-oriented -- grammars can include single-bit flags or multi-bit constructs that span character boundaries, with no hassle
-* Thread-safe, reentrant
+* Thread-safe, reentrant (for most purposes; see Known Issues for details)
 * Benchmarking for parsing backends -- determine empirically which backend will be most time-efficient for your grammar
 * Parsing backends:
   * Packrat parsing
@@ -18,13 +17,14 @@ Features
   * Regular expressions 
 * Language bindings: 
   * C++
-  * Java (not currently building; give us a few days)
+  * Java (incomplete)
   * Python
   * Ruby
   * Perl
   * [Go](https://github.com/prevoty/hammer)
   * PHP
-  * .NET 
+  * .NET
+  * Lua (landing soon!)
 
 Installing
 ==========
@@ -47,6 +47,8 @@ Installing
 To build, type `scons`. To run the built-in test suite, type `scons test`. For a debug build, add `--variant=debug`.
 
 To build bindings, pass a "bindings" argument to scons, e.g. `scons bindings=python`. `scons bindings=python test` will build Python bindings and run tests for both C and Python. `--variant=debug` is valid here too. You can build more than one set of bindings at a time; just separate them with commas, e.g. `scons bindings=python,perl`.
+
+For Python, pass `python=python<X>.<Y>`, e. g. `scons bindings=python python=python2.7` or `scons bindings=python python=python3.5`.
 
 For Java, if jni.h and jni_md.h aren't already somewhere on your include path, prepend
 `C_INCLUDE_PATH=/path/to/jdk/include` to that.
@@ -80,10 +82,12 @@ The requirement for SWIG >= 2.0.8 for Perl bindings is due to a [known bug](http
 
 The .NET bindings are for Mono 3.0.6 and greater. If you're on a Debian-based distro that only provides Mono 2 (e.g., Ubuntu 12.04), there are backports for [3.0.x](http://www.meebey.net/posts/mono_3.0_preview_debian_ubuntu_packages/), and a [3.2.x PPA](https://launchpad.net/~directhex/+archive/monoxide) maintained by the Mono team.
 
+The regular expression backend is potentially not thread-safe (thanks to Martin Murray for pointing this out). A full rewrite of this backend is on the roadmap already due to some unexpected nondeterminism in the current implementation; we plan to fix this problem in that rewrite.
+
 Community
 =========
-Please join us at `#hammer` on `irc.upstandinghackers.com` if you have any questions or just want to talk about parsing.
+Mailing list, IRC, and potentially other channels to come.
 
 Contact
 =======
-You can also email us at <hammer@upstandinghackers.com>.
+Also to be updated soon.
