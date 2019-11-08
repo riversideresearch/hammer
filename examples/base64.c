@@ -70,6 +70,8 @@ void assert_parse(int expected, char *data) {
         h_pprint(stdout, result->ast, 0, 0);
     }
 #endif
+
+    h_parse_result_free(result);
 }
 
 void test() {
@@ -107,6 +109,7 @@ int main(int argc, char **argv)
     if(result) {
         fprintf(stderr, "parsed=%" PRId64 " bytes\n", result->bit_length/8);
         h_pprint(stdout, result->ast, 0, 0);
+        h_parse_result_free(result);
         return 0;
     } else {
         return 1;
