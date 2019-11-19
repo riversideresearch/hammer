@@ -25,3 +25,4 @@ libhammer.pc
 *.os
 *.pyc
 *.gem
+/bin/
