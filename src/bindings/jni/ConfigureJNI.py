@@ -74,6 +74,11 @@ def ConfigureJNI(env):
             # should be in there somewhere
             java_headers = walkDirs(java_headers[0])
 
+    if not any(os.path.exists(os.path.join(path, 'jni.h'))
+               for path in java_headers):
+        print("Can't find jni.h in %s" % java_headers)
+        return 0
+
     # add Java's include and lib directory to the environment
     java_headers.append(os.path.join(java_headers[0], 'linux'))
     env.Append(CPPPATH = java_headers)

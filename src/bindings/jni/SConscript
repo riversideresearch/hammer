@@ -14,7 +14,7 @@ if not ConfigureJNI(javaenv):
     Exit(0)
 
 
-javaenv.Append(CPPPATH=[".", "/usr/lib/jvm/java-8-oracle/include", "/usr/lib/jvm/java-8-oracle/include/linux", "../.."],
+javaenv.Append(CPPPATH=[".", "../.."],
               LIBS=['hammer'],
               LIBPATH=["../.."])
 
@@ -29,11 +29,12 @@ Default(jni_headers)
 
 #print(javaenv.Dump())
 
+shlib_env = env.Clone(CPPPATH=javaenv['JNI_CPPPATH'] + ['../..'])
 csources = ['com_upstandinghackers_hammer_Hammer.c',
 			'com_upstandinghackers_hammer_ParsedToken.c',
 			'com_upstandinghackers_hammer_Parser.c',
 			'com_upstandinghackers_hammer_ParseResult.c']
 
-libjhammer_shared = env.SharedLibrary('libjhammer', csources)
+libjhammer_shared = shlib_env.SharedLibrary('libjhammer', csources)
 Default(libjhammer_shared)
 
