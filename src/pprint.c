@@ -31,9 +31,13 @@ typedef struct pp_state {
 } pp_state_t;
 
 void h_pprint(FILE* stream, const HParsedToken* tok, int indent, int delta) {
+  if (tok == NULL) {
+    fprintf(stream, "%*s(null)\n", indent, "");
+    return;
+  }
   switch (tok->token_type) {
   case TT_NONE:
-    fprintf(stream, "%*snull\n", indent, "");
+    fprintf(stream, "%*snone\n", indent, "");
     break;
   case TT_BYTES:
     if (tok->bytes.len == 0)
@@ -54,7 +58,6 @@ void h_pprint(FILE* stream, const HParsedToken* tok, int indent, int delta) {
       fprintf(stream, "%*ss -%#" PRIx64 "\n", indent, "", -tok->sint);
     else
       fprintf(stream, "%*ss %#" PRIx64 "\n", indent, "", tok->sint);
-
     break;
   case TT_UINT:
     fprintf(stream, "%*su %#" PRIx64 "\n", indent, "", tok->uint);
