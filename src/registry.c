@@ -60,6 +60,7 @@ HTokenType h_allocate_token_new(
   new_entry->name = name;
   new_entry->value = 0;
   new_entry->unamb_sub = unamb_sub;
+  new_entry->pprint = NULL;
   HTTEntry* probe = *(HTTEntry**)tsearch(new_entry, &tt_registry, compare_entries);
   if (probe->value != 0) {
     // Token type already exists...

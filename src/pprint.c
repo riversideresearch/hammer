@@ -69,9 +69,11 @@ void h_pprint(FILE* stream, const HParsedToken* tok, int indent, int delta) {
     break;
   default:
     if(tok->token_type >= TT_USER) {
-      const char *name = h_get_token_type_name(tok->token_type);
+      const HTTEntry *e = h_get_token_type_entry(tok->token_type);
       int num = tok->token_type-TT_USER;
-      fprintf(stream, "%*sUSER:%s %d\n", indent, "", name, num);
+      fprintf(stream, "%*sUSER:%s %d\n", indent, "", e->name, num);
+      if (e->pprint)
+        e->pprint(stream, tok, indent + delta, delta);
     } else {
       assert_message(0, "Should not reach here.");
     }
