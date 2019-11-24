@@ -795,7 +795,8 @@ HTokenType h_allocate_token_type(const char* name);
 /// Allocate a new token type with an unambiguous print function.
 HTokenType h_allocate_token_new(
     const char* name,
-    void (*unamb_sub)(const HParsedToken *tok, struct result_buf *buf));
+    void (*unamb_sub)(const HParsedToken *tok, struct result_buf *buf),
+    void (*pprint)(FILE* stream, const HParsedToken* tok, int indent, int delta));
 
 /// Get the token type associated with name. Returns -1 if name is unkown
 HTokenType h_get_token_type_number(const char* name);
