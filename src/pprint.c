@@ -23,6 +23,7 @@
 #include "internal.h"
 #include <stdlib.h>
 #include <inttypes.h>
+#include <ctype.h>
 
 typedef struct pp_state {
   int delta;
@@ -40,18 +41,15 @@ void h_pprint(FILE* stream, const HParsedToken* tok, int indent, int delta) {
     fprintf(stream, "%*snone\n", indent, "");
     break;
   case TT_BYTES:
-    if (tok->bytes.len == 0)
-      fprintf(stream, "%*s<>\n", indent, "");
-    else {
-      fprintf(stream, "%*s", indent, "");
-      for (size_t i = 0; i < tok->bytes.len; i++) {
-        fprintf(stream,
-                "%c%02hhx",
-                (i == 0) ? '<' : '.',
-                tok->bytes.token[i]);
-      }
-      fprintf(stream, ">\n");
+    fprintf(stream, "%*s\"", indent, "");
+    for (size_t i = 0; i < tok->bytes.len; i++) {
+      uint8_t c = tok->bytes.token[i];
+      if (isprint(c))
+        fputc(c, stream);
+      else
+        fprintf(stream, "\\%03hho", c);
     }
+    fprintf(stream, "\"\n");
     break;
   case TT_SINT:
     if (tok->sint < 0)
