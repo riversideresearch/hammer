@@ -60,20 +60,18 @@ void h_pprint(FILE* stream, const HParsedToken* tok, int indent, int delta) {
   case TT_UINT:
     fprintf(stream, "%*su %#" PRIx64 "\n", indent, "", tok->uint);
     break;
-  case TT_SEQUENCE: {
+  case TT_SEQUENCE:
     fprintf(stream, "%*s[\n", indent, "");
     for (size_t i = 0; i < tok->seq->used; i++) {
       h_pprint(stream, tok->seq->elements[i], indent + delta, delta);
     }
     fprintf(stream, "%*s]\n", indent, "");
-  }
-    break;
-  case TT_USER:
-    fprintf(stream, "%*sUSER:%s\n", indent, "", h_get_token_type_name(tok->token_type));
     break;
   default:
-    if(tok->token_type > TT_USER) {
-      fprintf(stream, "%*sUSER:%s %d\n", indent, "", h_get_token_type_name(tok->token_type), tok->token_type-TT_USER);
+    if(tok->token_type >= TT_USER) {
+      const char *name = h_get_token_type_name(tok->token_type);
+      int num = tok->token_type-TT_USER;
+      fprintf(stream, "%*sUSER:%s %d\n", indent, "", name, num);
     } else {
       assert_message(0, "Should not reach here.");
     }
