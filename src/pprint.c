@@ -32,9 +32,8 @@ typedef struct pp_state {
 } pp_state_t;
 
 void h_pprint(FILE* stream, const HParsedToken* tok, int indent, int delta) {
-  fprintf(stream, "%*s", indent, ""); 
   if (tok == NULL) {
-    fprintf(stream, "(null)\n");
+    fprintf(stream, "(null)");
     return;
   }
   switch (tok->token_type) {
@@ -54,21 +53,26 @@ void h_pprint(FILE* stream, const HParsedToken* tok, int indent, int delta) {
     break;
   case TT_SINT:
     if (tok->sint < 0)
-      fprintf(stream, "s -%#" PRIx64, -tok->sint);
+      fprintf(stream, "-%#" PRIx64, -tok->sint);
     else
-      fprintf(stream, "s %#" PRIx64, tok->sint);
+      fprintf(stream, "+%#" PRIx64, tok->sint);
     break;
   case TT_UINT:
-    fprintf(stream, "u %#" PRIx64, tok->uint);
+    fprintf(stream, "%#" PRIx64, tok->uint);
     break;
   case TT_SEQUENCE:
     if (tok->seq->used == 0)
-      fprintf(stream, "[]");
+      fprintf(stream, "[ ]");
     else {
-      fprintf(stream, "[\n");
-      for (size_t i = 0; i < tok->seq->used; i++)
+      fprintf(stream, "[%*s", delta - 1, "");
+      for (size_t i = 0; i < tok->seq->used; i++) {
+	if (i > 0) fprintf(stream, "\n%*s,%*s", indent, "", delta - 1, "");
         h_pprint(stream, tok->seq->elements[i], indent + delta, delta);
-      fprintf(stream, "%*s]", indent, "");
+      }
+      if (tok->seq->used > 2)
+        fprintf(stream, "\n%*s]", indent, "");
+      else
+        fprintf(stream, " ]");
     }
     break;
   default:
@@ -76,11 +80,15 @@ void h_pprint(FILE* stream, const HParsedToken* tok, int indent, int delta) {
       const HTTEntry *e = h_get_token_type_entry(tok->token_type);
       fprintf(stream, "USER %d (%s) ", e->value - TT_USER, e->name);
       if (e->pprint)
-        e->pprint(stream, tok, indent + delta, delta);
+        e->pprint(stream, tok, indent, delta);
     } else {
       assert_message(0, "Should not reach here.");
     }
   }
+}
+
+void h_pprintln(FILE* stream, const HParsedToken* tok) {
+  h_pprint(stream, tok, 0, 2);
   fputc('\n', stream);
 }
 
