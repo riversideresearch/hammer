@@ -193,6 +193,76 @@ static void test_charset_bits(void) {
     g_check_cmp_uint32(test_charset_bits__buf[32], ==, 0xAB);
 }
 
+
+// Allocator for reproducing error 19.
+
+// The bug is a result of uninitialized data being used, initially
+// assumed to be zero.  Unfortunately, this assumption is often true,
+// so reproducing the bug reliably and in a minimal fashion requires
+// making it false.  Fortunately, glibc malloc has an M_PERTURB option
+// for making that assumption false.  Unfortunately, we want the test
+// to reproduce the bug on systems that don't use glibc.  Fortunately,
+// the standard Hammer system allocator has a DEBUG__MEMFILL option to
+// fill uninitialized memory with a fill byte.  Unfortunately, you
+// have to recompile Hammer with that symbol #defined in order to
+// enable it.  Fortunately, hammer allows you to supply your own
+// allocator.  So this is a simple non-#define-dependent allocator
+// that writes 0xbabababa† over all the memory it allocates.  (But not
+// the memory it reallocs, because, as it happens, the uninitialized
+// memory in this case didn't come from a realloc.)
+//
+// Honestly I think we ought to remove the #ifdefs from
+// system_allocator and always compile both the DEBUG__MEMFILL version
+// and the non-DEBUG__MEMFILL version, merely changing which one is
+// system_allocator, which is after all a struct of three pointers
+// that can even be modified at run-time.
+//
+// † Can you hear it, Mr. Toot?
+
+static void* deadbeefing_malloc(HAllocator *allocator, size_t size) {
+    char *block = malloc(size);
+    if (block) memset(block, 0xba, size);
+    return block;
+}
+
+// Don't deadbeef on realloc because it isn't necessary to reproduce this bug.
+static void* deadbeefing_realloc(HAllocator *allocator, void *uptr, size_t size) {
+    return realloc(uptr, size);
+}
+
+static void deadbeefing_free(HAllocator *allocator, void *uptr) {
+    free(uptr);
+}
+
+static HAllocator deadbeefing_allocator = {
+    .alloc = deadbeefing_malloc,
+    .realloc = deadbeefing_realloc,
+    .free = deadbeefing_free,
+};
+
+static void test_bug_19() {
+    void *args[] = {
+        h_ch_range__m(&deadbeefing_allocator, '0', '9'),
+        h_ch_range__m(&deadbeefing_allocator, 'A', 'Z'),
+        h_ch_range__m(&deadbeefing_allocator, 'a', 'z'),
+        NULL,
+    };
+
+    HParser *parser = h_choice__ma(&deadbeefing_allocator, args);
+
+    // In bug 19 ("GLR backend reaches unreachable code"), this call
+    // would fail because h_choice__ma allocated an HParser with h_new
+    // and didn't initialize its ->desugared field; consequently in
+    // the call chain h_compile ... h_lalr_compile ... h_desugar,
+    // h_desugar would find that ->desugared was already non-NULL (set
+    // to 0xbabababa in the above deadbeefing_malloc), and just return
+    // it, leading to a crash immediately afterwards in collect_nts.
+    // We don't actually care if the compile succeeds or fails, just
+    // that it doesn't crash.
+    int compile_result = h_compile(parser, PB_GLR, NULL);
+    g_assert_true(1);
+}
+
 void register_regression_tests(void) {
   g_test_add_func("/core/regression/bug118", test_bug118);
   g_test_add_func("/core/regression/seq_index_path", test_seq_index_path);
@@ -202,4 +272,5 @@ void register_regression_tests(void) {
   g_test_add_func("/core/regression/lalr_charset_lhs", test_lalr_charset_lhs);
   g_test_add_func("/core/regression/cfg_many_seq", test_cfg_many_seq);
   g_test_add_func("/core/regression/charset_bits", test_charset_bits);
+  g_test_add_func("/core/regression/bug19", test_bug_19);
 }
