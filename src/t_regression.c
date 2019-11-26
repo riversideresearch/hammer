@@ -259,7 +259,14 @@ static void test_bug_19() {
     // it, leading to a crash immediately afterwards in collect_nts.
     // We don't actually care if the compile succeeds or fails, just
     // that it doesn't crash.
-    int compile_result = h_compile(parser, PB_GLR, NULL);
+    h_compile(parser, PB_GLR, NULL);
+
+    // The same bug happened in h_sequence__ma.
+    h_compile(h_sequence__ma(&deadbeefing_allocator, args), PB_GLR, NULL);
+
+    // It also exists in h_permutation__ma, but it doesn't happen to
+    // manifest in the same way.  I don't know how to write a test for
+    // the h_permutation__ma case.
     g_assert_true(1);
 }
 
