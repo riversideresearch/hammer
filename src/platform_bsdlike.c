@@ -1,4 +1,8 @@
+#ifdef __OpenBSD__
+#define _BSD_SOURCE // to obtain asprintf/vasprintf
+#else
 #define _GNU_SOURCE // to obtain asprintf/vasprintf
+#endif
 #include "platform.h"
 
 #include <stdio.h>
