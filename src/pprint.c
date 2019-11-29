@@ -82,7 +82,7 @@ void h_pprint(FILE* stream, const HParsedToken* tok, int indent, int delta) {
     {
       const HTTEntry *e = h_get_token_type_entry(tok->token_type);
       fprintf(stream, "{ \"TT\":%d, \"N\":", (int)e->value);
-      pprint_bytes(stream, e->name, strlen(e->name));
+      pprint_bytes(stream, (uint8_t *)e->name, strlen(e->name));
       if (e->pprint != NULL) {
         fprintf(stream, ", \"V\":");
         e->pprint(stream, tok, indent + delta, delta);
