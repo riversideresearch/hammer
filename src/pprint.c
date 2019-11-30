@@ -23,7 +23,6 @@
 #include "internal.h"
 #include <stdlib.h>
 #include <inttypes.h>
-#include <ctype.h>
 
 typedef struct pp_state {
   int delta;
