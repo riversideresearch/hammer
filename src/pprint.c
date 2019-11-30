@@ -35,7 +35,9 @@ static void pprint_bytes(FILE *stream, const uint8_t *bs, size_t len)
     fprintf(stream, "\"");
     for (size_t i = 0; i < len; i++) {
       uint8_t c = bs[i];
-      if (c >= 0x20 && c <= 0x7e)
+      if (c == '"' || c == '\\')
+        fprintf(stream, "\\%c", c);
+      else if (c >= 0x20 && c <= 0x7e)
         fputc(c, stream);
       else
         fprintf(stream, "\\u00%02hhx", c);
