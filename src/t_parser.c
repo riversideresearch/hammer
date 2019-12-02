@@ -34,6 +34,11 @@ static void test_bits0(gconstpointer backend) {
   g_check_parse_match(bits0_, (HParserBackend)GPOINTER_TO_INT(backend), "", 0, "u0");
   bits0_ = h_bits(0, true);
   g_check_parse_match(bits0_, (HParserBackend)GPOINTER_TO_INT(backend), "", 0, "s0");
+
+  bits0_ = h_sequence(h_bits(0, false), h_ch('a'), NULL);
+  g_check_parse_match(bits0_, (HParserBackend)GPOINTER_TO_INT(backend), "a", 1, "(u0 u0x61)");
+  bits0_ = h_sequence(h_bits(0, true), h_ch('a'), NULL);
+  g_check_parse_match(bits0_, (HParserBackend)GPOINTER_TO_INT(backend), "a", 1, "(s0 u0x61)");
 }
 
 static void test_bits(gconstpointer backend) {
