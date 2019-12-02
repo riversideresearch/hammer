@@ -27,6 +27,39 @@ static void test_ch_range(gconstpointer backend) {
   g_check_parse_failed(range_, (HParserBackend)GPOINTER_TO_INT(backend), "d", 1);
 }
 
+static void test_bits0(gconstpointer backend) {
+  const HParser *bits0_;
+
+  bits0_ = h_bits(0, false);
+  g_check_parse_match(bits0_, (HParserBackend)GPOINTER_TO_INT(backend), "", 0, "u0");
+  bits0_ = h_bits(0, true);
+  g_check_parse_match(bits0_, (HParserBackend)GPOINTER_TO_INT(backend), "", 0, "s0");
+}
+
+static void test_bits(gconstpointer backend) {
+  const HParser *bits_;
+
+  bits_ = h_bits(3, false);
+  g_check_parse_match(bits_, (HParserBackend)GPOINTER_TO_INT(backend), "\0", 1, "u0");
+  g_check_parse_match(bits_, (HParserBackend)GPOINTER_TO_INT(backend), "\xff", 1, "u0x7");
+  g_check_parse_failed(bits_, (HParserBackend)GPOINTER_TO_INT(backend), "", 0);
+
+  bits_ = h_bits(3, true);
+  g_check_parse_match(bits_, (HParserBackend)GPOINTER_TO_INT(backend), "\0", 1, "s0");
+  g_check_parse_match(bits_, (HParserBackend)GPOINTER_TO_INT(backend), "\xff", 1, "s-0x1");
+  g_check_parse_failed(bits_, (HParserBackend)GPOINTER_TO_INT(backend), "", 0);
+
+  bits_ = h_bits(9, false);
+  g_check_parse_match(bits_, (HParserBackend)GPOINTER_TO_INT(backend), "\0\0", 2, "u0");
+  g_check_parse_match(bits_, (HParserBackend)GPOINTER_TO_INT(backend), "\xff\xff", 2, "u0x1ff");
+  g_check_parse_failed(bits_, (HParserBackend)GPOINTER_TO_INT(backend), "a", 1);
+
+  bits_ = h_bits(9, true);
+  g_check_parse_match(bits_, (HParserBackend)GPOINTER_TO_INT(backend), "\0\0", 2, "s0");
+  g_check_parse_match(bits_, (HParserBackend)GPOINTER_TO_INT(backend), "\xff\xff", 2, "s-0x1");
+  g_check_parse_failed(bits_, (HParserBackend)GPOINTER_TO_INT(backend), "a", 1);
+}
+
 //@MARK_START
 static void test_int64(gconstpointer backend) {
   const HParser *int64_ = h_int64();
@@ -811,6 +844,8 @@ void register_parser_tests(void) {
   g_test_add_data_func("/core/parser/packrat/token", GINT_TO_POINTER(PB_PACKRAT), test_token);
   g_test_add_data_func("/core/parser/packrat/ch", GINT_TO_POINTER(PB_PACKRAT), test_ch);
   g_test_add_data_func("/core/parser/packrat/ch_range", GINT_TO_POINTER(PB_PACKRAT), test_ch_range);
+  g_test_add_data_func("/core/parser/packrat/bits0", GINT_TO_POINTER(PB_PACKRAT), test_bits0);
+  g_test_add_data_func("/core/parser/packrat/bits", GINT_TO_POINTER(PB_PACKRAT), test_bits);
   g_test_add_data_func("/core/parser/packrat/int64", GINT_TO_POINTER(PB_PACKRAT), test_int64);
   g_test_add_data_func("/core/parser/packrat/int32", GINT_TO_POINTER(PB_PACKRAT), test_int32);
   g_test_add_data_func("/core/parser/packrat/int16", GINT_TO_POINTER(PB_PACKRAT), test_int16);
@@ -866,6 +901,8 @@ void register_parser_tests(void) {
   g_test_add_data_func("/core/parser/llk/token", GINT_TO_POINTER(PB_LLk), test_token);
   g_test_add_data_func("/core/parser/llk/ch", GINT_TO_POINTER(PB_LLk), test_ch);
   g_test_add_data_func("/core/parser/llk/ch_range", GINT_TO_POINTER(PB_LLk), test_ch_range);
+  g_test_add_data_func("/core/parser/llk/bits0", GINT_TO_POINTER(PB_LLk), test_bits0);
+  //g_test_add_data_func("/core/parser/llk/bits", GINT_TO_POINTER(PB_LLk), test_bits);
   g_test_add_data_func("/core/parser/llk/int64", GINT_TO_POINTER(PB_LLk), test_int64);
   g_test_add_data_func("/core/parser/llk/int32", GINT_TO_POINTER(PB_LLk), test_int32);
   g_test_add_data_func("/core/parser/llk/int16", GINT_TO_POINTER(PB_LLk), test_int16);
@@ -909,6 +946,8 @@ void register_parser_tests(void) {
   g_test_add_data_func("/core/parser/regex/token", GINT_TO_POINTER(PB_REGULAR), test_token);
   g_test_add_data_func("/core/parser/regex/ch", GINT_TO_POINTER(PB_REGULAR), test_ch);
   g_test_add_data_func("/core/parser/regex/ch_range", GINT_TO_POINTER(PB_REGULAR), test_ch_range);
+  g_test_add_data_func("/core/parser/regex/bits0", GINT_TO_POINTER(PB_REGULAR), test_bits0);
+  //g_test_add_data_func("/core/parser/regex/bits", GINT_TO_POINTER(PB_REGULAR), test_bits);
   g_test_add_data_func("/core/parser/regex/int64", GINT_TO_POINTER(PB_REGULAR), test_int64);
   g_test_add_data_func("/core/parser/regex/int32", GINT_TO_POINTER(PB_REGULAR), test_int32);
   g_test_add_data_func("/core/parser/regex/int16", GINT_TO_POINTER(PB_REGULAR), test_int16);
@@ -948,6 +987,8 @@ void register_parser_tests(void) {
   g_test_add_data_func("/core/parser/lalr/token", GINT_TO_POINTER(PB_LALR), test_token);
   g_test_add_data_func("/core/parser/lalr/ch", GINT_TO_POINTER(PB_LALR), test_ch);
   g_test_add_data_func("/core/parser/lalr/ch_range", GINT_TO_POINTER(PB_LALR), test_ch_range);
+  g_test_add_data_func("/core/parser/lalr/bits0", GINT_TO_POINTER(PB_LALR), test_bits0);
+  //g_test_add_data_func("/core/parser/lalr/bits", GINT_TO_POINTER(PB_LALR), test_bits);
   g_test_add_data_func("/core/parser/lalr/int64", GINT_TO_POINTER(PB_LALR), test_int64);
   g_test_add_data_func("/core/parser/lalr/int32", GINT_TO_POINTER(PB_LALR), test_int32);
   g_test_add_data_func("/core/parser/lalr/int16", GINT_TO_POINTER(PB_LALR), test_int16);
@@ -992,6 +1033,8 @@ void register_parser_tests(void) {
   g_test_add_data_func("/core/parser/glr/token", GINT_TO_POINTER(PB_GLR), test_token);
   g_test_add_data_func("/core/parser/glr/ch", GINT_TO_POINTER(PB_GLR), test_ch);
   g_test_add_data_func("/core/parser/glr/ch_range", GINT_TO_POINTER(PB_GLR), test_ch_range);
+  g_test_add_data_func("/core/parser/glr/bits0", GINT_TO_POINTER(PB_GLR), test_bits0);
+  //g_test_add_data_func("/core/parser/glr/bits", GINT_TO_POINTER(PB_GLR), test_bits);
   g_test_add_data_func("/core/parser/glr/int64", GINT_TO_POINTER(PB_GLR), test_int64);
   g_test_add_data_func("/core/parser/glr/int32", GINT_TO_POINTER(PB_GLR), test_int32);
   g_test_add_data_func("/core/parser/glr/int16", GINT_TO_POINTER(PB_GLR), test_int16);
