@@ -892,6 +892,7 @@ void register_parser_tests(void) {
   g_test_add_data_func("/core/parser/llk/choice", GINT_TO_POINTER(PB_LLk), test_choice);
   g_test_add_data_func("/core/parser/llk/many", GINT_TO_POINTER(PB_LLk), test_many);
   g_test_add_data_func("/core/parser/llk/many1", GINT_TO_POINTER(PB_LLk), test_many1);
+  g_test_add_data_func("/core/parser/llk/repeat_n", GINT_TO_POINTER(PB_LLk), test_repeat_n);
   g_test_add_data_func("/core/parser/llk/optional", GINT_TO_POINTER(PB_LLk), test_optional);
   g_test_add_data_func("/core/parser/llk/sepBy", GINT_TO_POINTER(PB_LLk), test_sepBy);
   g_test_add_data_func("/core/parser/llk/sepBy1", GINT_TO_POINTER(PB_LLk), test_sepBy1);
@@ -974,6 +975,7 @@ void register_parser_tests(void) {
   g_test_add_data_func("/core/parser/lalr/choice", GINT_TO_POINTER(PB_LALR), test_choice);
   g_test_add_data_func("/core/parser/lalr/many", GINT_TO_POINTER(PB_LALR), test_many);
   g_test_add_data_func("/core/parser/lalr/many1", GINT_TO_POINTER(PB_LALR), test_many1);
+  g_test_add_data_func("/core/parser/lalr/repeat_n", GINT_TO_POINTER(PB_LALR), test_repeat_n);
   g_test_add_data_func("/core/parser/lalr/optional", GINT_TO_POINTER(PB_LALR), test_optional);
   g_test_add_data_func("/core/parser/lalr/sepBy", GINT_TO_POINTER(PB_LALR), test_sepBy);
   g_test_add_data_func("/core/parser/lalr/sepBy1", GINT_TO_POINTER(PB_LALR), test_sepBy1);
@@ -1018,6 +1020,7 @@ void register_parser_tests(void) {
   g_test_add_data_func("/core/parser/glr/choice", GINT_TO_POINTER(PB_GLR), test_choice);
   g_test_add_data_func("/core/parser/glr/many", GINT_TO_POINTER(PB_GLR), test_many);
   g_test_add_data_func("/core/parser/glr/many1", GINT_TO_POINTER(PB_GLR), test_many1);
+  g_test_add_data_func("/core/parser/glr/repeat_n", GINT_TO_POINTER(PB_GLR), test_repeat_n);
   g_test_add_data_func("/core/parser/glr/optional", GINT_TO_POINTER(PB_GLR), test_optional);
   g_test_add_data_func("/core/parser/glr/sepBy", GINT_TO_POINTER(PB_GLR), test_sepBy);
   g_test_add_data_func("/core/parser/glr/sepBy1", GINT_TO_POINTER(PB_GLR), test_sepBy1);
