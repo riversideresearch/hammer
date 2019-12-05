@@ -463,6 +463,15 @@ HAMMER_FN_DECL_NOARG(HParser*, h_nothing_p);
 HAMMER_FN_DECL_VARARGS_ATTR(H_GCC_ATTRIBUTE((sentinel)), HParser*, h_sequence, HParser* p);
 
 /**
+ * Given an `h_sequence` and a list of indices, returns a parser that parses the sequence 
+ * but returns it without the results at the dropped indices. If a negative integer appears
+ * in the middle of the list, this combinator will silently ignore the rest of the list.
+ *
+ * Result token type: TT_SEQUENCE
+ */
+#define h_drop_from(p, ...) h_drop_from_(p, __VA_ARGS__, -1)
+HAMMER_FN_DECL_VARARGS(HParser*, h_drop_from_, HParser* p);
+/**
  * Given an array of parsers, p_array, apply each parser in order. The 
  * first parser to succeed is the result; if no parsers succeed, the 
  * parse fails. 

@@ -845,6 +845,19 @@ static void test_seek(gconstpointer backend) {
   g_check_parse_failed(p, be, "abc", 3);
 }
 
+static void test_drop_from(gconstpointer backend) {
+  HParserBackend be = (HParserBackend)GPOINTER_TO_INT(backend);
+  HParser *p, *q, *r, *seq;
+
+  seq = h_sequence(h_ch('a'), h_ch('b'), h_ch('c'), h_ch('d'), h_ch('e'), NULL);
+  p = h_drop_from(seq, 0, 4);
+  g_check_parse_match(p, be, "abcde", 5, "(u0x62 u0x63 u0x64)");
+  //q = h_drop_from(seq, 1, 2, -1);
+  //g_check_parse_match(q, be, "abcde", 5, "(u0x61 u0x64 u0x65)");
+  //r = h_drop_from(seq, 0, 1, 3, 4, -1);
+  //g_check_parse_match(r, be, "abcde", 5, "(u0x63)");
+}
+
 void register_parser_tests(void) {
   g_test_add_data_func("/core/parser/packrat/token", GINT_TO_POINTER(PB_PACKRAT), test_token);
   g_test_add_data_func("/core/parser/packrat/ch", GINT_TO_POINTER(PB_PACKRAT), test_ch);
@@ -902,6 +915,7 @@ void register_parser_tests(void) {
   g_test_add_data_func("/core/parser/packrat/skip", GINT_TO_POINTER(PB_PACKRAT), test_skip);
   g_test_add_data_func("/core/parser/packrat/seek", GINT_TO_POINTER(PB_PACKRAT), test_seek);
   g_test_add_data_func("/core/parser/packrat/tell", GINT_TO_POINTER(PB_PACKRAT), test_tell);
+  g_test_add_data_func("/core/parser/packrat/drop_from", GINT_TO_POINTER(PB_PACKRAT), test_drop_from);
 
   g_test_add_data_func("/core/parser/llk/token", GINT_TO_POINTER(PB_LLk), test_token);
   g_test_add_data_func("/core/parser/llk/ch", GINT_TO_POINTER(PB_LLk), test_ch);
@@ -948,6 +962,7 @@ void register_parser_tests(void) {
   g_test_add_data_func("/core/parser/llk/iterative", GINT_TO_POINTER(PB_LLk), test_iterative);
   g_test_add_data_func("/core/parser/llk/iterative/lookahead", GINT_TO_POINTER(PB_LLk), test_iterative_lookahead);
   g_test_add_data_func("/core/parser/llk/iterative/result_length", GINT_TO_POINTER(PB_LLk), test_iterative_result_length);
+  g_test_add_data_func("/core/parser/llk/drop_from", GINT_TO_POINTER(PB_LLk), test_drop_from);
 
   g_test_add_data_func("/core/parser/regex/token", GINT_TO_POINTER(PB_REGULAR), test_token);
   g_test_add_data_func("/core/parser/regex/ch", GINT_TO_POINTER(PB_REGULAR), test_ch);
@@ -989,6 +1004,7 @@ void register_parser_tests(void) {
   g_test_add_data_func("/core/parser/regex/ignore", GINT_TO_POINTER(PB_REGULAR), test_ignore);
   g_test_add_data_func("/core/parser/regex/result_length", GINT_TO_POINTER(PB_REGULAR), test_result_length);
   g_test_add_data_func("/core/parser/regex/token_position", GINT_TO_POINTER(PB_REGULAR), test_token_position);
+  g_test_add_data_func("/core/parser/regex/drop_from", GINT_TO_POINTER(PB_REGULAR), test_drop_from);
 
   g_test_add_data_func("/core/parser/lalr/token", GINT_TO_POINTER(PB_LALR), test_token);
   g_test_add_data_func("/core/parser/lalr/ch", GINT_TO_POINTER(PB_LALR), test_ch);
@@ -1036,6 +1052,7 @@ void register_parser_tests(void) {
   g_test_add_data_func("/core/parser/lalr/iterative", GINT_TO_POINTER(PB_LALR), test_iterative);
   g_test_add_data_func("/core/parser/lalr/iterative/lookahead", GINT_TO_POINTER(PB_LALR), test_iterative_lookahead);
   g_test_add_data_func("/core/parser/lalr/iterative/result_length", GINT_TO_POINTER(PB_LALR), test_iterative_result_length);
+  g_test_add_data_func("/core/parser/lalr/drop_from", GINT_TO_POINTER(PB_LALR), test_drop_from);
 
   g_test_add_data_func("/core/parser/glr/token", GINT_TO_POINTER(PB_GLR), test_token);
   g_test_add_data_func("/core/parser/glr/ch", GINT_TO_POINTER(PB_GLR), test_ch);
@@ -1081,4 +1098,5 @@ void register_parser_tests(void) {
   g_test_add_data_func("/core/parser/glr/ambiguous", GINT_TO_POINTER(PB_GLR), test_ambiguous);
   g_test_add_data_func("/core/parser/glr/result_length", GINT_TO_POINTER(PB_GLR), test_result_length);
   g_test_add_data_func("/core/parser/glr/token_position", GINT_TO_POINTER(PB_GLR), test_token_position);
+  g_test_add_data_func("/core/parser/glr/drop_from", GINT_TO_POINTER(PB_GLR), test_drop_from);
 }
