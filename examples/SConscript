@@ -3,7 +3,13 @@ from __future__ import absolute_import, division, print_function
 Import('env')
 
 example = env.Clone()
-example.Append(LIBS="hammer", LIBPATH="../src")
+
+if 'GPROF' in env and env['GPROF'] == 1:
+    hammer_lib_name="hammer_pg"
+else:
+    hammer_lib_name="hammer"
+
+example.Append(LIBS=hammer_lib_name, LIBPATH="../src")
 
 dns = example.Program('dns', ['dns.c', 'rr.c', 'dns_common.c'])
 ttuser = example.Program('ttuser', 'ttuser.c')
