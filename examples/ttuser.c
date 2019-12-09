@@ -75,7 +75,7 @@ HParser *
 build_parser(void)
 {
 	/* words */
-	#define W(X)	h_whitespace(h_literal(#X))
+	#define W(X)	h_whitespace(h_literal((const uint8_t *)(#X)))
 	H_RULE(art,	h_choice(W(a), W(the), NULL));
 	H_RULE(noun,	h_choice(W(cat), W(dog), W(fox), W(tiger), W(lion),
 			    W(bear), W(fence), W(tree), W(car), W(cow), NULL));
