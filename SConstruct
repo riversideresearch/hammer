@@ -112,7 +112,8 @@ if env['CC'] == 'cl':
         ]
     )
 else:
-    env.MergeFlags('-std=c99 -D_POSIX_C_SOURCE=200809L -Wall -Wextra -Werror -Wno-unused-parameter -Wno-attributes -Wno-unused-variable')
+    # -Wno-clobbered only really works with gcc >= 4.2.x, but ... scons
+    env.MergeFlags('-std=c99 -D_POSIX_C_SOURCE=200809L -Wall -Wextra -Werror -Wno-unused-parameter -Wno-attributes -Wno-unused-variable -Wno-clobbered')
 
 # Linker options
 if env['PLATFORM'] == 'darwin':
