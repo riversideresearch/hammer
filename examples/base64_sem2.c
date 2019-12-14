@@ -153,12 +153,13 @@ const HParser *init_parser(void)
 
 #include <stdio.h>
 
+const HParser *parser;  // Allocated statically to suppress leak warnings
+
 int main(int argc, char **argv)
 {
     uint8_t input[102400];
     size_t inputsize;
-    const HParser *parser;
-    const HParseResult *result;
+    HParseResult *result;
 
     parser = init_parser();
 
@@ -170,6 +171,7 @@ int main(int argc, char **argv)
     if(result) {
         fprintf(stderr, "parsed=%" PRId64 " bytes\n", result->bit_length/8);
         h_pprint(stdout, result->ast, 0, 0);
+        h_parse_result_free(result);
         return 0;
     } else {
         return 1;

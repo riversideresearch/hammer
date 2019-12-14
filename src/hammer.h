@@ -463,6 +463,15 @@ HAMMER_FN_DECL_NOARG(HParser*, h_nothing_p);
 HAMMER_FN_DECL_VARARGS_ATTR(H_GCC_ATTRIBUTE((sentinel)), HParser*, h_sequence, HParser* p);
 
 /**
+ * Given an `h_sequence` and a list of indices, returns a parser that parses the sequence 
+ * but returns it without the results at the dropped indices. If a negative integer appears
+ * in the middle of the list, this combinator will silently ignore the rest of the list.
+ *
+ * Result token type: TT_SEQUENCE
+ */
+#define h_drop_from(p, ...) h_drop_from_(p, __VA_ARGS__, -1)
+HAMMER_FN_DECL_VARARGS(HParser*, h_drop_from_, HParser* p);
+/**
  * Given an array of parsers, p_array, apply each parser in order. The 
  * first parser to succeed is the result; if no parsers succeed, the 
  * parse fails. 
@@ -717,6 +726,32 @@ HAMMER_FN_DECL(HParser*, h_get_value, const char* name);
 HAMMER_FN_DECL(HParser*, h_bind, const HParser *p, HContinuation k, void *env);
 
 /**
+ * This parser skips 'n' bits of input.
+ *
+ * Result: None. The HParseResult exists but its AST is NULL.
+ */
+HAMMER_FN_DECL(HParser*, h_skip, size_t n);
+
+/**
+ * The HParser equivalent of fseek(), 'h_seek' modifies the parser's input
+ * position.  Note that contrary to 'fseek', offsets are in bits, not bytes.
+ * The 'whence' argument uses the same values and semantics: SEEK_SET,
+ * SEEK_CUR, SEEK_END.
+ *
+ * Fails if the new input position would be negative or past the end of input.
+ *
+ * Result: TT_UINT. The new input position.
+ */
+HAMMER_FN_DECL(HParser*, h_seek, ssize_t offset, int whence);
+
+/**
+ * Report the current position in bits. Consumes no input.
+ *
+ * Result: TT_UINT. The current input position.
+ */
+HAMMER_FN_DECL_NOARG(HParser*, h_tell);
+
+/**
  * Free the memory allocated to an HParseResult when it is no longer needed.
  */
 HAMMER_FN_DECL(void, h_parse_result_free, HParseResult *result);
@@ -728,10 +763,22 @@ HAMMER_FN_DECL(void, h_parse_result_free, HParseResult *result);
  */
 char* h_write_result_unamb(const HParsedToken* tok);
 /**
- * Format token to the given output stream. Indent starting at
- * [indent] spaces, with [delta] spaces between levels.
+ * Format token to the given output stream. Indent starting at [indent] spaces,
+ * with [delta] spaces between levels.
+ *
+ * Note: This function does not print a trailing newline. It also does not
+ * print any spaces to indent the initial line of output. This makes it
+ * suitable for recursive use in the condensed output of larger structures.
  */
 void h_pprint(FILE* stream, const HParsedToken* tok, int indent, int delta);
+/**
+ * Format token to the given output. Print a trailing newline.
+ *
+ * This function assumes an initial indentation of 0 and uses 2 spaces between
+ * indentation levels. It is equivalent to 'h_pprint(stream, tok, 0, 2)'
+ * followed by 'fputc('\n', stream)' and is provided for convenience.
+ */
+void h_pprintln(FILE* stream, const HParsedToken* tok);
 
 /**
  * Build parse tables for the given parser backend. See the
@@ -795,7 +842,8 @@ HTokenType h_allocate_token_type(const char* name);
 /// Allocate a new token type with an unambiguous print function.
 HTokenType h_allocate_token_new(
     const char* name,
-    void (*unamb_sub)(const HParsedToken *tok, struct result_buf *buf));
+    void (*unamb_sub)(const HParsedToken *tok, struct result_buf *buf),
+    void (*pprint)(FILE* stream, const HParsedToken* tok, int indent, int delta));
 
 /// Get the token type associated with name. Returns -1 if name is unkown
 HTokenType h_get_token_type_number(const char* name);

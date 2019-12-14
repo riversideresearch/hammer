@@ -59,6 +59,8 @@ static void* system_realloc(HAllocator *allocator, void* uptr, size_t size) {
   if (!uptr) {
     return system_alloc(allocator, size);
   }
+  // XXX this is incorrect if size == 0 and BLOCK_HEADER_SIZE != 0; it fails
+  // to behave like free(3)
   void* block = realloc(block_for_user_ptr(uptr), block_size(size));
   if (!block) {
     return NULL;
@@ -66,6 +68,7 @@ static void* system_realloc(HAllocator *allocator, void* uptr, size_t size) {
   uptr = user_ptr(block);
 
 #ifdef DEBUG__MEMFILL
+  // XXX this is the wrong block; this is reading uninitialized memory
   size_t old_size = ((HDebugBlockHeader*)block)->size;
   if (size > old_size)
     memset((char*)uptr+old_size, DEBUG__MEMFILL, size - old_size);

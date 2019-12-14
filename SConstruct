@@ -73,6 +73,12 @@ AddOption('--coverage',
           action='store_true',
           help='Build with coverage instrumentation')
 
+AddOption('--gprof',
+          dest='gprof',
+          default=False,
+          action="store_true",
+          help='Build with profiling instrumentation for gprof')
+
 AddOption('--in-place',
           dest='in_place',
           default=False,
@@ -127,6 +133,19 @@ if GetOption('coverage'):
         env.Append(LIBS=['gcov'])
     else:
         env.ParseConfig('llvm-config --ldflags')
+
+if GetOption('gprof'):
+    if env['CC'] == 'gcc' and env['CXX'] == 'g++':
+        env.Append(CFLAGS=['-pg', '-fprofile-arcs'],
+                   CXXFLAGS=['-pg', '-fprofile-arcs'],
+		   LDFLAGS=['-pg', '-fprofile-arcs'],
+                   LINKFLAGS=['-pg', '-fprofile-arcs'])
+        env.Append(LIBS=['gcov'])
+        env['GPROF'] = 1
+    else:
+        print("Can only use gprof with gcc")
+        Exit(1)
+        
 
 dbg = env.Clone(VARIANT='debug')
 if env['CC'] == 'cl':
