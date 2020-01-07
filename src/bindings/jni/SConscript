@@ -29,7 +29,9 @@ Default(jni_headers)
 
 #print(javaenv.Dump())
 
-shlib_env = env.Clone(CPPPATH=javaenv['JNI_CPPPATH'] + ['../..'])
+shlib_env = env.Clone(CPPPATH=javaenv['JNI_CPPPATH'] + ['../..'],
+              LIBS=['hammer'],
+              LIBPATH=["../.."])
 csources = ['com_upstandinghackers_hammer_Hammer.c',
 			'com_upstandinghackers_hammer_ParsedToken.c',
 			'com_upstandinghackers_hammer_Parser.c',
