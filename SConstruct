@@ -127,9 +127,9 @@ else:
     env.MergeFlags('-lrt')
 
 if GetOption('coverage'):
-    env.Append(CFLAGS=['--coverage'],
-               CXXFLAGS=['--coverage'],
-               LDFLAGS=['--coverage'])
+    env.Append(CCFLAGS=['--coverage'],
+               LDFLAGS=['--coverage'],
+               LINKFLAGS=['--coverage'])
     if env['CC'] == 'gcc':
         env.Append(LIBS=['gcov'])
     else:
@@ -137,10 +137,9 @@ if GetOption('coverage'):
 
 if GetOption('gprof'):
     if env['CC'] == 'gcc' and env['CXX'] == 'g++':
-        env.Append(CFLAGS=['-pg', '-fprofile-arcs'],
-                   CXXFLAGS=['-pg', '-fprofile-arcs'],
-		   LDFLAGS=['-pg', '-fprofile-arcs'],
-                   LINKFLAGS=['-pg', '-fprofile-arcs'])
+        env.Append(CCFLAGS=['-pg'],
+		   LDFLAGS=['-pg'],
+                   LINKFLAGS=['-pg'])
         env.Append(LIBS=['gcov'])
         env['GPROF'] = 1
     else:
