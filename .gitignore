@@ -1,27 +1,36 @@
+# generated files
 *.o
-*~
-*.a
-*.class
+*.os
 *.so
-jni/com*.h
-src/test_suite
-lib/hush
+*.a
+*.gem
+*.pyc
+*.class
+libhammer.pc
+build/
 examples/dns
 examples/base64
 examples/base64_sem1
 examples/base64_sem2
-TAGS
-*.swp
-*.swo
+jni/com*.h
+src/test_suite
+
+# coverage and profiling stuff
+*.gcov
+*.gcda
+*.gcno
+gmon.out
+
+# editor leftovers
+*~
+*.sw?
 \#*
+
+# misc
+lib/hush
+TAGS
 docs/milestone2.dot.pdf
 *.dot.pdf
 Session.vim
-*.gcov
 cscope.out
-build/
-libhammer.pc
 .sconsign.dblite
-*.os
-*.pyc
-*.gem
