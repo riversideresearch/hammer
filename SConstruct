@@ -140,7 +140,6 @@ if GetOption('gprof'):
         env.Append(CCFLAGS=['-pg'],
 		   LDFLAGS=['-pg'],
                    LINKFLAGS=['-pg'])
-        env.Append(LIBS=['gcov'])
         env['GPROF'] = 1
     else:
         print("Can only use gprof with gcc")
