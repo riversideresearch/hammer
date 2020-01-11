@@ -149,13 +149,14 @@ HHashTable* h_hashtable_new(HArena *arena, HEqualFunc equalFunc, HHashFunc hashF
   return ht;
 }
 
-void* h_hashtable_get(const HHashTable* ht, const void* key) {
-  HHashValue hashval = ht->hashFunc(key);
+void * h_hashtable_get_precomp(const HHashTable *ht, const void *key,
+                               HHashValue hashval) {
+  HHashTableEntry *hte = NULL;
+
 #ifdef CONSISTENCY_CHECK
   assert((ht->capacity & (ht->capacity - 1)) == 0); // capacity is a power of 2
 #endif
 
-  HHashTableEntry *hte = NULL;
   for (hte = &ht->contents[hashval & (ht->capacity - 1)];
        hte != NULL;
        hte = hte->next) {
@@ -169,7 +170,14 @@ void* h_hashtable_get(const HHashTable* ht, const void* key) {
       return hte->value;
     }
   }
+
   return NULL;
+}
+
+void * h_hashtable_get(const HHashTable *ht, const void *key) {
+  HHashValue hashval = ht->hashFunc(key);
+
+  return h_hashtable_get_precomp(ht, key, hashval);
 }
 
 void h_hashtable_put_raw(HHashTable* ht, HHashTableEntry* new_entry);
@@ -197,7 +205,21 @@ void h_hashtable_ensure_capacity(HHashTable* ht, size_t n) {
   //h_arena_free(ht->arena, old_contents);
 }
 
-void h_hashtable_put(HHashTable* ht, const void* key, void* value) {
+void h_hashtable_put_precomp(HHashTable *ht, const void *key, void *value,
+                             HHashValue hashval) {
+  HHashTableEntry entry = {
+    .key = key,
+    .value = value,
+    .hashval = hashval
+  };
+
+  /* Rebalance if necessary */
+  h_hashtable_ensure_capacity(ht, ht->used + 1);
+  /* Insert it */
+  h_hashtable_put_raw(ht, &entry);
+}
+
+void h_hashtable_put(HHashTable *ht, const void *key, void *value) {
   // # Start with a rebalancing
   h_hashtable_ensure_capacity(ht, ht->used + 1);
 
