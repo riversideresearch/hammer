@@ -205,12 +205,12 @@ HParsedToken* upcase(const HParseResult *p, void* user_data) {
   switch(p->ast->token_type) {
   case TT_SEQUENCE:
     {
-      HParsedToken *ret = a_new_(p->arena, HParsedToken, 1);
+      HParsedToken *ret = a_new0_(p->arena, HParsedToken, 1);
       HCountedArray *seq = h_carray_new_sized(p->arena, p->ast->seq->used);
       ret->token_type = TT_SEQUENCE;
       for (size_t i=0; i<p->ast->seq->used; ++i) {
 	if (TT_UINT == ((HParsedToken*)p->ast->seq->elements[i])->token_type) {
-	  HParsedToken *tmp = a_new_(p->arena, HParsedToken, 1);
+	  HParsedToken *tmp = a_new0_(p->arena, HParsedToken, 1);
 	  tmp->token_type = TT_UINT;
 	  tmp->uint = toupper(((HParsedToken*)p->ast->seq->elements[i])->uint);
 	  h_carray_append(seq, tmp);
@@ -223,7 +223,7 @@ HParsedToken* upcase(const HParseResult *p, void* user_data) {
     }
   case TT_UINT:
     {
-      HParsedToken *ret = a_new_(p->arena, HParsedToken, 1);
+      HParsedToken *ret = a_new0_(p->arena, HParsedToken, 1);
       ret->token_type = TT_UINT;
       ret->uint = toupper(p->ast->uint);
       return ret;
@@ -674,7 +674,7 @@ static void test_endianness(gconstpointer backend) {
 }
 
 HParsedToken* act_get(const HParseResult *p, void* user_data) {
-  HParsedToken *ret = a_new_(p->arena, HParsedToken, 1);
+  HParsedToken *ret = a_new0_(p->arena, HParsedToken, 1);
   ret->token_type = TT_UINT;
   ret->uint = 3 * (1 << p->ast->uint);
   return ret;

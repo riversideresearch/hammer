@@ -22,6 +22,9 @@ static HParseResult* parse_sequence(void *env, HParseState *state) {
   }
   HParsedToken *tok = a_new(HParsedToken, 1);
   tok->token_type = TT_SEQUENCE; tok->seq = seq;
+  tok->index = 0;
+  tok->bit_offset = 0;
+  tok->bit_length = 0;
   return make_result(state->arena, tok);
 }
 
@@ -60,6 +63,7 @@ static HParsedToken *reshape_sequence(const HParseResult *p, void* user_data) {
   res->seq = seq;
   res->index = p->ast->index;
   res->bit_offset = p->ast->bit_offset;
+  res->bit_length = p->bit_length;
 
   return res;
 }

@@ -294,6 +294,7 @@ HParseResult *h_packrat_parse(HAllocator* mm__, const HParser* parser, HInputStr
   parse_state->lr_stack = h_slist_new(arena);
   parse_state->recursion_heads = h_hashtable_new(arena, pos_equal, pos_hash);
   parse_state->arena = arena;
+  parse_state->symbol_table = NULL;
   HParseResult *res = h_do_parse(parser, parse_state);
   h_slist_free(parse_state->lr_stack);
   h_hashtable_free(parse_state->recursion_heads);

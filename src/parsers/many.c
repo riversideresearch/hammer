@@ -37,6 +37,9 @@ static HParseResult *parse_many(void* env, HParseState *state) {
   HParsedToken *res = a_new(HParsedToken, 1);
   res->token_type = TT_SEQUENCE;
   res->seq = seq;
+  res->index = 0;
+  res->bit_length = 0;
+  res->bit_offset = 0;
   return make_result(state->arena, res);
  err0:
   if (count >= env_->count) {
@@ -85,6 +88,7 @@ static HParsedToken *reshape_many(const HParseResult *p, void *user)
   res->seq = seq;
   res->index = p->ast->index;
   res->bit_offset = p->ast->bit_offset;
+  res->bit_length = p->bit_length;
   return res;
 }
 

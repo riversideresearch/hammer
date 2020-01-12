@@ -10,12 +10,13 @@
 #include "../backends/regex.h"
 #include "../backends/contextfree.h"
 
-#define a_new_(arena, typ, count) ((typ*)h_arena_malloc((arena), sizeof(typ)*(count)))
+#define a_new_(arena, typ, count) ((typ*)h_arena_malloc_noinit((arena), sizeof(typ)*(count)))
 #define a_new(typ, count) a_new_(state->arena, typ, count)
-// we can create a_new0 if necessary. It would allocate some memory and immediately zero it out.
+#define a_new0_(arena, typ, count) ((typ*)h_arena_malloc((arena), sizeof(typ)*(count)))
+#define a_new0(typ, count) a_new0_(state->arena, typ, count)
 
 static inline HParseResult* make_result(HArena *arena, HParsedToken *tok) {
-  HParseResult *ret = h_arena_malloc(arena, sizeof(HParseResult));
+  HParseResult *ret = h_arena_malloc_noinit(arena, sizeof(HParseResult));
   ret->ast = tok;
   ret->arena = arena;
   ret->bit_length = 0; // This way it gets overridden in h_do_parse

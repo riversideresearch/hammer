@@ -4,6 +4,8 @@ static HParseResult* parse_end(void *env, HParseState *state) {
   if (state->input_stream.index == state->input_stream.length) {
     HParseResult *ret = a_new(HParseResult, 1);
     ret->ast = NULL;
+    ret->bit_length = 0;
+    ret->arena = state->arena;
     return ret;
   } else {
     return NULL;
