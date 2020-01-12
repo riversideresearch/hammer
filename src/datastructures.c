@@ -437,11 +437,26 @@ HHashValue h_hash_ptr(const void *p) {
 }
 
 uint32_t h_djbhash(const uint8_t *buf, size_t len) {
-  uint32_t hash = 5381;
-  while (len--) {
-    hash = hash * 33 + *buf++;
+  uint32_t h = 5381;
+
+  while (len >= 16) {
+    h = h * 33 + buf[0];  h = h * 33 + buf[1];
+    h = h * 33 + buf[2];  h = h * 33 + buf[3];
+    h = h * 33 + buf[4];  h = h * 33 + buf[5];
+    h = h * 33 + buf[6];  h = h * 33 + buf[7];
+    h = h * 33 + buf[8];  h = h * 33 + buf[9];
+    h = h * 33 + buf[10]; h = h * 33 + buf[11];
+    h = h * 33 + buf[12]; h = h * 33 + buf[13];
+    h = h * 33 + buf[14]; h = h * 33 + buf[15];
+    len -= 16;
+    buf += 16;
   }
-  return hash;
+
+  while (len--) {
+    h = h * 33 + *buf++;
+  }
+
+  return h;
 }
 
 void h_symbol_put(HParseState *state, const char* key, void *value) {
