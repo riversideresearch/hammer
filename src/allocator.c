@@ -29,23 +29,34 @@ struct arena_link {
   // For efficiency, we should probably allocate the arena links in 
   // their own slice, and link to a block directly. That can be
   // implemented later, though, with no change in interface.
-  struct arena_link *next; // It is crucial that this be the first item; so that 
-                           // any arena link can be casted to struct arena_link**.
-
+  struct arena_link *next;
   size_t free;
   size_t used;
   uint8_t rest[];
-} ;
+};
 
 struct HArena_ {
   struct arena_link *head;
   struct HAllocator_ *mm__;
+  /* does mm__ zero blocks for us? */
+  bool malloc_zeros;
   size_t block_size;
   size_t used;
   size_t wasted;
+#ifdef DETAILED_ARENA_STATS
+  size_t mm_malloc_count, mm_malloc_bytes;
+  size_t memset_count, memset_bytes;
+  size_t arena_malloc_count, arena_malloc_bytes;
+  size_t arena_su_malloc_count, arena_su_malloc_bytes;
+  size_t arena_si_malloc_count, arena_si_malloc_bytes;
+  size_t arena_lu_malloc_count, arena_lu_malloc_bytes;
+  size_t arena_li_malloc_count, arena_li_malloc_bytes;
+#endif
 
   jmp_buf *except;
 };
+
+static void * h_arena_malloc_raw(HArena *arena, size_t size, bool need_zero);
 
 void* h_alloc(HAllocator* mm__, size_t size) {
   void *p = mm__->alloc(mm__, size);
@@ -61,7 +72,6 @@ HArena *h_new_arena(HAllocator* mm__, size_t block_size) {
   struct arena_link *link = (struct arena_link*)h_alloc(mm__, sizeof(struct arena_link) + block_size);
   assert(ret != NULL);
   assert(link != NULL);
-  memset(link, 0, sizeof(struct arena_link) + block_size);
   link->free = block_size;
   link->used = 0;
   link->next = NULL;
@@ -69,6 +79,19 @@ HArena *h_new_arena(HAllocator* mm__, size_t block_size) {
   ret->block_size = block_size;
   ret->used = 0;
   ret->mm__ = mm__;
+#ifdef DETAILED_ARENA_STATS
+  ret->mm_malloc_count = 2;
+  ret->mm_malloc_bytes = sizeof(*ret) + sizeof(struct arena_link) + block_size;
+  ret->memset_count = 0;
+  ret->memset_bytes = 0;
+  ret->arena_malloc_count = ret->arena_malloc_bytes = 0;
+  ret->arena_su_malloc_count = ret->arena_su_malloc_bytes = 0;
+  ret->arena_si_malloc_count = ret->arena_si_malloc_bytes = 0;
+  ret->arena_lu_malloc_count = ret->arena_lu_malloc_bytes = 0;
+  ret->arena_li_malloc_count = ret->arena_li_malloc_bytes = 0;
+#endif
+  /* XXX provide a mechanism to indicate mm__ returns zeroed blocks */
+  ret->malloc_zeros = false;
   ret->wasted = sizeof(struct arena_link) + sizeof(struct HArena_) + block_size;
   ret->except = NULL;
   return ret;
@@ -90,39 +113,120 @@ static void *alloc_block(HArena *arena, size_t size)
   return block;
 }
 
-void* h_arena_malloc(HArena *arena, size_t size) {
+void * h_arena_malloc_noinit(HArena *arena, size_t size) {
+  return h_arena_malloc_raw(arena, size, false);
+}
+
+void * h_arena_malloc(HArena *arena, size_t size) {
+  return h_arena_malloc_raw(arena, size, true);
+}
+
+static void * h_arena_malloc_raw(HArena *arena, size_t size,
+                                 bool need_zero) {
+  struct arena_link *link = NULL;
+  void *ret = NULL;
+
   if (size <= arena->head->free) {
-    // fast path..
-    void* ret = arena->head->rest + arena->head->used;
+    /* fast path.. */
+    ret = arena->head->rest + arena->head->used;
     arena->used += size;
     arena->wasted -= size;
     arena->head->used += size;
     arena->head->free -= size;
-    return ret;
+
+#ifdef DETAILED_ARENA_STATS
+    ++(arena->arena_malloc_count);
+    arena->arena_malloc_bytes += size;
+    if (need_zero) {
+      ++(arena->arena_si_malloc_count);
+      arena->arena_si_malloc_bytes += size;
+    } else {
+      ++(arena->arena_su_malloc_count);
+      arena->arena_su_malloc_bytes += size;
+    }
+#endif
   } else if (size > arena->block_size) {
-    // We need a new, dedicated block for it, because it won't fit in a standard sized one.
-    // This involves some annoying casting...
+    /*
+     * We need a new, dedicated block for it, because it won't fit in a
+     * standard sized one.
+     *
+     * NOTE:
+     *
+     * We used to do a silly casting dance to treat blocks like this
+     * as special cases and make the used/free fields part of the allocated
+     * block, but the old code was not really proper portable C and depended
+     * on a bunch of implementation-specific behavior.  We could have done it
+     * better with a union in struct arena_link, but the memory savings is
+     * only 0.39% for a 64-bit machine, a 4096-byte block size and all
+     * large allocations *only just one byte* over the block size, so I
+     * question the utility of it.  We do still slip the large block in
+     * one position behind the list head so it doesn't cut off a partially
+     * filled list head.
+     *
+     * -- andrea
+     */
+    link = alloc_block(arena, size + sizeof(struct arena_link));
+    assert(link != NULL);
     arena->used += size;
-    arena->wasted += sizeof(struct arena_link*);
-    void* link = alloc_block(arena, size + sizeof(struct arena_link*));
-    assert(link != NULL);
-    memset(link, 0, size + sizeof(struct arena_link*));
-    *(struct arena_link**)link = arena->head->next;
-    arena->head->next = (struct arena_link*)link;
-    return (void*)(((uint8_t*)link) + sizeof(struct arena_link*));
+    arena->wasted += sizeof(struct arena_link);
+    link->used = size;
+    link->free = 0;
+    link->next = arena->head->next;
+    arena->head->next = link;
+    ret = link->rest;
+
+#ifdef DETAILED_ARENA_STATS
+    ++(arena->arena_malloc_count);
+    arena->arena_malloc_bytes += size;
+    if (need_zero) {
+      ++(arena->arena_li_malloc_count);
+      arena->arena_li_malloc_bytes += size;
+    } else {
+      ++(arena->arena_lu_malloc_count);
+      arena->arena_lu_malloc_bytes += size;
+    }
+#endif
   } else {
-    // we just need to allocate an ordinary new block.
-    struct arena_link *link = alloc_block(arena, sizeof(struct arena_link) + arena->block_size);
+    /* we just need to allocate an ordinary new block. */
+    link = alloc_block(arena, sizeof(struct arena_link) + arena->block_size);
     assert(link != NULL);
-    memset(link, 0, sizeof(struct arena_link) + arena->block_size);
+#ifdef DETAILED_ARENA_STATS
+    ++(arena->mm_malloc_count);
+    arena->mm_malloc_bytes += sizeof(struct arena_link) + arena->block_size;
+#endif
     link->free = arena->block_size - size;
     link->used = size;
     link->next = arena->head;
     arena->head = link;
     arena->used += size;
     arena->wasted += sizeof(struct arena_link) + arena->block_size - size;
-    return link->rest;
+    ret = link->rest;
+
+#ifdef DETAILED_ARENA_STATS
+    ++(arena->arena_malloc_count);
+    arena->arena_malloc_bytes += size;
+    if (need_zero) {
+      ++(arena->arena_si_malloc_count);
+      arena->arena_si_malloc_bytes += size;
+    } else {
+      ++(arena->arena_su_malloc_count);
+      arena->arena_su_malloc_bytes += size;
+    }
+#endif
   }
+
+  /*
+   * Zeroize if necessary
+   */
+  if (need_zero && !(arena->malloc_zeros)) {
+    memset(ret, 0, size);
+#ifdef DETAILED_ARENA_STATS
+    ++(arena->memset_count);
+    arena->memset_bytes += size;
+#endif
+  }
+
+  return ret;
 }
 
 void h_arena_free(HArena *arena, void* ptr) {
@@ -146,4 +250,20 @@ void h_delete_arena(HArena *arena) {
 void h_allocator_stats(HArena *arena, HArenaStats *stats) {
   stats->used = arena->used;
   stats->wasted = arena->wasted;
+#ifdef DETAILED_ARENA_STATS
+  stats->mm_malloc_count = arena->mm_malloc_count;
+  stats->mm_malloc_bytes = arena->mm_malloc_bytes;
+  stats->memset_count = arena->memset_count;
+  stats->memset_bytes = arena->memset_bytes;
+  stats->arena_malloc_count = arena->arena_malloc_count;
+  stats->arena_malloc_bytes = arena->arena_malloc_bytes;
+  stats->arena_su_malloc_count = arena->arena_su_malloc_count;
+  stats->arena_su_malloc_bytes = arena->arena_su_malloc_bytes;
+  stats->arena_si_malloc_count = arena->arena_si_malloc_count;
+  stats->arena_si_malloc_bytes = arena->arena_si_malloc_bytes;
+  stats->arena_lu_malloc_count = arena->arena_lu_malloc_count;
+  stats->arena_lu_malloc_bytes = arena->arena_lu_malloc_bytes;
+  stats->arena_li_malloc_count = arena->arena_li_malloc_count;
+  stats->arena_li_malloc_bytes = arena->arena_li_malloc_bytes;
+#endif
 }
