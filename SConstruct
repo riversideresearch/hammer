@@ -73,6 +73,12 @@ AddOption('--coverage',
           action='store_true',
           help='Build with coverage instrumentation')
 
+AddOption('--force-debug',
+          dest='force_debug',
+          default=False,
+          action='store_true',
+          help='Build with debug symbols, even in the opt variant')
+
 AddOption('--gprof',
           dest='gprof',
           default=False,
@@ -134,6 +140,12 @@ if GetOption('coverage'):
         env.Append(LIBS=['gcov'])
     else:
         env.ParseConfig('llvm-config --ldflags')
+
+if GetOption('force_debug'):
+    if env['CC'] == 'cl':
+        env.Append(CCFLAGS=['/Z7'])
+    else:
+        env.Append(CCFLAGS=['-g'])
 
 if GetOption('gprof'):
     if env['CC'] == 'gcc' and env['CXX'] == 'g++':
