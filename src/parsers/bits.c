@@ -14,6 +14,9 @@ static HParseResult* parse_bits(void* env, HParseState *state) {
     result->sint = h_read_bits(&state->input_stream, env_->length, true);
   else
     result->uint = h_read_bits(&state->input_stream, env_->length, false);
+  result->index = 0;
+  result->bit_length = 0;
+  result->bit_offset = 0;
   return make_result(state->arena, result);
 }
 

@@ -69,6 +69,7 @@ HParsedToken *h_act_flatten(const HParseResult *p, void* user_data) {
   res->seq = seq;
   res->index = p->ast->index;
   res->bit_offset = p->ast->bit_offset;
+  res->bit_length = p->bit_length;
   return res;
 }
 

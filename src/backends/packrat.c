@@ -3,6 +3,15 @@
 #include "../internal.h"
 #include "../parsers/parser_internal.h"
 
+/* #define DETAILED_PACKRAT_STATISTICS */
+
+#ifdef DETAILED_PACKRAT_STATISTICS
+static size_t packrat_hash_count = 0;
+static size_t packrat_hash_bytes = 0;
+static size_t packrat_cmp_count = 0;
+static size_t packrat_cmp_bytes = 0;
+#endif
+
 static uint32_t cache_key_hash(const void* key);
 
 // short-hand for creating lowlevel parse cache values (parse result case)
@@ -262,17 +271,34 @@ void h_packrat_free(HParser *parser) {
 }
 
 static uint32_t cache_key_hash(const void* key) {
+#ifdef DETAILED_PACKRAT_STATISTICS
+  ++(packrat_hash_count);
+  packrat_hash_bytes += sizeof(HParserCacheKey);
+#endif
   return h_djbhash(key, sizeof(HParserCacheKey));
 }
+
 static bool cache_key_equal(const void* key1, const void* key2) {
+#ifdef DETAILED_PACKRAT_STATISTICS
+  ++(packrat_cmp_count);
+  packrat_cmp_bytes += sizeof(HParserCacheKey);
+#endif
   return memcmp(key1, key2, sizeof(HParserCacheKey)) == 0;
 }
 
 static uint32_t pos_hash(const void* key) {
+#ifdef DETAILED_PACKRAT_STATISTICS
+  ++(packrat_hash_count);
+  packrat_hash_bytes += sizeof(HInputStream);
+#endif
   return h_djbhash(key, sizeof(HInputStream));
 }
 
 static bool pos_equal(const void* key1, const void* key2) {
+#ifdef DETAILED_PACKRAT_STATISTICS
+  ++(packrat_cmp_count);
+  packrat_cmp_bytes += sizeof(HInputStream);
+#endif
   return memcmp(key1, key2, sizeof(HInputStream)) == 0;
 }
 
@@ -294,6 +320,7 @@ HParseResult *h_packrat_parse(HAllocator* mm__, const HParser* parser, HInputStr
   parse_state->lr_stack = h_slist_new(arena);
   parse_state->recursion_heads = h_hashtable_new(arena, pos_equal, pos_hash);
   parse_state->arena = arena;
+  parse_state->symbol_table = NULL;
   HParseResult *res = h_do_parse(parser, parse_state);
   h_slist_free(parse_state->lr_stack);
   h_hashtable_free(parse_state->recursion_heads);

@@ -9,6 +9,9 @@ static HParseResult* parse_optional(void* env, HParseState* state) {
   state->input_stream = bak;
   HParsedToken *ast = a_new(HParsedToken, 1);
   ast->token_type = TT_NONE;
+  ast->index = 0;
+  ast->bit_length = 0;
+  ast->bit_offset = 0;
   return make_result(state->arena, ast);
 }
 
