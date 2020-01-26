@@ -367,16 +367,21 @@ HSlist* h_slist_remove_all(HSlist *slist, const void* item);
 void h_slist_free(HSlist *slist);
 static inline bool h_slist_empty(const HSlist *sl) { return (sl->head == NULL); }
 
-HHashTable* h_hashtable_new(HArena *arena, HEqualFunc equalFunc, HHashFunc hashFunc);
-void* h_hashtable_get(const HHashTable* ht, const void* key);
-void  h_hashtable_put(HHashTable* ht, const void* key, void* value);
-void  h_hashtable_update(HHashTable* dst, const HHashTable *src);
-void  h_hashtable_merge(void *(*combine)(void *v1, const void *v2),
+HHashTable* h_hashtable_new(HArena *arena, HEqualFunc equalFunc,
+                            HHashFunc hashFunc);
+void * h_hashtable_get_precomp(const HHashTable *ht, const void *key,
+                               HHashValue hashval);
+void * h_hashtable_get(const HHashTable *ht, const void *key);
+void   h_hashtable_put_precomp(HHashTable *ht, const void *key,
+                               void *value, HHashValue hashval);
+void   h_hashtable_put(HHashTable *ht, const void *key, void *value);
+void   h_hashtable_update(HHashTable *dst, const HHashTable *src);
+void   h_hashtable_merge(void *(*combine)(void *v1, const void *v2),
                         HHashTable *dst, const HHashTable *src);
-int   h_hashtable_present(const HHashTable* ht, const void* key);
-void  h_hashtable_del(HHashTable* ht, const void* key);
-void  h_hashtable_free(HHashTable* ht);
-static inline bool h_hashtable_empty(const HHashTable* ht) { return (ht->used == 0); }
+int   h_hashtable_present(const HHashTable *ht, const void *key);
+void  h_hashtable_del(HHashTable *ht, const void *key);
+void  h_hashtable_free(HHashTable *ht);
+static inline bool h_hashtable_empty(const HHashTable *ht) { return (ht->used == 0); }
 
 typedef HHashTable HHashSet;
 #define h_hashset_new(a,eq,hash) h_hashtable_new(a,eq,hash)

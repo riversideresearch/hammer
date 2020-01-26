@@ -49,6 +49,9 @@ static HParseResult *parse_seek(void *env, HParseState *state)
   HParsedToken *tok = a_new(HParsedToken, 1);
   tok->token_type = TT_UINT;
   tok->uint = pos;
+  tok->index = 0;
+  tok->bit_length = 0;
+  tok->bit_offset = 0;
   return make_result(state->arena, tok);
 }
 
@@ -57,6 +60,9 @@ static HParseResult *parse_tell(void *env, HParseState *state)
   HParsedToken *tok = a_new(HParsedToken, 1);
   tok->token_type = TT_UINT;
   tok->uint = h_input_stream_pos(&state->input_stream);
+  tok->index = 0;
+  tok->bit_length = 0;
+  tok->bit_offset = 0;
   return make_result(state->arena, tok);
 }
 

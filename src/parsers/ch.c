@@ -8,6 +8,9 @@ static HParseResult* parse_ch(void* env, HParseState *state) {
   if (c == r) {
     HParsedToken *tok = a_new(HParsedToken, 1);    
     tok->token_type = TT_UINT; tok->uint = r;
+    tok->index = 0;
+    tok->bit_length = 0;
+    tok->bit_offset = 0;
     return make_result(state->arena, tok);
   } else {
     return NULL;

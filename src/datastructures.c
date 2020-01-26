@@ -9,12 +9,14 @@
 
 
 HCountedArray *h_carray_new_sized(HArena * arena, size_t size) {
-  HCountedArray *ret = h_arena_malloc(arena, sizeof(HCountedArray));
+  /* _noinit here because we init all the elements below */
+  HCountedArray *ret = h_arena_malloc_noinit(arena, sizeof(HCountedArray));
   if (size == 0)
     size = 1;
   ret->used = 0;
   ret->capacity = size;
   ret->arena = arena;
+  /* we actually want to zero these */
   ret->elements = h_arena_malloc(arena, sizeof(void*) * size);
   return ret;
 }
@@ -24,12 +26,21 @@ HCountedArray *h_carray_new(HArena * arena) {
 }
 
 void h_carray_append(HCountedArray *array, void* item) {
+  HParsedToken **elements;
+
   if (array->used >= array->capacity) {
-    HParsedToken **elements = h_arena_malloc(array->arena, (array->capacity *= 2) * sizeof(void*));
+    /* _noinit here; we init below */
+    elements = h_arena_malloc_noinit(array->arena,
+        (array->capacity *= 2) * sizeof(void*));
     for (size_t i = 0; i < array->used; i++)
       elements[i] = array->elements[i];
     for (size_t i = array->used; i < array->capacity; i++)
       elements[i] = 0;
+    /*
+     * XXX I hope we don't use this much, because h_arena_free() doesn't
+     * quite seem to be there and doing a lot of this would get pretty
+     * wasteful.
+     */
     h_arena_free(array->arena, array->elements);
     array->elements = elements;
   }
@@ -38,7 +49,8 @@ void h_carray_append(HCountedArray *array, void* item) {
 
 // HSlist
 HSlist* h_slist_new(HArena *arena) {
-  HSlist *ret = h_arena_malloc(arena, sizeof(HSlist));
+  /* _noinit here; we set every element of ret below */
+  HSlist *ret = h_arena_malloc_noinit(arena, sizeof(HSlist));
   ret->head = NULL;
   ret->arena = arena;
   return ret;
@@ -53,8 +65,12 @@ HSlist* h_slist_copy(HSlist *slist) {
     tail = ret->head;
     head = head->next;
     while (head != NULL) {
-      // append head item to tail in a new node
-      HSlistNode *node = h_arena_malloc(slist->arena, sizeof(HSlistNode));
+      /*
+       * append head item to tail in a new node
+       *
+       * use _noinit; we set every element of node after we allocate
+       */
+      HSlistNode *node = h_arena_malloc_noinit(slist->arena, sizeof(HSlistNode));
       node->elem = head->elem;
       node->next = NULL;
       tail = tail->next = node;
@@ -85,10 +101,11 @@ void* h_slist_pop(HSlist *slist) {
 }
 
 void h_slist_push(HSlist *slist, void* item) {
-  HSlistNode *hnode = h_arena_malloc(slist->arena, sizeof(HSlistNode));
+  /* use _noinit; we set every element of node */
+  HSlistNode *hnode = h_arena_malloc_noinit(slist->arena, sizeof(HSlistNode));
   hnode->elem = item;
   hnode->next = slist->head;
-  // write memory barrier here.
+  /* write memory barrier here. */
   slist->head = hnode;
 }
 
@@ -132,30 +149,34 @@ void h_slist_free(HSlist *slist) {
 }
 
 HHashTable* h_hashtable_new(HArena *arena, HEqualFunc equalFunc, HHashFunc hashFunc) {
-  HHashTable *ht = h_arena_malloc(arena, sizeof(HHashTable));
+  /* _noinit because all fields are set below */
+  HHashTable *ht = h_arena_malloc_noinit(arena, sizeof(HHashTable));
   ht->hashFunc = hashFunc;
   ht->equalFunc = equalFunc;
   ht->capacity = 64; // to start; should be tuned later...
   ht->used = 0;
   ht->arena = arena;
-  ht->contents = h_arena_malloc(arena, sizeof(HHashTableEntry) * ht->capacity);
+  /* _noinit because all fields of all entries are set in the loop */
+  ht->contents = h_arena_malloc_noinit(arena,
+      sizeof(HHashTableEntry) * ht->capacity);
   for (size_t i = 0; i < ht->capacity; i++) {
     ht->contents[i].key = NULL;
     ht->contents[i].value = NULL;
     ht->contents[i].next = NULL;
     ht->contents[i].hashval = 0;
   }
-  //memset(ht->contents, 0, sizeof(HHashTableEntry) * ht->capacity);
+
   return ht;
 }
 
-void* h_hashtable_get(const HHashTable* ht, const void* key) {
-  HHashValue hashval = ht->hashFunc(key);
+void * h_hashtable_get_precomp(const HHashTable *ht, const void *key,
+                               HHashValue hashval) {
+  HHashTableEntry *hte = NULL;
+
 #ifdef CONSISTENCY_CHECK
   assert((ht->capacity & (ht->capacity - 1)) == 0); // capacity is a power of 2
 #endif
 
-  HHashTableEntry *hte = NULL;
   for (hte = &ht->contents[hashval & (ht->capacity - 1)];
        hte != NULL;
        hte = hte->next) {
@@ -169,35 +190,63 @@ void* h_hashtable_get(const HHashTable* ht, const void* key) {
       return hte->value;
     }
   }
+
   return NULL;
+}
+
+void * h_hashtable_get(const HHashTable *ht, const void *key) {
+  HHashValue hashval = ht->hashFunc(key);
+
+  return h_hashtable_get_precomp(ht, key, hashval);
 }
 
 void h_hashtable_put_raw(HHashTable* ht, HHashTableEntry* new_entry);
 
 void h_hashtable_ensure_capacity(HHashTable* ht, size_t n) {
+  HHashTableEntry *old_contents, *new_contents;
   bool do_resize = false;
   size_t old_capacity = ht->capacity;
   while (n * 1.3 > ht->capacity) {
     ht->capacity *= 2;
     do_resize = true;
   }
-  if (!do_resize)
-    return;
-  HHashTableEntry *old_contents = ht->contents;
-  HHashTableEntry *new_contents = h_arena_malloc(ht->arena, sizeof(HHashTableEntry) * ht->capacity);
-  ht->contents = new_contents;
-  ht->used = 0;
-  memset(new_contents, 0, sizeof(HHashTableEntry) * ht->capacity);
-  for (size_t i = 0; i < old_capacity; ++i)
-    for (HHashTableEntry *entry = &old_contents[i];
-	 entry;
-	 entry = entry->next)
-      if (entry->key)
-	h_hashtable_put_raw(ht, entry);
-  //h_arena_free(ht->arena, old_contents);
+
+  if (do_resize) {
+    old_contents = ht->contents;
+    /* _noinit because we set the whole thing below */
+    new_contents = h_arena_malloc_noinit(ht->arena,
+        sizeof(HHashTableEntry) * ht->capacity);
+    ht->contents = new_contents;
+    ht->used = 0;
+    memset(new_contents, 0, sizeof(HHashTableEntry) * ht->capacity);
+    for (size_t i = 0; i < old_capacity; ++i) {
+      for (HHashTableEntry *entry = &old_contents[i];
+           entry;
+           entry = entry->next) {
+        if (entry->key) {
+          h_hashtable_put_raw(ht, entry);
+        }
+      }
+    }
+    /* h_arena_free(ht->arena, old_contents); */
+  }
 }
 
-void h_hashtable_put(HHashTable* ht, const void* key, void* value) {
+void h_hashtable_put_precomp(HHashTable *ht, const void *key, void *value,
+                             HHashValue hashval) {
+  HHashTableEntry entry = {
+    .key = key,
+    .value = value,
+    .hashval = hashval
+  };
+
+  /* Rebalance if necessary */
+  h_hashtable_ensure_capacity(ht, ht->used + 1);
+  /* Insert it */
+  h_hashtable_put_raw(ht, &entry);
+}
+
+void h_hashtable_put(HHashTable *ht, const void *key, void *value) {
   // # Start with a rebalancing
   h_hashtable_ensure_capacity(ht, ht->used + 1);
 
@@ -227,7 +276,7 @@ void h_hashtable_put_raw(HHashTable* ht, HHashTableEntry *new_entry) {
     }
     // Add a new link...
     assert (hte->next == NULL);
-    hte->next = h_arena_malloc(ht->arena, sizeof(HHashTableEntry));
+    hte->next = h_arena_malloc_noinit(ht->arena, sizeof(HHashTableEntry));
     hte = hte->next;
     hte->next = NULL;
     ht->used++;
@@ -388,11 +437,26 @@ HHashValue h_hash_ptr(const void *p) {
 }
 
 uint32_t h_djbhash(const uint8_t *buf, size_t len) {
-  uint32_t hash = 5381;
-  while (len--) {
-    hash = hash * 33 + *buf++;
+  uint32_t h = 5381;
+
+  while (len >= 16) {
+    h = h * 33 + buf[0];  h = h * 33 + buf[1];
+    h = h * 33 + buf[2];  h = h * 33 + buf[3];
+    h = h * 33 + buf[4];  h = h * 33 + buf[5];
+    h = h * 33 + buf[6];  h = h * 33 + buf[7];
+    h = h * 33 + buf[8];  h = h * 33 + buf[9];
+    h = h * 33 + buf[10]; h = h * 33 + buf[11];
+    h = h * 33 + buf[12]; h = h * 33 + buf[13];
+    h = h * 33 + buf[14]; h = h * 33 + buf[15];
+    len -= 16;
+    buf += 16;
   }
-  return hash;
+
+  while (len--) {
+    h = h * 33 + *buf++;
+  }
+
+  return h;
 }
 
 void h_symbol_put(HParseState *state, const char* key, void *value) {

@@ -10,6 +10,9 @@ static HParseResult* parse_charset(void *env, HParseState *state) {
   if (charset_isset(cs, in)) {
     HParsedToken *tok = a_new(HParsedToken, 1);
     tok->token_type = TT_UINT; tok->uint = in;
+    tok->index = 0;
+    tok->bit_length = 0;
+    tok->bit_offset = 0;
     return make_result(state->arena, tok);    
   } else
     return NULL;

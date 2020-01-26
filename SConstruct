@@ -73,6 +73,12 @@ AddOption('--coverage',
           action='store_true',
           help='Build with coverage instrumentation')
 
+AddOption('--force-debug',
+          dest='force_debug',
+          default=False,
+          action='store_true',
+          help='Build with debug symbols, even in the opt variant')
+
 AddOption('--gprof',
           dest='gprof',
           default=False,
@@ -112,7 +118,8 @@ if env['CC'] == 'cl':
         ]
     )
 else:
-    env.MergeFlags('-std=c99 -D_POSIX_C_SOURCE=200809L -Wall -Wextra -Werror -Wno-unused-parameter -Wno-attributes -Wno-unused-variable')
+    # -Wno-clobbered only really works with gcc >= 4.2.x, but ... scons
+    env.MergeFlags('-std=c99 -D_POSIX_C_SOURCE=200809L -Wall -Wextra -Werror -Wno-unused-parameter -Wno-attributes -Wno-unused-variable -Wno-clobbered')
 
 # Linker options
 if env['PLATFORM'] == 'darwin':
@@ -126,21 +133,25 @@ else:
     env.MergeFlags('-lrt')
 
 if GetOption('coverage'):
-    env.Append(CFLAGS=['--coverage'],
-               CXXFLAGS=['--coverage'],
-               LDFLAGS=['--coverage'])
+    env.Append(CCFLAGS=['--coverage'],
+               LDFLAGS=['--coverage'],
+               LINKFLAGS=['--coverage'])
     if env['CC'] == 'gcc':
         env.Append(LIBS=['gcov'])
     else:
         env.ParseConfig('llvm-config --ldflags')
 
+if GetOption('force_debug'):
+    if env['CC'] == 'cl':
+        env.Append(CCFLAGS=['/Z7'])
+    else:
+        env.Append(CCFLAGS=['-g'])
+
 if GetOption('gprof'):
     if env['CC'] == 'gcc' and env['CXX'] == 'g++':
-        env.Append(CFLAGS=['-pg', '-fprofile-arcs'],
-                   CXXFLAGS=['-pg', '-fprofile-arcs'],
-		   LDFLAGS=['-pg', '-fprofile-arcs'],
-                   LINKFLAGS=['-pg', '-fprofile-arcs'])
-        env.Append(LIBS=['gcov'])
+        env.Append(CCFLAGS=['-pg'],
+		   LDFLAGS=['-pg'],
+                   LINKFLAGS=['-pg'])
         env['GPROF'] = 1
     else:
         print("Can only use gprof with gcc")

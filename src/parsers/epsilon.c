@@ -5,6 +5,7 @@ static HParseResult* parse_epsilon(void* env, HParseState* state) {
   HParseResult* res = a_new(HParseResult, 1);
   res->ast = NULL;
   res->arena = state->arena;
+  res->bit_length = 0;
   return res;
 }
 
