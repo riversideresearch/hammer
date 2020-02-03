@@ -295,7 +295,7 @@ HParseResult* h_parse_finish(HSuspendedParser* s);
  */
 HAMMER_FN_DECL(HParser*, h_token, const uint8_t *str, const size_t len);
 
-#define h_literal(s) h_token(s, sizeof(s)-1)
+#define h_literal(s) h_token(((const uint8_t *)(s)), sizeof(s)-1)
 
 /**
  * Given a single character, returns a parser that parses that 
