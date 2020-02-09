@@ -247,7 +247,7 @@ HParsedToken *h_seq_index_vpath(const HParsedToken *p, size_t i, va_list va);
 #define H_INDEX_BYTES(SEQ, ...)  H_CAST_BYTES(H_INDEX_TOKEN(SEQ, __VA_ARGS__))
 #define H_INDEX_SINT(SEQ, ...)   H_CAST_SINT(H_INDEX_TOKEN(SEQ, __VA_ARGS__))
 #define H_INDEX_UINT(SEQ, ...)   H_CAST_UINT(H_INDEX_TOKEN(SEQ, __VA_ARGS__))
-#define H_INDEX_TOKEN(SEQ, ...)  h_seq_index_path(SEQ, __VA_ARGS__, -1)
+#define H_INDEX_TOKEN(SEQ, ...)  h_seq_index_path(H_ASSERT_SEQ(SEQ), __VA_ARGS__, -1)
 
 // Standard short-hand to access and cast elements on a sequence token.
 #define H_FIELD(TYP, ...)  H_INDEX(TYP, p->ast, __VA_ARGS__)
