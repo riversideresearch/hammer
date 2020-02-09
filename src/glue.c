@@ -129,6 +129,20 @@ HParsedToken *h_make_uint(HArena *arena, uint64_t val)
   return ret;
 }
 
+HParsedToken *h_make_double(HArena *arena, double val)
+{
+  HParsedToken *ret = h_make_(arena, TT_DOUBLE);
+  ret->dbl = val;
+  return ret;
+}
+
+HParsedToken *h_make_float(HArena *arena, float val)
+{
+  HParsedToken *ret = h_make_(arena, TT_FLOAT);
+  ret->flt = val;
+  return ret;
+}
+
 // XXX -> internal
 HParsedToken *h_carray_index(const HCountedArray *a, size_t i)
 {

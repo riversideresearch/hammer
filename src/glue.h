@@ -198,6 +198,8 @@ HParsedToken *h_make_seqn(HArena *arena, size_t n);  // Makes empty sequence of 
 HParsedToken *h_make_bytes(HArena *arena, const uint8_t *array, size_t len);
 HParsedToken *h_make_sint(HArena *arena, int64_t val);
 HParsedToken *h_make_uint(HArena *arena, uint64_t val);
+HParsedToken *h_make_double(HArena *arena, double val);
+HParsedToken *h_make_float(HArena *arena, float val);
 
 // Standard short-hands to make tokens in an action.
 #define H_MAKE(TYP, VAL)  h_make(p->arena, (HTokenType)TT_ ## TYP, VAL)
@@ -206,6 +208,8 @@ HParsedToken *h_make_uint(HArena *arena, uint64_t val);
 #define H_MAKE_BYTES(VAL, LEN) h_make_bytes(p->arena, VAL, LEN)
 #define H_MAKE_SINT(VAL)  h_make_sint(p->arena, VAL)
 #define H_MAKE_UINT(VAL)  h_make_uint(p->arena, VAL)
+#define H_MAKE_DOUBLE(VAL) h_make_double(p->arena, VAL)
+#define H_MAKE_FLOAT(VAL) h_make_float(p->arena, VAL)
 
 // Extract (cast) type-specific value back from HParsedTokens...
 
@@ -218,6 +222,8 @@ HParsedToken *h_make_uint(HArena *arena, uint64_t val);
 #define H_ASSERT_BYTES(TOK)  h_assert_type(TT_BYTES, TOK)
 #define H_ASSERT_SINT(TOK)   h_assert_type(TT_SINT, TOK)
 #define H_ASSERT_UINT(TOK)   h_assert_type(TT_UINT, TOK)
+#define H_ASSERT_DOUBLE(TOK) h_assert_type(TT_DOUBLE, TOK)
+#define H_ASSERT_FLOAT(TOK)  h_assert_type(TT_FLOAT, TOK)
 
 // Assert expected type and return contained value.
 #define H_CAST(TYP, TOK)   ((TYP *) H_ASSERT(TYP, TOK)->user)
@@ -225,6 +231,8 @@ HParsedToken *h_make_uint(HArena *arena, uint64_t val);
 #define H_CAST_BYTES(TOK)  (H_ASSERT_BYTES(TOK)->bytes)
 #define H_CAST_SINT(TOK)   (H_ASSERT_SINT(TOK)->sint)
 #define H_CAST_UINT(TOK)   (H_ASSERT_UINT(TOK)->uint)
+#define H_CAST_DOUBLE(TOK) (H_ASSERT_DOUBLE(TOK)->dbl)
+#define H_CAST_FLOAT(TOK)  (H_ASSERT_FLOAT(TOK)->flt)
 
 // Sequence access...
 
@@ -247,6 +255,8 @@ HParsedToken *h_seq_index_vpath(const HParsedToken *p, size_t i, va_list va);
 #define H_INDEX_BYTES(SEQ, ...)  H_CAST_BYTES(H_INDEX_TOKEN(SEQ, __VA_ARGS__))
 #define H_INDEX_SINT(SEQ, ...)   H_CAST_SINT(H_INDEX_TOKEN(SEQ, __VA_ARGS__))
 #define H_INDEX_UINT(SEQ, ...)   H_CAST_UINT(H_INDEX_TOKEN(SEQ, __VA_ARGS__))
+#define H_INDEX_DOUBLE(SEQ, ...) H_CAST_DOUBLE(H_INDEX_TOKEN(SEQ, __VA_ARGS__))
+#define H_INDEX_FLOAT(SEQ, ...)  H_CAST_FLOAT(H_INDEX_TOKEN(SEQ, __VA_ARGS__))
 #define H_INDEX_TOKEN(SEQ, ...)  h_seq_index_path(SEQ, __VA_ARGS__, -1)
 
 // Standard short-hand to access and cast elements on a sequence token.
@@ -255,6 +265,8 @@ HParsedToken *h_seq_index_vpath(const HParsedToken *p, size_t i, va_list va);
 #define H_FIELD_BYTES(...) H_INDEX_BYTES(p->ast, __VA_ARGS__)
 #define H_FIELD_SINT(...)  H_INDEX_SINT(p->ast, __VA_ARGS__)
 #define H_FIELD_UINT(...)  H_INDEX_UINT(p->ast, __VA_ARGS__)
+#define H_FIELD_DOUBLE(...) H_INDEX_DOUBLE(p->ast, __VA_ARGS__)
+#define H_FIELD_FLOAT(...) H_INDEX_FLOAT(p->ast, __VA_ARGS__)
 
 // Lower-level helper for h_seq_index.
 HParsedToken *h_carray_index(const HCountedArray *a, size_t i); // XXX -> internal

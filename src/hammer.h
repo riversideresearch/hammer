@@ -56,6 +56,8 @@ typedef enum HTokenType_ {
   TT_BYTES = 2,
   TT_SINT = 4,
   TT_UINT = 8,
+  TT_DOUBLE = 12,
+  TT_FLOAT = 13,
   TT_SEQUENCE = 16,
   TT_RESERVED_1, // reserved for backend-specific internal use
   TT_ERR = 32,
