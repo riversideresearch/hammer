@@ -255,6 +255,7 @@ HParsedToken *h_seq_index_vpath(const HParsedToken *p, size_t i, va_list va);
 #define H_FIELD_BYTES(...) H_INDEX_BYTES(p->ast, __VA_ARGS__)
 #define H_FIELD_SINT(...)  H_INDEX_SINT(p->ast, __VA_ARGS__)
 #define H_FIELD_UINT(...)  H_INDEX_UINT(p->ast, __VA_ARGS__)
+#define H_FIELD_TOKEN(...) H_INDEX_TOKEN(p->ast, __VA_ARGS__)
 
 // Lower-level helper for h_seq_index.
 HParsedToken *h_carray_index(const HCountedArray *a, size_t i); // XXX -> internal
