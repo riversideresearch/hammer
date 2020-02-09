@@ -430,9 +430,10 @@ static int h_regex_compile(HAllocator *mm__, HParser* parser, const void* params
   prog->actions = NULL;
   prog->allocator = mm__;
   if (setjmp(prog->except)) {
-    return false;
+    return 3;
   }
   if (!h_compile_regex(prog, parser)) {
+    // this shouldn't normally fail when isValidRegular() returned true
     h_free(prog->insns);
     h_free(prog->actions);
     h_free(prog);

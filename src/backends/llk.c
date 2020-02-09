@@ -238,7 +238,7 @@ int h_llk_compile(HAllocator* mm__, HParser* parser, const void* params)
     // the table was ambiguous
     h_cfgrammar_free(grammar);
     h_llktable_free(table);
-    return -1;
+    return -2;
   }
   parser->backend_data = table;
 
