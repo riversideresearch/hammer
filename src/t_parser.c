@@ -129,6 +129,29 @@ static void test_uint8(gconstpointer backend) {
 }
 //@MARK_END
 
+// XXX implement h_double() and h_float(). these just test the pretty-printer...
+static HParsedToken *act_double(const HParseResult *p, void *u) {
+  return H_MAKE_DOUBLE((double)H_FIELD_UINT(0) + (double)H_FIELD_UINT(1)/10);
+}
+static void test_double(gconstpointer backend) {
+  HParser *b = h_uint8();
+  HParser *dbl = h_action(h_sequence(b, b, NULL), act_double, NULL);
+  uint8_t input[] = {4,2};
+
+  g_check_parse_match(dbl, (HParserBackend)GPOINTER_TO_INT(backend), input, 2, "d0x1.0cccccccccccdp+2");
+}
+
+static HParsedToken *act_float(const HParseResult *p, void *u) {
+  return H_MAKE_FLOAT((float)H_FIELD_UINT(0) + (float)H_FIELD_UINT(1)/10);
+}
+static void test_float(gconstpointer backend) {
+  HParser *b = h_uint8();
+  HParser *flt = h_action(h_sequence(b, b, NULL), act_float, NULL);
+  uint8_t input[] = {4,2};
+
+  g_check_parse_match(flt, (HParserBackend)GPOINTER_TO_INT(backend), input, 2, "f0x1.0cccccp+2");
+}
+
 static void test_int_range(gconstpointer backend) {
   const HParser *int_range_ = h_int_range(h_uint8(), 3, 10);
   
@@ -873,10 +896,8 @@ void register_parser_tests(void) {
   g_test_add_data_func("/core/parser/packrat/uint16", GINT_TO_POINTER(PB_PACKRAT), test_uint16);
   g_test_add_data_func("/core/parser/packrat/uint8", GINT_TO_POINTER(PB_PACKRAT), test_uint8);
   g_test_add_data_func("/core/parser/packrat/int_range", GINT_TO_POINTER(PB_PACKRAT), test_int_range);
-#if 0
-  g_test_add_data_func("/core/parser/packrat/float64", GINT_TO_POINTER(PB_PACKRAT), test_float64);
-  g_test_add_data_func("/core/parser/packrat/float32", GINT_TO_POINTER(PB_PACKRAT), test_float32);
-#endif
+  g_test_add_data_func("/core/parser/packrat/double", GINT_TO_POINTER(PB_PACKRAT), test_double);
+  g_test_add_data_func("/core/parser/packrat/float", GINT_TO_POINTER(PB_PACKRAT), test_float);
   g_test_add_data_func("/core/parser/packrat/whitespace", GINT_TO_POINTER(PB_PACKRAT), test_whitespace);
   g_test_add_data_func("/core/parser/packrat/left", GINT_TO_POINTER(PB_PACKRAT), test_left);
   g_test_add_data_func("/core/parser/packrat/right", GINT_TO_POINTER(PB_PACKRAT), test_right);
@@ -931,10 +952,8 @@ void register_parser_tests(void) {
   g_test_add_data_func("/core/parser/llk/uint16", GINT_TO_POINTER(PB_LLk), test_uint16);
   g_test_add_data_func("/core/parser/llk/uint8", GINT_TO_POINTER(PB_LLk), test_uint8);
   g_test_add_data_func("/core/parser/llk/int_range", GINT_TO_POINTER(PB_LLk), test_int_range);
-#if 0
-  g_test_add_data_func("/core/parser/llk/float64", GINT_TO_POINTER(PB_LLk), test_float64);
-  g_test_add_data_func("/core/parser/llk/float32", GINT_TO_POINTER(PB_LLk), test_float32);
-#endif
+  g_test_add_data_func("/core/parser/llk/double", GINT_TO_POINTER(PB_LLk), test_double);
+  g_test_add_data_func("/core/parser/llk/float", GINT_TO_POINTER(PB_LLk), test_float);
   g_test_add_data_func("/core/parser/llk/whitespace", GINT_TO_POINTER(PB_LLk), test_whitespace);
   g_test_add_data_func("/core/parser/llk/left", GINT_TO_POINTER(PB_LLk), test_left);
   g_test_add_data_func("/core/parser/llk/right", GINT_TO_POINTER(PB_LLk), test_right);
@@ -977,11 +996,9 @@ void register_parser_tests(void) {
   g_test_add_data_func("/core/parser/regex/uint32", GINT_TO_POINTER(PB_REGULAR), test_uint32);
   g_test_add_data_func("/core/parser/regex/uint16", GINT_TO_POINTER(PB_REGULAR), test_uint16);
   g_test_add_data_func("/core/parser/regex/uint8", GINT_TO_POINTER(PB_REGULAR), test_uint8);
-#if 0
-  g_test_add_data_func("/core/parser/regex/int_range", GINT_TO_POINTER(PB_REGULAR), test_int_range);
-  g_test_add_data_func("/core/parser/regex/float64", GINT_TO_POINTER(PB_REGULAR), test_float64);
-  g_test_add_data_func("/core/parser/regex/float32", GINT_TO_POINTER(PB_REGULAR), test_float32);
-#endif
+  //g_test_add_data_func("/core/parser/regex/int_range", GINT_TO_POINTER(PB_REGULAR), test_int_range);
+  g_test_add_data_func("/core/parser/regex/double", GINT_TO_POINTER(PB_REGULAR), test_double);
+  g_test_add_data_func("/core/parser/regex/float", GINT_TO_POINTER(PB_REGULAR), test_float);
   g_test_add_data_func("/core/parser/regex/whitespace", GINT_TO_POINTER(PB_REGULAR), test_whitespace);
   g_test_add_data_func("/core/parser/regex/left", GINT_TO_POINTER(PB_REGULAR), test_left);
   g_test_add_data_func("/core/parser/regex/right", GINT_TO_POINTER(PB_REGULAR), test_right);
@@ -1020,10 +1037,8 @@ void register_parser_tests(void) {
   g_test_add_data_func("/core/parser/lalr/uint16", GINT_TO_POINTER(PB_LALR), test_uint16);
   g_test_add_data_func("/core/parser/lalr/uint8", GINT_TO_POINTER(PB_LALR), test_uint8);
   g_test_add_data_func("/core/parser/lalr/int_range", GINT_TO_POINTER(PB_LALR), test_int_range);
-#if 0
-  g_test_add_data_func("/core/parser/lalr/float64", GINT_TO_POINTER(PB_LALR), test_float64);
-  g_test_add_data_func("/core/parser/lalr/float32", GINT_TO_POINTER(PB_LALR), test_float32);
-#endif
+  g_test_add_data_func("/core/parser/lalr/double", GINT_TO_POINTER(PB_LALR), test_double);
+  g_test_add_data_func("/core/parser/lalr/float", GINT_TO_POINTER(PB_LALR), test_float);
   g_test_add_data_func("/core/parser/lalr/whitespace", GINT_TO_POINTER(PB_LALR), test_whitespace);
   g_test_add_data_func("/core/parser/lalr/left", GINT_TO_POINTER(PB_LALR), test_left);
   g_test_add_data_func("/core/parser/lalr/right", GINT_TO_POINTER(PB_LALR), test_right);
@@ -1068,10 +1083,8 @@ void register_parser_tests(void) {
   g_test_add_data_func("/core/parser/glr/uint16", GINT_TO_POINTER(PB_GLR), test_uint16);
   g_test_add_data_func("/core/parser/glr/uint8", GINT_TO_POINTER(PB_GLR), test_uint8);
   g_test_add_data_func("/core/parser/glr/int_range", GINT_TO_POINTER(PB_GLR), test_int_range);
-#if 0
-  g_test_add_data_func("/core/parser/glr/float64", GINT_TO_POINTER(PB_GLR), test_float64);
-  g_test_add_data_func("/core/parser/glr/float32", GINT_TO_POINTER(PB_GLR), test_float32);
-#endif
+  g_test_add_data_func("/core/parser/glr/double", GINT_TO_POINTER(PB_GLR), test_double);
+  g_test_add_data_func("/core/parser/glr/float", GINT_TO_POINTER(PB_GLR), test_float);
   g_test_add_data_func("/core/parser/glr/whitespace", GINT_TO_POINTER(PB_GLR), test_whitespace);
   g_test_add_data_func("/core/parser/glr/left", GINT_TO_POINTER(PB_GLR), test_left);
   g_test_add_data_func("/core/parser/glr/right", GINT_TO_POINTER(PB_GLR), test_right);
