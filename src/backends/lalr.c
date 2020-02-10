@@ -279,18 +279,18 @@ int h_lalr_compile(HAllocator* mm__, HParser* parser, const void* params)
   }
   HCFGrammar *g = h_cfgrammar_(mm__, h_desugar_augmented(mm__, parser));
   if(g == NULL)     // backend not suitable (language not context-free)
-    return -1;
+    return 2;
 
   HLRDFA *dfa = h_lr0_dfa(g);
   if (dfa == NULL) {     // this should normally not happen
     h_cfgrammar_free(g);
-    return -1;
+    return 3;
   }
 
   HLRTable *table = h_lr0_table(g, dfa);
   if (table == NULL) {   // this should normally not happen
     h_cfgrammar_free(g);
-    return -1;
+    return 4;
   }
 
   if(has_conflicts(table)) {
@@ -300,7 +300,7 @@ int h_lalr_compile(HAllocator* mm__, HParser* parser, const void* params)
     if(eg == NULL) {    // this should normally not happen
       h_cfgrammar_free(g);
       h_lrtable_free(table);
-      return -1;
+      return 5;
     }
 
     // go through the inadequate states; replace inadeq with a new list
@@ -349,7 +349,7 @@ int h_lalr_compile(HAllocator* mm__, HParser* parser, const void* params)
 
   h_cfgrammar_free(g);
   parser->backend_data = table;
-  return has_conflicts(table)? -1 : 0;
+  return has_conflicts(table)? -2 : 0;
 }
 
 void h_lalr_free(HParser *parser)

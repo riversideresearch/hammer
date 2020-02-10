@@ -785,7 +785,13 @@ void h_pprintln(FILE* stream, const HParsedToken* tok);
  * documentation for the parser backend in question for information
  * about the [params] parameter, or just pass in NULL for the defaults.
  *
- * Returns -1 if grammar cannot be compiled with the specified options; 0 otherwise.
+ * Returns a nonzero value on error; 0 otherwise. Common return codes include:
+ *
+ *  -1: parser uses a combinator that is incompatible with the chosen backend.
+ *  -2: parser could not be compiled with the chosen parameters.
+ *  >0: unexpected internal errors.
+ *
+ * Consult each backend for details.
  */
 HAMMER_FN_DECL(int, h_compile, HParser* parser, HParserBackend backend, const void* params);
 

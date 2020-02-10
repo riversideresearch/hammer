@@ -14,7 +14,7 @@ int h_glr_compile(HAllocator* mm__, HParser* parser, const void* params)
   }
   int result = h_lalr_compile(mm__, parser, params);
 
-  if(result == -1 && parser->backend_data) {
+  if(result == -2 && parser->backend_data) {
     // table is there, just has conflicts? nevermind, that's okay.
     result = 0;
   }
