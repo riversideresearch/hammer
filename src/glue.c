@@ -60,16 +60,8 @@ static void act_flatten_(HCountedArray *seq, const HParsedToken *tok) {
 }
 
 HParsedToken *h_act_flatten(const HParseResult *p, void* user_data) {
-  HCountedArray *seq = h_carray_new(p->arena);
-
-  act_flatten_(seq, p->ast);
-
-  HParsedToken *res = a_new_(p->arena, HParsedToken, 1);
-  res->token_type = TT_SEQUENCE;
-  res->seq = seq;
-  res->index = p->ast->index;
-  res->bit_offset = p->ast->bit_offset;
-  res->bit_length = p->bit_length;
+  HParsedToken *res = h_make_seq(p->arena);
+  act_flatten_(res->seq, p->ast);
   return res;
 }
 

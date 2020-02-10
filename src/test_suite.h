@@ -321,6 +321,7 @@
 #define g_check_cmp_int64(n1, op, n2) g_check_inttype("%" PRId64, int64_t, n1, op, n2)
 #define g_check_cmp_uint32(n1, op, n2) g_check_inttype("%u", uint32_t, n1, op, n2)
 #define g_check_cmp_uint64(n1, op, n2) g_check_inttype("%" PRIu64, uint64_t, n1, op, n2)
+#define g_check_cmp_size(n1, op, n2) g_check_inttype("%zu", size_t, n1, op, n2)
 #define g_check_cmp_ptr(n1, op, n2) g_check_inttype("%p", void *, n1, op, n2)
 #define g_check_cmpfloat(n1, op, n2) g_check_inttype("%g", float, n1, op, n2)
 #define g_check_cmpdouble(n1, op, n2) g_check_inttype("%g", double, n1, op, n2)
