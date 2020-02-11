@@ -96,6 +96,17 @@
 #define g_check_parse_failed(p, be, input, len)				\
     g_check_parse_failed__m(&system_allocator, p, be, input, len)
 
+#define print_arena_stats(arena) do {					\
+    if (g_test_verbose()) {						\
+      HArenaStats stats;						\
+      h_allocator_stats(arena, &stats);					\
+      g_test_message("Parse used %zd bytes, wasted %zd bytes. "		\
+                     "Inefficiency: %5f%%",				\
+                     stats.used, stats.wasted,				\
+                     stats.wasted * 100. / (stats.used+stats.wasted));	\
+    }									\
+  } while(0)
+
 #define g_check_parse_ok(parser, backend, input, inp_len) do {		\
     int skip = h_compile((HParser *)(parser), (HParserBackend) backend, NULL); \
     if(skip) {								\
@@ -108,12 +119,7 @@
       g_test_message("Parse failed on line %d", __LINE__);		\
       g_test_fail();							\
     } else {								\
-      HArenaStats stats;						\
-      h_allocator_stats(res->arena, &stats);				\
-      g_test_message("Parse used %zd bytes, wasted %zd bytes. "		\
-                     "Inefficiency: %5f%%",				\
-		     stats.used, stats.wasted,				\
-		     stats.wasted * 100. / (stats.used+stats.wasted));	\
+      print_arena_stats(res->arena);					\
       h_parse_result_free(res);						\
     }									\
   } while(0)
@@ -133,12 +139,7 @@
       char* cres = h_write_result_unamb(res->ast);			\
       g_check_string(cres, ==, result);					\
       (&system_allocator)->free(&system_allocator, cres);		\
-      HArenaStats stats;						\
-      h_allocator_stats(res->arena, &stats);				\
-      g_test_message("Parse used %zd bytes, wasted %zd bytes. "		\
-                     "Inefficiency: %5f%%",				\
-		     stats.used, stats.wasted,				\
-		     stats.wasted * 100. / (stats.used+stats.wasted));	\
+      print_arena_stats(res->arena);					\
       h_parse_result_free(res);						\
     }									\
   } while(0)
@@ -200,12 +201,7 @@
       g_test_message("Parse failed on line %d", __LINE__);		\
       g_test_fail();							\
     } else {								\
-      HArenaStats stats;						\
-      h_allocator_stats(res->arena, &stats);				\
-      g_test_message("Parse used %zd bytes, wasted %zd bytes. "		\
-                     "Inefficiency: %5f%%",				\
-		     stats.used, stats.wasted,				\
-		     stats.wasted * 100. / (stats.used+stats.wasted));	\
+      print_arena_stats(res->arena);					\
       h_parse_result_free(res);						\
     }									\
   } while(0)
@@ -237,12 +233,7 @@
       char* cres = h_write_result_unamb(res->ast);			\
       g_check_string(cres, ==, result);					\
       (&system_allocator)->free(&system_allocator, cres);		\
-      HArenaStats stats;						\
-      h_allocator_stats(res->arena, &stats);				\
-      g_test_message("Parse used %zd bytes, wasted %zd bytes. "		\
-                     "Inefficiency: %5f%%",				\
-		     stats.used, stats.wasted,				\
-		     stats.wasted * 100. / (stats.used+stats.wasted));	\
+      print_arena_stats(res->arena);					\
       h_parse_result_free(res);						\
     }									\
   } while(0)
