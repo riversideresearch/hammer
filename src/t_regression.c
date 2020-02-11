@@ -366,6 +366,24 @@ static void test_ast_length_index() {
 }
 #endif // 0
 
+static void test_issue91() {
+  // this ambiguous grammar caused intermittent (?) assertion failures when
+  // trying to compile with the LALR backend:
+  //
+  // assertion "action->type == HLR_SHIFT" failed: file "src/backends/lalr.c",
+  // line 34, function "follow_transition"
+  //
+  // cf. https://gitlab.special-circumstanc.es/hammer/hammer/issues/91
+
+  H_RULE(schar,   h_ch_range(' ', '~'));    /* overlaps digit */
+  H_RULE(digit,   h_ch_range('0', '9'));
+  H_RULE(digits,  h_choice(h_repeat_n(digit, 2), digit, NULL));
+  H_RULE(p,       h_many(h_choice(schar, digits, NULL)));
+
+  int r = h_compile(p, PB_LALR, NULL);
+  g_check_cmp_int(r, ==, -2);
+}
+
 void register_regression_tests(void) {
   g_test_add_func("/core/regression/bug118", test_bug118);
   g_test_add_func("/core/regression/seq_index_path", test_seq_index_path);
@@ -378,4 +396,5 @@ void register_regression_tests(void) {
   g_test_add_func("/core/regression/bug19", test_bug_19);
   g_test_add_func("/core/regression/flatten_null", test_flatten_null);
   //XXX g_test_add_func("/core/regression/ast_length_index", test_ast_length_index);
+  g_test_add_func("/core/regression/issue91", test_issue91);
 }
