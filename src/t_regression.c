@@ -384,6 +384,43 @@ static void test_issue91() {
   g_check_cmp_int(r, ==, -2);
 }
 
+static void test_issue92() {
+	#define SEQ(...)	h_sequence(__VA_ARGS__, NULL)
+	#define CHX(...)	h_choice(__VA_ARGS__, NULL)
+	#define OPT(X)		h_ignore(h_optional(X))
+
+	H_RULE(cr,	h_ch('\r'));
+	H_RULE(lf,	h_ch('\n'));
+	H_RULE(odigit,	h_ch_range('0', '7'));
+
+	H_RULE(str_ol,	h_indirect());
+	H_RULE(str_o,	h_indirect());
+	H_RULE(str_l,	h_indirect());
+	H_RULE(str,	h_indirect());
+	H_RULE(str_o_,	CHX(SEQ(lf, str), str_ol));	/* str "but not" odigit */
+	H_RULE(str_l_,	CHX(SEQ(odigit, str), str_ol));	/* str "but not" lf */
+	H_RULE(str_ol_,	OPT(SEQ(cr, str_l)));		/* str "but neither" */
+	H_RULE(str_,	CHX(SEQ(lf, str), SEQ(odigit, str), str_ol));
+	h_bind_indirect(str_ol,	str_ol_);
+	h_bind_indirect(str_o,	str_o_);
+	h_bind_indirect(str_l,	str_l_);
+	h_bind_indirect(str,	str_);
+
+	#undef SEQ
+	#undef CHX
+	#undef OPT
+
+	/*
+	 * the following call would cause an assertion failure.
+	 *
+	 * assertion "!h_stringmap_empty(fs)" failed: file
+	 * "src/backends/lalr.c", line 341, function "h_lalr_compile"
+	 */
+
+	int r = h_compile(str, PB_LALR, NULL);
+	g_check_cmp_int(r, ==, 0);
+}
+
 void register_regression_tests(void) {
   g_test_add_func("/core/regression/bug118", test_bug118);
   g_test_add_func("/core/regression/seq_index_path", test_seq_index_path);
@@ -397,4 +434,5 @@ void register_regression_tests(void) {
   g_test_add_func("/core/regression/flatten_null", test_flatten_null);
   //XXX g_test_add_func("/core/regression/ast_length_index", test_ast_length_index);
   g_test_add_func("/core/regression/issue91", test_issue91);
+  g_test_add_func("/core/regression/issue92", test_issue92);
 }
