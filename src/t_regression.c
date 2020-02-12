@@ -385,30 +385,14 @@ static void test_issue91() {
 }
 
 static void test_issue92() {
-	#define SEQ(...)	h_sequence(__VA_ARGS__, NULL)
-	#define CHX(...)	h_choice(__VA_ARGS__, NULL)
-	#define OPT(X)		h_ignore(h_optional(X))
+	H_RULE(a,	h_ch('a'));
+	H_RULE(b,	h_ch('b'));
 
-	H_RULE(cr,	h_ch('\r'));
-	H_RULE(lf,	h_ch('\n'));
-	H_RULE(odigit,	h_ch_range('0', '7'));
-
-	H_RULE(str_ol,	h_indirect());
-	H_RULE(str_o,	h_indirect());
-	H_RULE(str_l,	h_indirect());
-	H_RULE(str,	h_indirect());
-	H_RULE(str_o_,	CHX(SEQ(lf, str), str_ol));	/* str "but not" odigit */
-	H_RULE(str_l_,	CHX(SEQ(odigit, str), str_ol));	/* str "but not" lf */
-	H_RULE(str_ol_,	OPT(SEQ(cr, str_l)));		/* str "but neither" */
-	H_RULE(str_,	CHX(SEQ(lf, str), SEQ(odigit, str), str_ol));
-	h_bind_indirect(str_ol,	str_ol_);
-	h_bind_indirect(str_o,	str_o_);
-	h_bind_indirect(str_l,	str_l_);
-	h_bind_indirect(str,	str_);
-
-	#undef SEQ
-	#undef CHX
-	#undef OPT
+	H_RULE(str_a,	h_indirect());
+	H_RULE(str_b,	h_choice(h_sequence(b, str_a, NULL), str_a, NULL));
+			// h_sequence(h_optional(b), str_a, NULL) works
+	H_RULE(str_a_,	h_optional(h_sequence(a, str_b, NULL)));
+	h_bind_indirect(str_a, str_a_);
 
 	/*
 	 * the following call would cause an assertion failure.
@@ -417,7 +401,7 @@ static void test_issue92() {
 	 * "src/backends/lalr.c", line 341, function "h_lalr_compile"
 	 */
 
-	int r = h_compile(str, PB_LALR, NULL);
+	int r = h_compile(str_a, PB_LALR, NULL);
 	g_check_cmp_int(r, ==, 0);
 }
 
