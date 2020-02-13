@@ -586,6 +586,7 @@ const HStringMap *h_follow(size_t k, HCFGrammar *g, const HCFChoice *x)
   // iterate over g->nts
   size_t i;
   HHashTableEntry *hte;
+  int x_found=0;
   for (i=0; i < g->nts->capacity; i++) {
     for (hte = &g->nts->contents[i]; hte; hte = hte->next) {
       if (hte->key == NULL) {
@@ -600,7 +601,8 @@ const HStringMap *h_follow(size_t k, HCFGrammar *g, const HCFChoice *x)
         HCFChoice **s = (*p)->items;        // production's right-hand side
         
         for (; *s; s++) {
-          if (*s == x) { // occurance found
+          if (*s == x) { // occurrence found
+            x_found=1;
             HCFChoice **tail = s+1;
 
             const HStringMap *first_tail = h_first_seq(k, g, tail);
@@ -612,6 +614,7 @@ const HStringMap *h_follow(size_t k, HCFGrammar *g, const HCFChoice *x)
       }
     }
   }
+  assert(x_found || x == g->start);        // no orphan non-terminals
 
   return ret;
 }
