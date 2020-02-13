@@ -390,16 +390,46 @@ static void test_issue92() {
 
   HParser *str_a  = h_indirect();
   HParser *str_b  = h_choice(h_sequence(b, str_a, NULL), str_a, NULL);
-                 // h_sequence(h_optional(b), str_a, NULL);  // this works
+                    //h_sequence(h_optional(b), str_a, NULL);  // this works
   HParser *str_a_ = h_optional(h_sequence(a, str_b, NULL));
-  HParser *str    = str_a;//h_sequence(str_a, NULL);
+  HParser *str    = str_a;
   h_bind_indirect(str_a, str_a_);
+  /*
+   * grammar generated from the above:
+   *
+   *   A -> B           -- "augmented" with a fresh start symbol
+   *   B -> C           -- B = str_a
+   *      | ""
+   *   C -> "a" D       -- C = h_sequence(a, str_b)
+   *   D -> E           -- D = str_b
+   *      | B
+   *   E -> "b" B       -- E = h_sequence(b, str_a)
+   *
+   * transformed to the following "enhanced grammar":
+   *
+   *    S  -> 0B3
+   *   0B3 -> 0C2
+   *        | ""
+   *   1B4 -> 1C2
+   *        | ""
+   *   6B8 -> 6C2
+   *        | ""           (*) here
+   *   0C2 -> "a" 1D7
+   *   1C2 -> "a" 1D7
+   *   6C2 -> "a" 1D7
+   *   1D7 -> 1E5
+   *        | 1B4
+   *   1E5 -> "b" 6B8
+   */
 
   /*
    * the following call would cause an assertion failure.
    *
    * assertion "!h_stringmap_empty(fs)" failed: file
    * "src/backends/lalr.c", line 341, function "h_lalr_compile"
+   *
+   * the bug happens when trying to compute h_follow() for 6B8 in state 6,
+   * production "" (*).
    */
   int r = h_compile(str, PB_LALR, NULL);
   g_check_cmp_int(r, ==, 0);
