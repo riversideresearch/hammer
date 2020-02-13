@@ -385,24 +385,24 @@ static void test_issue91() {
 }
 
 static void test_issue92() {
-	H_RULE(a,	h_ch('a'));
-	H_RULE(b,	h_ch('b'));
+  HParser *a = h_ch('a');
+  HParser *b = h_ch('b');
 
-	H_RULE(str_a,	h_indirect());
-	H_RULE(str_b,	h_choice(h_sequence(b, str_a, NULL), str_a, NULL));
-			// h_sequence(h_optional(b), str_a, NULL) works
-	H_RULE(str_a_,	h_optional(h_sequence(a, str_b, NULL)));
-	h_bind_indirect(str_a, str_a_);
+  HParser *str_a  = h_indirect();
+  HParser *str_b  = h_choice(h_sequence(b, str_a, NULL), str_a, NULL);
+                 // h_sequence(h_optional(b), str_a, NULL);  // this works
+  HParser *str_a_ = h_optional(h_sequence(a, str_b, NULL));
+  HParser *str    = str_a;//h_sequence(str_a, NULL);
+  h_bind_indirect(str_a, str_a_);
 
-	/*
-	 * the following call would cause an assertion failure.
-	 *
-	 * assertion "!h_stringmap_empty(fs)" failed: file
-	 * "src/backends/lalr.c", line 341, function "h_lalr_compile"
-	 */
-
-	int r = h_compile(str_a, PB_LALR, NULL);
-	g_check_cmp_int(r, ==, 0);
+  /*
+   * the following call would cause an assertion failure.
+   *
+   * assertion "!h_stringmap_empty(fs)" failed: file
+   * "src/backends/lalr.c", line 341, function "h_lalr_compile"
+   */
+  int r = h_compile(str, PB_LALR, NULL);
+  g_check_cmp_int(r, ==, 0);
 }
 
 void register_regression_tests(void) {
