@@ -53,10 +53,12 @@ public class Hammer
     public static native Parser middle(Parser p, Parser x, Parser q);
 //    public static native Parser action(Parser p, Action a);
     public static native Parser in(byte[] charset, int length);
+    public static native Parser notIn(byte[] charset, int length);
     public static native Parser endP();
     public static native Parser nothingP();
     public static native Parser sequence(Parser... parsers);
     public static native Parser choice(Parser... parsers);
+    public static native Parser permutation(Parser... parsers);
     public static native Parser butNot(Parser p1, Parser p2);
     public static native Parser difference(Parser p1, Parser p2);
     public static native Parser xor(Parser p1, Parser p2);
@@ -73,4 +75,11 @@ public class Hammer
     public static native Parser and(Parser p);
     public static native Parser not(Parser p);
     public static native Parser indirect();
+//    public static native Parser bindIndirect(Parser indirect, Parser inner);
+    public static native Parser withEndianess(byte endianess, Parser p);
+//    public static native Parser bind(Parser p, HContinuation k, void *env); //would need to work out mappings
+    public static native Parser skip(int n);
+    public static native Parser seek(int n, int whence); //TODO double check mapping for int whence
+    public static native Parser tell();
+    
 }
