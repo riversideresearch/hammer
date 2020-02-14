@@ -46,7 +46,7 @@ HBenchmarkResults *h_benchmark__m(HAllocator* mm__, HParser* parser, HParserTest
   for (backend = PB_MIN; backend <= PB_MAX; backend++) {
     ret->results[backend].backend = backend;
     // Step 1: Compile grammar for given parser...
-    if (h_compile(parser, backend, NULL) == -1) {
+    if (h_compile(parser, backend, NULL)) {
       // backend inappropriate for grammar...
       fprintf(stderr, "Compiling for %s failed\n", HParserBackendNames[backend]);
       ret->results[backend].compile_success = false;

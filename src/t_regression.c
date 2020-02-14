@@ -187,7 +187,7 @@ static void test_charset_bits(void) {
         .free = NULL,
     };
     test_charset_bits__buf[32] = 0xAB;
-    HCharset cs = new_charset(&alloc);
+    new_charset(&alloc);
     for(size_t i=0; i<32; i++)
         g_check_cmp_uint32(test_charset_bits__buf[i], ==, 0);
     g_check_cmp_uint32(test_charset_bits__buf[32], ==, 0xAB);
@@ -270,6 +270,102 @@ static void test_bug_19() {
     g_assert_true(1);
 }
 
+static void test_flatten_null() {
+  // h_act_flatten() produces a flat sequence from a nested sequence. it also
+  // hapens to produce a one-element sequence when given a non-sequence token.
+  // but given a null token (as from h_epsilon_p() or h_ignore()), it would
+  // previously segfault.
+  //
+  // let's make sure the behavior is consistent and a singular null token
+  // produces the same thing as a sequence around h_epsilon_p() or h_ignore().
+
+  HParser *A = h_many(h_ch('a'));
+  HParser *B = h_ch('b');
+  HParser *C = h_sequence(h_ch('c'), NULL);
+
+  HParser *V = h_action(h_epsilon_p(), h_act_flatten, NULL);
+  HParser *W = h_action(B, h_act_flatten, NULL);
+  HParser *X = h_action(h_sequence(h_ignore(A), NULL), h_act_flatten, NULL);
+  HParser *Y = h_action(h_sequence(h_epsilon_p(), NULL), h_act_flatten, NULL);
+  HParser *Z = h_action(h_sequence(A, B, C, NULL), h_act_flatten, NULL);
+
+  g_check_parse_match(V, PB_PACKRAT, "", 0, "()");
+  g_check_parse_match(W, PB_PACKRAT, "b", 1, "(u0x62)");
+  g_check_parse_match(X, PB_PACKRAT, "", 0, "()");
+  g_check_parse_match(Y, PB_PACKRAT, "", 0, "()");
+  g_check_parse_match(Z, PB_PACKRAT, "aabc", 4, "(u0x61 u0x61 u0x62 u0x63)");
+
+#if 0 // XXX ast->bit_length and ast->index are currently not set
+  // let's also check that position and length info get attached correctly...
+
+  HParseResult *p = h_parse(h_sequence(A,V,B, NULL), (uint8_t *)"aaab", 4);
+
+  // top-level token
+  assert(p != NULL);
+  assert(p->ast != NULL);
+  g_check_cmp_int64(p->bit_length, ==, 32);
+  g_check_cmp_size(p->ast->bit_length, ==, 32);
+  g_check_cmp_size(p->ast->index, ==, 0);
+  g_check_cmp_int((int)p->ast->bit_offset, ==, 0);
+
+  // the empty sequence
+  HParsedToken *tok = H_INDEX_TOKEN(p->ast, 1);
+  assert(tok != NULL);
+  assert(tok->token_type == TT_SEQUENCE);
+  assert(tok->seq->used == 0);
+  g_check_cmp_size(tok->bit_length, ==, 0);
+  g_check_cmp_size(tok->index, ==, 2);
+  g_check_cmp_int((int)tok->bit_offset, ==, 0);
+#endif // 0
+}
+
+#if 0 // XXX ast->bit_length and ast->index are currently not set
+static void test_ast_length_index() {
+  HParser *A = h_many(h_ch('a'));
+  HParser *B = h_ch('b');
+  HParser *C = h_sequence(h_ch('c'), NULL);
+
+  const uint8_t input[] = "aabc";
+  size_t len = sizeof input - 1; // sans null
+  HParseResult *p = h_parse(h_sequence(A,B,C, NULL), input, len);
+  assert(p != NULL);
+  assert(p->ast != NULL);
+
+  // top-level token
+  g_check_cmp_int64(p->bit_length, ==, (int64_t)(8 * len));
+  g_check_cmp_size(p->ast->bit_length, ==, 8 * len);
+  g_check_cmp_size(p->ast->index, ==, 0);
+
+  HParsedToken *tok;
+
+  // "aa"
+  tok = H_INDEX_TOKEN(p->ast, 0);
+  g_check_cmp_size(tok->bit_length, ==, 16);
+  g_check_cmp_size(tok->index, ==, 0);
+
+  // "a", "a"
+  tok = H_INDEX_TOKEN(p->ast, 0, 0);
+  g_check_cmp_size(tok->bit_length, ==, 8);
+  g_check_cmp_size(tok->index, ==, 0);
+  tok = H_INDEX_TOKEN(p->ast, 0, 1);
+  g_check_cmp_size(tok->bit_length, ==, 8);
+  g_check_cmp_size(tok->index, ==, 1);
+
+  // "b"
+  tok = H_INDEX_TOKEN(p->ast, 1);
+  g_check_cmp_size(tok->bit_length, ==, 8);
+  g_check_cmp_size(tok->index, ==, 2);
+
+  // "c"
+  tok = H_INDEX_TOKEN(p->ast, 2);
+  g_check_cmp_size(tok->bit_length, ==, 8);
+  g_check_cmp_size(tok->index, ==, 3);
+  tok = H_INDEX_TOKEN(p->ast, 2, 0);
+  g_check_cmp_size(tok->bit_length, ==, 8);
+  g_check_cmp_size(tok->index, ==, 3);
+}
+#endif // 0
+
 void register_regression_tests(void) {
   g_test_add_func("/core/regression/bug118", test_bug118);
   g_test_add_func("/core/regression/seq_index_path", test_seq_index_path);
@@ -280,4 +376,6 @@ void register_regression_tests(void) {
   g_test_add_func("/core/regression/cfg_many_seq", test_cfg_many_seq);
   g_test_add_func("/core/regression/charset_bits", test_charset_bits);
   g_test_add_func("/core/regression/bug19", test_bug_19);
+  g_test_add_func("/core/regression/flatten_null", test_flatten_null);
+  //XXX g_test_add_func("/core/regression/ast_length_index", test_ast_length_index);
 }

@@ -295,7 +295,7 @@ HParseResult* h_parse_finish(HSuspendedParser* s);
  */
 HAMMER_FN_DECL(HParser*, h_token, const uint8_t *str, const size_t len);
 
-#define h_literal(s) h_token(s, sizeof(s)-1)
+#define h_literal(s) h_token(((const uint8_t *)(s)), sizeof(s)-1)
 
 /**
  * Given a single character, returns a parser that parses that 
@@ -785,7 +785,13 @@ void h_pprintln(FILE* stream, const HParsedToken* tok);
  * documentation for the parser backend in question for information
  * about the [params] parameter, or just pass in NULL for the defaults.
  *
- * Returns -1 if grammar cannot be compiled with the specified options; 0 otherwise.
+ * Returns a nonzero value on error; 0 otherwise. Common return codes include:
+ *
+ *  -1: parser uses a combinator that is incompatible with the chosen backend.
+ *  -2: parser could not be compiled with the chosen parameters.
+ *  >0: unexpected internal errors.
+ *
+ * Consult each backend for details.
  */
 HAMMER_FN_DECL(int, h_compile, HParser* parser, HParserBackend backend, const void* params);
 
