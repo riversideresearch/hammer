@@ -31,18 +31,24 @@ static size_t follow_transition(const HLRTable *table, size_t x, HCFChoice *A)
 {
   HLRAction *action = lrtable_lookup(table, x, A);
   assert(action != NULL);
-  assert(action->type == HLR_SHIFT);
-  return action->nextstate;
-}
 
-static inline HLRTransition *transition(HArena *arena,
-                                        size_t x, const HCFChoice *A, size_t y)
-{
-  HLRTransition *t = h_arena_malloc(arena, sizeof(HLRTransition));
-  t->from = x;
-  t->symbol = A;
-  t->to = y;
-  return t;
+  // we are interested in a transition out of state x, i.e. a shift action.
+  // while there could also be reduce actions associated with A in state x,
+  // those are not what we are here for. so if action is a conflict, search it
+  // for the shift. there will only be one and it will be the bottom element.
+  if(action->type == HLR_CONFLICT) {
+    HSlistNode *x;
+    for(x=action->branches->head; x; x=x->next) {
+      action = x->elem;
+      assert(action->type != HLR_CONFLICT); // no nesting of conflicts
+      if(action->type == HLR_SHIFT)
+        break;
+    }
+    assert(x != NULL && x->next == NULL);   // shift found at the bottom
+  }
+  assert(action->type == HLR_SHIFT);
+
+  return action->nextstate;
 }
 
 // no-op on terminal symbols
@@ -69,8 +75,8 @@ static void transform_productions(const HLRTable *table, HLREnhGrammar *eg,
     HCFChoice **iBj = items;
     for(; *B; B++, iBj++) {
       size_t j = follow_transition(table, i, *B);
-      HLRTransition *i_B_j = transition(arena, i, *B, j);
-      *iBj = h_hashtable_get(eg->tmap, i_B_j);
+      HLRTransition i_B_j = {i, *B, j};
+      *iBj = h_hashtable_get(eg->tmap, &i_B_j);
       assert(*iBj != NULL);
       i = j;
     }
