@@ -77,9 +77,9 @@ public class Hammer
     public static native Parser indirect();
 //    public static native Parser bindIndirect(Parser indirect, Parser inner);
     public static native Parser withEndianess(byte endianess, Parser p);
-//    public static native Parser bind(Parser p, HContinuation k, void *env); //would need to work out mappings
+//    public static native Parser bind(Parser p, HContinuation k, void *env);
     public static native Parser skip(int n);
-    public static native Parser seek(int n, int whence); //TODO double check mapping for int whence
+    public static native Parser seek(int n, int whence);
     public static native Parser tell();
     
 }
