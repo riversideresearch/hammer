@@ -338,7 +338,10 @@ int h_lalr_compile(HAllocator* mm__, HParser* parser, const void* params)
             const HStringMap *fs = h_follow(1, eg->grammar, lhs);
             assert(fs != NULL);
             assert(fs->epsilon_branch == NULL);
-            assert(!h_stringmap_empty(fs));
+            // NB: there is a case where fs can be empty: when reducing by lhs
+            // would lead to certain parse failure, by means of h_nothing_p()
+            // for instance. in that case, the below code correctly adds no
+            // reduce action.
 
             // for each lookahead symbol, put action into table cell
             if(terminals_put(table->tmap[state], fs, action) < 0)
