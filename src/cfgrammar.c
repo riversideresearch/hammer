@@ -823,13 +823,15 @@ static void pprint_ntrules(FILE *f, const HCFGrammar *g, const HCFChoice *nt,
   fputs(name, f);
   i += strlen(name);
   for(; i<column; i++) fputc(' ', f);
-  fputs(" ->", f);
 
   assert(nt->type == HCF_CHOICE);
   HCFSequence **p = nt->seq;
   if (*p == NULL) {
-    return;          // shouldn't happen
+    fputs(" -x\n", f);            // empty choice, e.g. h_nothing_p()
+    return;
   }
+
+  fputs(" ->", f);
   pprint_sequence(f, g, *p++);    // print first production on the same line
   for(; *p; p++) {                // print the rest below with "or" bars
     for(i=0; i<column; i++) fputc(' ', f);    // indent
