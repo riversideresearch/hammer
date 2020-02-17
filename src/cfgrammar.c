@@ -842,6 +842,8 @@ static void pprint_ntrules(FILE *f, const HCFGrammar *g, const HCFChoice *nt,
 
 void h_pprint_grammar(FILE *file, const HCFGrammar *g, int indent)
 {
+  HAllocator *mm__ = g->mm__;
+
   if (g->nts->used < 1) {
     return;
   }
@@ -851,9 +853,10 @@ void h_pprint_grammar(FILE *file, const HCFGrammar *g, int indent)
   size_t s;
   for(len=1, s=26; s < g->nts->used; len++, s*=26); 
 
-  // iterate over g->nts
+  // iterate over g->nts and collect its entries in an ordered array
   size_t i;
   HHashTableEntry *hte;
+  const HCFChoice **arr = h_new(const HCFChoice *, g->nts->used);
   for(i=0; i < g->nts->capacity; i++) {
     for(hte = &g->nts->contents[i]; hte; hte = hte->next) {
       if (hte->key == NULL) {
@@ -862,9 +865,16 @@ void h_pprint_grammar(FILE *file, const HCFGrammar *g, int indent)
       const HCFChoice *a = hte->key;        // production's left-hand symbol
       assert(a->type == HCF_CHOICE);
 
-      pprint_ntrules(file, g, a, indent, len);
+      size_t id = (uintptr_t)hte->value;    // nonterminal id
+      assert(id < g->nts->used);
+      arr[id] = a;
     }
   }
+
+  // print rules in alphabetical order
+  for(i=0; i < g->nts->used; i++)
+    pprint_ntrules(file, g, arr[i], indent, len);
+  h_free(arr);
 }
 
 void h_pprint_symbolset(FILE *file, const HCFGrammar *g, const HHashSet *set, int indent)
