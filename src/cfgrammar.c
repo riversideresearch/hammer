@@ -851,7 +851,7 @@ void h_pprint_grammar(FILE *file, const HCFGrammar *g, int indent)
   // determine maximum string length of symbol names
   int len;
   size_t s;
-  for(len=1, s=26; s < g->nts->used; len++, s*=26); 
+  for(len=1, s=26; s < g->nts->used; len++, s*=26);
 
   // iterate over g->nts and collect its entries in an ordered array
   size_t i;
