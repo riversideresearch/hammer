@@ -429,7 +429,10 @@ static void test_issue92() {
    * "src/backends/lalr.c", line 341, function "h_lalr_compile"
    *
    * the bug happens when trying to compute h_follow() for 6B8 in state 6,
-   * production "" (*).
+   * production "" (*). intermediate results could end up in the memoization
+   * table and be treated as final by later calls to h_follow(). the problem
+   * could appear or not depending on the order of nonterminals (i.e. pointers)
+   * in a hashtable.
    */
   int r = h_compile(str, PB_LALR, NULL);
   g_check_cmp_int(r, ==, 0);
