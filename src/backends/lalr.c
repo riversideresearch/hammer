@@ -351,6 +351,8 @@ int h_lalr_compile(HAllocator* mm__, HParser* parser, const void* params)
         h_slist_push(table->inadeq, (void *)(uintptr_t)state);
       }
     }
+
+    h_cfgrammar_free(eg->grammar);
   }
 
   h_cfgrammar_free(g);
