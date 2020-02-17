@@ -616,6 +616,8 @@ const HStringMap *h_follow(size_t k, HCFGrammar *g, const HCFChoice *x)
   }
   assert(x_found || x == g->start);        // no orphan non-terminals
 
+  h_hashtable_del(g->follow[k], x);
+
   return ret;
 }
 
