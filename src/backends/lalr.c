@@ -342,6 +342,7 @@ int h_lalr_compile(HAllocator* mm__, HParser* parser, const void* params)
             // would lead to certain parse failure, by means of h_nothing_p()
             // for instance. in that case, the below code correctly adds no
             // reduce action.
+            assert(!h_stringmap_empty(fs)); // XXX
 
             // for each lookahead symbol, put action into table cell
             if(terminals_put(table->tmap[state], fs, action) < 0)
