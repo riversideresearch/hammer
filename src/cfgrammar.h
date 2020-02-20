@@ -37,6 +37,7 @@ typedef struct HStringMap_ {
   void *end_branch;             // points to leaf value
   HHashTable *char_branches;    // maps to inner nodes (HStringMaps)
   HArena *arena;
+  bool taint;                   // for use by h_follow() and h_first()
 } HStringMap;
 
 HStringMap *h_stringmap_new(HArena *a);

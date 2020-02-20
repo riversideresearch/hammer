@@ -240,6 +240,7 @@ HStringMap *h_stringmap_new(HArena *a)
   m->end_branch = NULL;
   m->char_branches = h_hashtable_new(a, h_eq_ptr, h_hash_ptr);
   m->arena = a;
+  m->taint = false;
   return m;
 }
 
@@ -452,7 +453,7 @@ static bool any_string_shorter(size_t k, const HStringMap *m);
 typedef const HStringMap *(*StringSetFun)(size_t, HCFGrammar *, HCFChoice **);
 
 // helper for h_first_seq and h_follow
-static void stringset_extend(HCFGrammar *g, HStringMap *ret,
+static bool stringset_extend(HCFGrammar *g, HStringMap *ret,
                              size_t k, const HStringMap *as,
                              StringSetFun f, HCFChoice **tail);
 
@@ -546,44 +547,25 @@ static void remove_all_shorter(size_t k, HStringMap *m)
 }
 
 // h_follow adapted to the signature of StringSetFun
-static inline
-const HStringMap *h_follow_(size_t k, HCFGrammar *g, HCFChoice **s)
+static const HStringMap *
+h_follow_(size_t k, HCFGrammar *g, HCFChoice **s)
 {
   return h_follow(k, g, *s);
 }
 
-const HStringMap *h_follow(size_t k, HCFGrammar *g, const HCFChoice *x)
+static const HStringMap *h_follow_rec(size_t k, HCFGrammar *g, HCFChoice **s);
+
+static bool
+follow_work(size_t k, HCFGrammar *g, const HCFChoice *x, HStringMap *ret)
 {
-  // consider all occurances of X in g
-  // the follow set of X is the union of:
-  //   {$} if X is the start symbol
-  //   given a production "A -> alpha X tail":
-  //     first_k(tail follow_k(A))
-
-  // first_k(tail follow_k(A)) =
-  //   { a b | a <- first_k(tail), b <- follow_l(A), l=k-|a| }
-
-  HStringMap *ret;
-
-  // shortcut: follow_0(X) is always {""}
-  if (k==0) {
-    return g->singleton_epsilon;
-  }
-  // memoize via g->follow
-  ensure_k(g, k);
-  ret = h_hashtable_get(g->follow[k], x);
-  if (ret != NULL) {
-    return ret;
-  }
-  ret = h_stringmap_new(g->arena);
-  assert(ret != NULL);
-  h_hashtable_put(g->follow[k], x, ret);
+  bool taint = false;
 
   // if X is the start symbol, the end token is in its follow set
   if (x == g->start) {
     h_stringmap_put_end(ret, INSET);
   }
-  // iterate over g->nts
+
+  // iterate over g->nts, looking for X
   size_t i;
   HHashTableEntry *hte;
   int x_found=0;
@@ -608,7 +590,7 @@ const HStringMap *h_follow(size_t k, HCFGrammar *g, const HCFChoice *x)
             const HStringMap *first_tail = h_first_seq(k, g, tail);
 
             // extend the elems of first_k(tail) up to length k from follow(A)
-            stringset_extend(g, ret, k, first_tail, h_follow_, &a);
+            taint |= stringset_extend(g, ret, k, first_tail, h_follow_rec, &a);
           }
         }
       }
@@ -616,7 +598,66 @@ const HStringMap *h_follow(size_t k, HCFGrammar *g, const HCFChoice *x)
   }
   assert(x_found || x == g->start);        // no orphan non-terminals
 
-  h_hashtable_del(g->follow[k], x);
+  return taint;
+}
+
+// inner (recursion) variant of h_follow
+static const HStringMap *h_follow_rec(size_t k, HCFGrammar *g, HCFChoice **s)
+{
+  HStringMap *ret;
+  HCFChoice *x = *s;
+
+  // shortcut: follow_0(X) is always {""}
+  if (k==0) {
+    return g->singleton_epsilon;
+  }
+
+  // memoize via g->follow
+  assert(k <= g->kmax);
+  ret = h_hashtable_get(g->follow[k], x);
+  if (ret != NULL) {  // return regardless of taint
+    return ret;
+  }
+  ret = h_stringmap_new(g->arena);
+  assert(ret != NULL);
+  h_hashtable_put(g->follow[k], x, ret);
+
+  ret->taint = true;
+  ret->taint = follow_work(k, g, x, ret);
+  return ret;
+}
+
+const HStringMap *h_follow(size_t k, HCFGrammar *g, const HCFChoice *x)
+{
+  // consider all occurances of X in g
+  // the follow set of X is the union of:
+  //   {$} if X is the start symbol
+  //   given a production "A -> alpha X tail":
+  //     first_k(tail follow_k(A))
+
+  // first_k(tail follow_k(A)) =
+  //   { a b | a <- first_k(tail), b <- follow_l(A), l=k-|a| }
+
+  HStringMap *ret;
+
+  // shortcut: follow_0(X) is always {""}
+  if (k==0) {
+    return g->singleton_epsilon;
+  }
+
+  // memoize via g->follow
+  ensure_k(g, k);
+  ret = h_hashtable_get(g->follow[k], x);
+  if (ret != NULL && !ret->taint) {
+    return ret;
+  }
+  ret = h_stringmap_new(g->arena);
+  assert(ret != NULL);
+  h_hashtable_put(g->follow[k], x, ret);
+
+  ret->taint = true;
+  follow_work(k, g, x, ret);
+  ret->taint = false;
 
   return ret;
 }
@@ -643,13 +684,17 @@ HStringMap *h_predict(size_t k, HCFGrammar *g,
 }
 
 // add the set { a b | a <- as, b <- f_l(S), l=k-|a| } to ret
-static void stringset_extend(HCFGrammar *g, HStringMap *ret,
+static bool stringset_extend(HCFGrammar *g, HStringMap *ret,
                              size_t k, const HStringMap *as,
                              StringSetFun f, HCFChoice **tail)
 {
+  bool taint = false;
+
   if (as->epsilon_branch) {
     // for a="", add f_k(tail) to ret
-    h_stringmap_update(ret, f(k, g, tail));
+    const HStringMap *f_tail = f(k, g, tail);
+    taint |= f_tail->taint;
+    h_stringmap_update(ret, f_tail);
   }
 
   if (as->end_branch) {
@@ -676,9 +721,11 @@ static void stringset_extend(HCFGrammar *g, HStringMap *ret,
       HStringMap *ret_ = h_stringmap_new(g->arena);
       h_stringmap_put_after(ret, c, ret_);
 
-      stringset_extend(g, ret_, k-1, as_, f, tail);
+      taint |= stringset_extend(g, ret_, k-1, as_, f, tail);
     }
   }
+
+  return taint;
 }
 
 
