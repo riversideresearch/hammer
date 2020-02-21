@@ -397,6 +397,32 @@ bool h_stringmap_empty(const HStringMap *m)
           && h_hashtable_empty(m->char_branches));
 }
 
+// helper: remove all tainted stringmap entries from a hashtable
+void remove_tainted(HHashTable *ht)
+{
+  HHashTableEntry *hte;
+  HStringMap *s;
+
+  for (size_t i=0; i < ht->capacity; i++) {
+    for (hte = &ht->contents[i]; hte; hte = hte->next) {
+      if (hte->key == NULL)
+        continue;
+      s = hte->value;
+      assert(s != NULL);
+
+      if (s->taint) {
+        // remove the entry
+        if (hte->next != NULL)
+          *hte = *hte->next;
+        else {
+          hte->key = hte->value = NULL;
+          hte->hashval = 0;
+        }
+      }
+    }
+  }
+}
+
 const HStringMap *h_first(size_t k, HCFGrammar *g, const HCFChoice *x)
 {
   HStringMap *ret;
@@ -658,6 +684,10 @@ const HStringMap *h_follow(size_t k, HCFGrammar *g, const HCFChoice *x)
   ret->taint = true;
   follow_work(k, g, x, ret);
   ret->taint = false;
+
+  // finished - clear the temporaries (tainted entries)
+  for (size_t i=0; i <= g->kmax; i++)
+    remove_tainted(g->follow[i]);
 
   return ret;
 }
