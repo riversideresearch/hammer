@@ -393,6 +393,15 @@ bool h_stringmap_equal(const HStringMap *a, const HStringMap *b)
   return h_hashtable_equal(a->char_branches, b->char_branches, eq_stringmap);
 }
 
+// helper for h_follow and h_first
+bool workset_equal(HHashTable *a, HHashTable *b)
+{
+  if (a == NULL || b == NULL)
+    return (a == b);
+  else
+    return h_hashtable_equal(a, b, eq_stringmap);
+}
+
 static const HStringMap *
 h_first_seq_work(size_t k, HCFGrammar *g, HHashTable **pws, HCFChoice **s);
 
@@ -481,13 +490,18 @@ h_first_work(size_t k, HCFGrammar *g, HHashTable **pws, const HCFChoice *x)
 
 const HStringMap *h_first(size_t k, HCFGrammar *g, const HCFChoice *x)
 {
-  HHashTable *ws = NULL;
+  HHashTable *ws, *bak;
   const HStringMap *ret;
 
-  // XXX perform fixpoint iteration on workset
-  ret = h_first_work(k, g, &ws, x);
-  assert(ret != NULL);
+  // fixpoint iteration on workset
+  ws = NULL;
+  do {
+    bak = ws;
+    ws = NULL;
+    ret = h_first_work(k, g, &ws, x);
+  } while(!workset_equal(ws, bak));
 
+  assert(ret != NULL);
   return ret;
 }
 
@@ -539,13 +553,18 @@ h_first_seq_work(size_t k, HCFGrammar *g, HHashTable **pws, HCFChoice **s)
 
 const HStringMap *h_first_seq(size_t k, HCFGrammar *g, HCFChoice **s)
 {
-  HHashTable *ws = NULL;
+  HHashTable *ws, *bak;
   const HStringMap *ret;
 
-  // XXX perform fixpoint iteration on workset
-  ret = h_first_seq_work(k, g, &ws, s);
-  assert(ret != NULL);
+  // fixpoint iteration on workset
+  ws = NULL;
+  do {
+    bak = ws;
+    ws = NULL;
+    ret = h_first_seq_work(k, g, &ws, s);
+  } while(!workset_equal(ws, bak));
 
+  assert(ret != NULL);
   return ret;
 }
 
@@ -718,12 +737,18 @@ h_follow_work(size_t k, HCFGrammar *g, HHashTable **pws, const HCFChoice *x)
 
 const HStringMap *h_follow(size_t k, HCFGrammar *g, const HCFChoice *x)
 {
-  HHashTable *ws = NULL;
+  HHashTable *ws, *bak;
   const HStringMap *ret;
 
-  // XXX perform fixpoint iteration on workset
-  ret = h_follow_work(k, g, &ws, x);
+  // fixpoint iteration on workset
+  ws = NULL;
+  do {
+    bak = ws;
+    ws = NULL;
+    ret = h_follow_work(k, g, &ws, x);
+  } while(!workset_equal(ws, bak));
 
+  assert(ret != NULL);
   return ret;
 }
 
