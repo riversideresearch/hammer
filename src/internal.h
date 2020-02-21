@@ -382,6 +382,7 @@ int   h_hashtable_present(const HHashTable *ht, const void *key);
 void  h_hashtable_del(HHashTable *ht, const void *key);
 void  h_hashtable_free(HHashTable *ht);
 static inline bool h_hashtable_empty(const HHashTable *ht) { return (ht->used == 0); }
+bool h_hashtable_equal(const HHashTable *a, const HHashTable *b, HEqualFunc value_eq);
 
 typedef HHashTable HHashSet;
 #define h_hashset_new(a,eq,hash) h_hashtable_new(a,eq,hash)
