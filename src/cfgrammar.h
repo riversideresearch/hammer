@@ -8,15 +8,15 @@ typedef struct HCFGrammar_ {
   HHashSet    *nts;     // HCFChoices, each representing the alternative
                         // productions for one nonterminal
   HHashSet    *geneps;  // set of NTs that can generate the empty string
-  HHashTable  **first;  // memoized first sets of the grammar's symbols
-  HHashTable  **follow; // memoized follow sets of the grammar's NTs
-  size_t      kmax;     // maximum lookahead depth allocated
+  HHashTable  *first;   // memoized first sets of the grammar's symbols
+  HHashTable  *follow;  // memoized follow sets of the grammar's NTs
   HArena      *arena;
   HAllocator  *mm__;
 
-  // constant set containing only the empty string.
-  // this is only a member of HCFGrammar because it needs a pointer to arena.
+  // constant sets containing only the empty string or end symbol.
+  // these are only members of HCFGrammar because they need a pointer to arena.
   const struct HStringMap_ *singleton_epsilon;
+  const struct HStringMap_ *singleton_end;
 } HCFGrammar;
 
 
