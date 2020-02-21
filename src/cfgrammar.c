@@ -379,6 +379,20 @@ bool h_stringmap_empty(const HStringMap *m)
           && h_hashtable_empty(m->char_branches));
 }
 
+static bool eq_stringmap(const void *a, const void *b)
+{
+  return h_stringmap_equal(a, b);
+}
+
+bool h_stringmap_equal(const HStringMap *a, const HStringMap *b)
+{
+  if (a->epsilon_branch != b->epsilon_branch)
+    return false;
+  if (a->end_branch != b->end_branch)
+    return false;
+  return h_hashtable_equal(a->char_branches, b->char_branches, eq_stringmap);
+}
+
 static const HStringMap *
 h_first_seq_work(size_t k, HCFGrammar *g, HHashTable **pws, HCFChoice **s);
 

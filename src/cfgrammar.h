@@ -53,6 +53,7 @@ void *h_stringmap_get_lookahead(const HStringMap *m, HInputStream lookahead);
 bool h_stringmap_present(const HStringMap *m, const uint8_t *str, size_t n, bool end);
 bool h_stringmap_present_epsilon(const HStringMap *m);
 bool h_stringmap_empty(const HStringMap *m);
+bool h_stringmap_equal(const HStringMap *a, const HStringMap *b);
 
 static inline HStringMap *h_stringmap_get_char(const HStringMap *m, const uint8_t c)
  { return h_hashtable_get(m->char_branches, (void *)char_key(c)); }
