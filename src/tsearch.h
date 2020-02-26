@@ -20,6 +20,7 @@ void *tfind(const void *vkey, void * const *vrootp,
             int (*compar)(const void *, const void *));
 
 #else
+#define _POSIX_C_SOURCE 200809L
 #include <search.h>
 #endif
 
