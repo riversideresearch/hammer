@@ -438,6 +438,30 @@ static void test_issue92() {
   g_check_cmp_int(r, ==, 0);
 }
 
+static void test_issue83() {
+  HParser *p = h_sequence(h_sequence(NULL, NULL), h_nothing_p(), NULL);
+  /*
+   * A -> B
+   * B -> C D
+   * C -> ""
+   * D -x
+   *
+   * (S) -> 0B1
+   * 0B1 -> 0C2 2D3
+   * 0C2 -> ""           (*) h_follow()
+   * 2D3 -x
+   */
+
+  /*
+   * similar to issue 91, this would cause the same assertion failure, but for
+   * a different reason. the follow set of 0C2 above is equal to the first set
+   * of 2D3, but 2D3 is an empty choice. The first set of an empty choice
+   * is legitimately empty. the asserting in h_lalr_compile() missed this case.
+   */
+  int r = h_compile(p, PB_LALR, NULL);
+  g_check_cmp_int(r, ==, 0);
+}
+
 void register_regression_tests(void) {
   g_test_add_func("/core/regression/bug118", test_bug118);
   g_test_add_func("/core/regression/seq_index_path", test_seq_index_path);
@@ -452,4 +476,5 @@ void register_regression_tests(void) {
   //XXX g_test_add_func("/core/regression/ast_length_index", test_ast_length_index);
   g_test_add_func("/core/regression/issue91", test_issue91);
   g_test_add_func("/core/regression/issue92", test_issue92);
+  g_test_add_func("/core/regression/issue83", test_issue83);
 }

@@ -60,6 +60,7 @@ void h_cfgrammar_free(HCFGrammar *g)
 // helpers
 static void collect_nts(HCFGrammar *grammar, HCFChoice *symbol);
 static void collect_geneps(HCFGrammar *grammar);
+static void eliminate_dead_rules(HCFGrammar *g);
 
 
 HCFGrammar *h_cfgrammar(HAllocator* mm__, const HParser *parser)
@@ -100,6 +101,9 @@ HCFGrammar *h_cfgrammar_(HAllocator* mm__, HCFChoice *desugared)
   } else {
     g->start = desugared;
   }
+
+  // simplifications
+  eliminate_dead_rules(g);
 
   // determine which nonterminals generate epsilon
   collect_geneps(g);
@@ -212,6 +216,76 @@ static void collect_geneps(HCFGrammar *g)
       }
     }
   } while(g->geneps->used != prevused);
+}
+
+static bool mentions_symbol(HCFChoice **s, const HCFChoice *x)
+{
+  for(; *s; s++) {
+    if (*s == x)
+      return true;
+  }
+  return false;
+}
+
+static void remove_productions_with(HCFGrammar *g, const HCFChoice *x)
+{
+  HHashTableEntry *hte;
+  const HCFChoice *symbol;
+  size_t i;
+
+  for(i=0; i < g->nts->capacity; i++) {
+    for(hte = &g->nts->contents[i]; hte; hte = hte->next) {
+      if (hte->key == NULL)
+        continue;
+      symbol = hte->key;
+      assert(symbol->type == HCF_CHOICE);
+
+      HCFSequence **p, **q;
+      for(p = symbol->seq; *p != NULL; ) {
+        if (mentions_symbol((*p)->items, x)) {
+          // remove production p
+          for(q=p; *(q+1) != NULL; q++);  // q = last production
+          *p = *q;                        // move q over p
+          *q = NULL;                      // delete old q
+        } else {
+          p++;
+        }
+      }
+    }
+  }
+}
+
+static void eliminate_dead_rules(HCFGrammar *g)
+{
+  HHashTableEntry *hte;
+  const HCFChoice *symbol;
+  size_t i;
+  bool found;
+
+  do {
+    found = false;
+    for(i=0; !found && i < g->nts->capacity; i++) {
+      for(hte = &g->nts->contents[i]; !found && hte; hte = hte->next) {
+        if (hte->key == NULL)
+          continue;
+        symbol = hte->key;
+        assert(symbol->type == HCF_CHOICE);
+
+        // this NT is dead if it has no productions
+        if (*symbol->seq == NULL)
+          found = true;
+      }
+    }
+    if (found) {
+      h_hashtable_del(g->nts, symbol);
+      remove_productions_with(g, symbol);
+    }
+  } while(found); // until nothing left to remove
+
+  // rebuild g->nts. there may now be symbols that no longer appear in any
+  // productions. we also might have removed g->start.
+  g->nts = h_hashset_new(g->arena, h_eq_ptr, h_hash_ptr);
+  collect_nts(g, g->start);
 }
 
 
