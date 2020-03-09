@@ -225,6 +225,8 @@ HParseResult *h_glr_parse(HAllocator* mm__, const HParser* parser, HInputStream*
       HLREngine *engine = h_slist_pop(engines);
       const HLRAction *action = h_lrengine_action(engine);
       glr_step(&result, engback, engine, action);
+      // XXX detect ambiguous results - two engines terminating at the same pos
+      // -> kill both engines, i.e. ignore if there is a later unamb. success
     }
 
     // swap the lists

@@ -384,6 +384,60 @@ static void test_issue91() {
   g_check_cmp_int(r, ==, -2);
 }
 
+static void test_issue92() {
+  HParser *a = h_ch('a');
+  HParser *b = h_ch('b');
+
+  HParser *str_a  = h_indirect();
+  HParser *str_b  = h_choice(h_sequence(b, str_a, NULL), str_a, NULL);
+                    //h_sequence(h_optional(b), str_a, NULL);  // this works
+  HParser *str_a_ = h_optional(h_sequence(a, str_b, NULL));
+  HParser *str    = str_a;
+  h_bind_indirect(str_a, str_a_);
+  /*
+   * grammar generated from the above:
+   *
+   *   A -> B           -- "augmented" with a fresh start symbol
+   *   B -> C           -- B = str_a
+   *      | ""
+   *   C -> "a" D       -- C = h_sequence(a, str_b)
+   *   D -> E           -- D = str_b
+   *      | B
+   *   E -> "b" B       -- E = h_sequence(b, str_a)
+   *
+   * transformed to the following "enhanced grammar":
+   *
+   *    S  -> 0B3
+   *   0B3 -> 0C2
+   *        | ""
+   *   1B4 -> 1C2
+   *        | ""
+   *   6B8 -> 6C2
+   *        | ""           (*) here
+   *   0C2 -> "a" 1D7
+   *   1C2 -> "a" 1D7
+   *   6C2 -> "a" 1D7
+   *   1D7 -> 1E5
+   *        | 1B4
+   *   1E5 -> "b" 6B8
+   */
+
+  /*
+   * the following call would cause an assertion failure.
+   *
+   * assertion "!h_stringmap_empty(fs)" failed: file
+   * "src/backends/lalr.c", line 341, function "h_lalr_compile"
+   *
+   * the bug happens when trying to compute h_follow() for 6B8 in state 6,
+   * production "" (*). intermediate results could end up in the memoization
+   * table and be treated as final by later calls to h_follow(). the problem
+   * could appear or not depending on the order of nonterminals (i.e. pointers)
+   * in a hashtable.
+   */
+  int r = h_compile(str, PB_LALR, NULL);
+  g_check_cmp_int(r, ==, 0);
+}
+
 static void test_issue83() {
   HParser *p = h_sequence(h_sequence(NULL, NULL), h_nothing_p(), NULL);
   /*
@@ -421,5 +475,6 @@ void register_regression_tests(void) {
   g_test_add_func("/core/regression/flatten_null", test_flatten_null);
   //XXX g_test_add_func("/core/regression/ast_length_index", test_ast_length_index);
   g_test_add_func("/core/regression/issue91", test_issue91);
+  g_test_add_func("/core/regression/issue92", test_issue92);
   g_test_add_func("/core/regression/issue83", test_issue83);
 }
