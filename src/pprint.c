@@ -63,6 +63,12 @@ void h_pprint(FILE* stream, const HParsedToken* tok, int indent, int delta) {
   case TT_UINT:
     fprintf(stream, "%" PRIu64, tok->uint);
     break;
+  case TT_DOUBLE:
+    fprintf(stream, "%f", tok->dbl);
+    break;
+  case TT_FLOAT:
+    fprintf(stream, "%f", (double)tok->flt);
+    break;
   case TT_SEQUENCE:
     if (tok->seq->used == 0)
       fprintf(stream, "[ ]");
@@ -182,6 +188,12 @@ static void unamb_sub(const HParsedToken* tok, struct result_buf *buf) {
     break;
   case TT_UINT:
     h_append_buf_formatted(buf, "u%#" PRIx64, tok->uint);
+    break;
+  case TT_DOUBLE:
+    h_append_buf_formatted(buf, "d%a", tok->dbl);
+    break;
+  case TT_FLOAT:
+    h_append_buf_formatted(buf, "f%a", (double)tok->flt);
     break;
   case TT_ERR:
     h_append_buf(buf, "ERR", 3);

@@ -8,15 +8,15 @@ typedef struct HCFGrammar_ {
   HHashSet    *nts;     // HCFChoices, each representing the alternative
                         // productions for one nonterminal
   HHashSet    *geneps;  // set of NTs that can generate the empty string
-  HHashTable  **first;  // memoized first sets of the grammar's symbols
-  HHashTable  **follow; // memoized follow sets of the grammar's NTs
-  size_t      kmax;     // maximum lookahead depth allocated
+  HHashTable  *first;   // memoized first sets of the grammar's symbols
+  HHashTable  *follow;  // memoized follow sets of the grammar's NTs
   HArena      *arena;
   HAllocator  *mm__;
 
-  // constant set containing only the empty string.
-  // this is only a member of HCFGrammar because it needs a pointer to arena.
+  // constant sets containing only the empty string or end symbol.
+  // these are only members of HCFGrammar because they need a pointer to arena.
   const struct HStringMap_ *singleton_epsilon;
+  const struct HStringMap_ *singleton_end;
 } HCFGrammar;
 
 
@@ -37,6 +37,7 @@ typedef struct HStringMap_ {
   void *end_branch;             // points to leaf value
   HHashTable *char_branches;    // maps to inner nodes (HStringMaps)
   HArena *arena;
+  bool taint;                   // for use by h_follow() and h_first()
 } HStringMap;
 
 HStringMap *h_stringmap_new(HArena *a);
@@ -52,6 +53,7 @@ void *h_stringmap_get_lookahead(const HStringMap *m, HInputStream lookahead);
 bool h_stringmap_present(const HStringMap *m, const uint8_t *str, size_t n, bool end);
 bool h_stringmap_present_epsilon(const HStringMap *m);
 bool h_stringmap_empty(const HStringMap *m);
+bool h_stringmap_equal(const HStringMap *a, const HStringMap *b);
 
 static inline HStringMap *h_stringmap_get_char(const HStringMap *m, const uint8_t c)
  { return h_hashtable_get(m->char_branches, (void *)char_key(c)); }

@@ -387,16 +387,18 @@ static bool hte_same_length(HHashTableEntry *xs, HHashTableEntry *ys) {
 }
 
 // helper for hte_equal: are all elements of xs present in ys?
-static bool hte_subset(HEqualFunc eq, HHashTableEntry *xs, HHashTableEntry *ys)
+static bool hte_subset(HEqualFunc eq, HEqualFunc value_eq,
+                       HHashTableEntry *xs, HHashTableEntry *ys)
 {
   for(; xs; xs=xs->next) {
     if(xs->key == NULL) continue;   // element not present
 
     HHashTableEntry *hte;
     for(hte=ys; hte; hte=hte->next) {
-      if(hte->key == xs->key) break; // assume an element is equal to itself
+      // assume an element is equal to itself
+      if(hte->key == xs->key && hte->value == xs->value) break;
       if(hte->hashval != xs->hashval) continue; // shortcut
-      if(eq(hte->key, xs->key)) break;
+      if(eq(hte->key, xs->key) && value_eq(hte->value, xs->value)) break;
     }
     if(hte == NULL) return false;   // element not found
   }
@@ -404,19 +406,20 @@ static bool hte_subset(HEqualFunc eq, HHashTableEntry *xs, HHashTableEntry *ys)
 }
 
 // compare two lists of HHashTableEntries
-static inline bool hte_equal(HEqualFunc eq, HHashTableEntry *xs, HHashTableEntry *ys) {
-  return (hte_same_length(xs, ys) && hte_subset(eq, xs, ys));
+static inline bool hte_equal(HEqualFunc eq, HEqualFunc value_eq,
+                             HHashTableEntry *xs, HHashTableEntry *ys) {
+  return (hte_same_length(xs, ys) && hte_subset(eq, value_eq, xs, ys));
 }
 
-/* Set equality of HHashSets.
+/* Equality of HHashTables.
  * Obviously, 'a' and 'b' must use the same equality function.
  * Not strictly necessary, but we also assume the same hash function.
  */
-bool h_hashset_equal(const HHashSet *a, const HHashSet *b) {
+bool h_hashtable_equal(const HHashSet *a, const HHashSet *b, HEqualFunc value_eq) {
   if(a->capacity == b->capacity) {
     // iterate over the buckets in parallel
     for(size_t i=0; i < a->capacity; i++) {
-      if(!hte_equal(a->equalFunc, &a->contents[i], &b->contents[i]))
+      if(!hte_equal(a->equalFunc, value_eq, &a->contents[i], &b->contents[i]))
         return false;
     }
   } else {
@@ -424,6 +427,18 @@ bool h_hashset_equal(const HHashSet *a, const HHashSet *b) {
     // TODO implement general case
   }
   return true;
+}
+
+static bool eq_dontcare(const void *p, const void *q) {
+  return true;
+}
+
+/* Set equality of HHashSets.
+ * Obviously, 'a' and 'b' must use the same equality function.
+ * Not strictly necessary, but we also assume the same hash function.
+ */
+bool h_hashset_equal(const HHashSet *a, const HHashSet *b) {
+  return h_hashtable_equal(a, b, eq_dontcare);
 }
 
 bool h_eq_ptr(const void *p, const void *q) {
