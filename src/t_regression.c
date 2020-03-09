@@ -384,6 +384,16 @@ static void test_issue91() {
   g_check_cmp_int(r, ==, -2);
 }
 
+// a different instance of issue 91
+static void test_issue87() {
+  HParser *a = h_ch('a');
+  HParser *a2 = h_ch_range('a', 'a');
+  HParser *p = h_many(h_many(h_choice(a, a2, NULL)));
+
+  int r = h_compile(p, PB_LALR, NULL);
+  g_check_cmp_int(r, ==, -2);
+}
+
 static void test_issue92() {
   HParser *a = h_ch('a');
   HParser *b = h_ch('b');
@@ -475,6 +485,7 @@ void register_regression_tests(void) {
   g_test_add_func("/core/regression/flatten_null", test_flatten_null);
   //XXX g_test_add_func("/core/regression/ast_length_index", test_ast_length_index);
   g_test_add_func("/core/regression/issue91", test_issue91);
+  g_test_add_func("/core/regression/issue87", test_issue87);
   g_test_add_func("/core/regression/issue92", test_issue92);
   g_test_add_func("/core/regression/issue83", test_issue83);
 }
