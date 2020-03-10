@@ -118,8 +118,15 @@ if env['CC'] == 'cl':
         ]
     )
 else:
-    # -Wno-clobbered only really works with gcc >= 4.2.x, but ... scons
-    env.MergeFlags('-std=c99 -Wall -Wextra -Werror -Wno-unused-parameter -Wno-attributes -Wno-unused-variable')
+    if env['PLATFORM'] == 'darwin':
+        # It's reported -D_POSIX_C_SOURCE breaks the Mac OS build; I think we
+        # may need _DARWIN_C_SOURCE instead/in addition to, but let's wait to
+        # have access to a Mac to test/repo
+        env.MergeFlags('-std=c99 -Wall -Wextra -Werror -Wno-unused-parameter -Wno-attributes -Wno-unused-variable')
+    else:
+        # Using -D_POSIX_C_SOURCE=200809L here, not on an ad-hoc basis when,
+        # #including, is important
+        env.MergeFlags('-std=c99 -D_POSIX_C_SOURCE=200809L -Wall -Wextra -Werror -Wno-unused-parameter -Wno-attributes -Wno-unused-variable')
 
 # Linker options
 if env['PLATFORM'] == 'darwin':
