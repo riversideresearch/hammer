@@ -258,7 +258,7 @@ static void remove_productions_with(HCFGrammar *g, const HCFChoice *x)
 static void eliminate_dead_rules(HCFGrammar *g)
 {
   HHashTableEntry *hte;
-  const HCFChoice *symbol;
+  const HCFChoice *symbol = NULL;
   size_t i;
   bool found;
 
