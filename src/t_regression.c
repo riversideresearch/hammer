@@ -472,6 +472,56 @@ static void test_issue83() {
   g_check_cmp_int(r, ==, 0);
 }
 
+
+static void test_bug60() {
+
+//TODO: there is probably an even smaller example that shows the issue
+	  HParser *alpha = NULL;
+	  HParser *sp = NULL;
+	  HParser *vchar = NULL;
+	  HParser *curly = NULL;
+	  HParser *comment = NULL;
+	  HParser *c_nl = NULL;
+	  HParser *c_sp = NULL;
+	  HParser *alphas = NULL;
+	  HParser *rule = NULL;
+	  HParser *rulelist = NULL;
+	  HParser *p = NULL;
+	  HParseResult *r = NULL;
+	  int n;
+
+	  alpha =  h_ch('z');
+
+	  vchar = h_ch_range(0x7a, 0x7b); // allows z and {
+
+	  sp = h_ch('b');
+
+	  curly = h_ch('{'); //'=');
+
+	  comment = h_sequence(
+	      curly,
+	      h_many(h_choice(sp, vchar, NULL)),
+	      NULL);
+	  c_nl = h_choice(comment, alpha, NULL);
+	  c_sp = h_choice(sp, h_sequence(c_nl, sp, NULL), NULL);
+
+	  alphas = h_sequence(
+	      alpha,
+	      h_many(h_sequence(h_many1(c_sp), alpha, NULL)),
+	      NULL);
+	  rule = h_sequence(alphas, c_nl, NULL);
+	  rulelist = h_many1(h_choice(
+	      rule,
+	      h_sequence(h_many(c_sp), c_nl, NULL),
+	      NULL));
+
+	  p = rulelist;
+
+	  g_check_parse_ok(p, PB_GLR, "b{zzb", 5);
+	  g_check_parse_match(p, PB_GLR, "b{zzb", 5, "(((u0x62) (u0x7b (u0x7a u0x7a u0x62))))");
+
+}
+
 void register_regression_tests(void) {
   g_test_add_func("/core/regression/bug118", test_bug118);
   g_test_add_func("/core/regression/seq_index_path", test_seq_index_path);
@@ -488,4 +538,5 @@ void register_regression_tests(void) {
   g_test_add_func("/core/regression/issue87", test_issue87);
   g_test_add_func("/core/regression/issue92", test_issue92);
   g_test_add_func("/core/regression/issue83", test_issue83);
+  g_test_add_func("/core/regression/bug60", test_bug60);
 }
