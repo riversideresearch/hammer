@@ -174,16 +174,9 @@ static bool glr_step(HParseResult **result, HSlist *engines,
     HSlistNode *x;
     for(x=engines->head; x; x=x->next) {
       HLREngine *eng = x->elem;
-      if(eng->state == engine->state) {
-    	// check they've both actually consumed the same number of tokens from the input.
-    	// as implemented the engines do not always consume tokens in lockstep.
-    	// TODO: ?--shall we try to actually change it to move in lockstep--?
-    	// This is a quick fix, but it should stay as a sanity check regardless
-
-    	if(eng->input.index == engine->input.index) {
-    		x->elem = lrengine_merge(eng, engine);
-    		break;
-    	}
+      if(eng->state == engine->state && eng->input.index == engine->input.index) {
+    	x->elem = lrengine_merge(eng, engine);
+    	break;
       }
     }
     if(!x)  // no merge happened

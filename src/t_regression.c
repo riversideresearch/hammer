@@ -475,14 +475,15 @@ static void test_issue83() {
 
 static void test_bug60() {
 
-//TODO: there is probably an even smaller example that shows the issue
+//There is probably an even smaller example that shows the issue
+
+	  HParser *zed = NULL;
 	  HParser *alpha = NULL;
-	  HParser *sp = NULL;
 	  HParser *vchar = NULL;
-	  HParser *curly = NULL;
-	  HParser *comment = NULL;
-	  HParser *c_nl = NULL;
-	  HParser *c_sp = NULL;
+	  HParser *why = NULL;
+	  HParser *plural_zed = NULL;
+	  HParser *plural_zed_zed = NULL;
+	  HParser *a_to_zed = NULL;
 	  HParser *alphas = NULL;
 	  HParser *rule = NULL;
 	  HParser *rulelist = NULL;
@@ -490,35 +491,35 @@ static void test_bug60() {
 	  HParseResult *r = NULL;
 	  int n;
 
-	  alpha =  h_ch('z');
+	  zed =  h_ch('z');
 
-	  vchar = h_ch_range(0x7a, 0x7b); // allows z and {
+	  vchar = h_ch_range(0x79, 0x7a); // allows y and z
 
-	  sp = h_ch('b');
+	  alpha = h_ch('a');
 
-	  curly = h_ch('{'); //'=');
+	  why = h_ch('y');
 
-	  comment = h_sequence(
-	      curly,
-	      h_many(h_choice(sp, vchar, NULL)),
+	  plural_zed = h_sequence(
+	      why,
+	      h_many(h_choice(alpha, vchar, NULL)),
 	      NULL);
-	  c_nl = h_choice(comment, alpha, NULL);
-	  c_sp = h_choice(sp, h_sequence(c_nl, sp, NULL), NULL);
+	  plural_zed_zed = h_choice(plural_zed, zed, NULL);
+	  alphas = h_choice(alpha, h_sequence(plural_zed_zed, alpha, NULL), NULL);
 
-	  alphas = h_sequence(
-	      alpha,
-	      h_many(h_sequence(h_many1(c_sp), alpha, NULL)),
+	  a_to_zed = h_sequence(
+	      zed,
+	      h_many(h_sequence(h_many1(alphas), zed, NULL)),
 	      NULL);
-	  rule = h_sequence(alphas, c_nl, NULL);
+	  rule = h_sequence(a_to_zed, plural_zed_zed, NULL);
 	  rulelist = h_many1(h_choice(
 	      rule,
-	      h_sequence(h_many(c_sp), c_nl, NULL),
+	      h_sequence(h_many(alphas), plural_zed_zed, NULL),
 	      NULL));
 
 	  p = rulelist;
 
-	  g_check_parse_ok(p, PB_GLR, "b{zzb", 5);
-	  g_check_parse_match(p, PB_GLR, "b{zzb", 5, "(((u0x62) (u0x7b (u0x7a u0x7a u0x62))))");
+	  g_check_parse_ok(p, PB_GLR, "ayzza", 5);
+	  g_check_parse_match(p, PB_GLR, "ayzza", 5, "(((u0x61) (u0x79 (u0x7a u0x7a u0x61))))");
 
 }
 
