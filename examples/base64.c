@@ -11,8 +11,6 @@
 #include <inttypes.h>
 #include "../src/hammer.h"
 
-#define DEBUG
-
 const HParser* document = NULL;
 
 void init_parser(void)
@@ -27,60 +25,17 @@ void init_parser(void)
     HParser *equals = h_ch('=');
 
     HParser *bsfdig = h_choice(alpha, digit, plus, slash, NULL);
-    HParser *bsfdig_4bit = h_choice(
-        h_ch('A'), h_ch('E'), h_ch('I'), h_ch('M'), h_ch('Q'), h_ch('U'),
-        h_ch('Y'), h_ch('c'), h_ch('g'), h_ch('k'), h_ch('o'), h_ch('s'),
-        h_ch('w'), h_ch('0'), h_ch('4'), h_ch('8'), NULL);
-    HParser *bsfdig_2bit = h_choice(h_ch('A'), h_ch('Q'), h_ch('g'), h_ch('w'), NULL);
+    HParser *bsfdig_4bit = h_in((uint8_t *)"AEIMQUYcgkosw048", 16);
+    HParser *bsfdig_2bit = h_in((uint8_t *)"AQgw", 4);
+    HParser *base64_3 = h_repeat_n(bsfdig, 4);
+    HParser *base64_2 = h_sequence(bsfdig, bsfdig, bsfdig_4bit, equals, NULL);
+    HParser *base64_1 = h_sequence(bsfdig, bsfdig_2bit, equals, equals, NULL);
+    HParser *base64 = h_sequence(h_many(base64_3),
+                                       h_optional(h_choice(base64_2,
+                                                           base64_1, NULL)),
+                                       NULL);
 
-    HParser *base64_quad = h_sequence(bsfdig, bsfdig, bsfdig, bsfdig, NULL);
-    HParser *base64_quads = h_many(base64_quad);
-
-    HParser *base64_2 = h_sequence(bsfdig, bsfdig, bsfdig_4bit, equals, h_end_p(), NULL);
-    HParser *base64_1 = h_sequence(bsfdig, bsfdig_2bit, equals, equals, h_end_p(), NULL);
-    HParser *base64_ending = h_choice(h_end_p(), base64_2, base64_1, NULL);
-    HParser *base64 = h_sequence(base64_quads, base64_ending, NULL);
-    // why does this parse "A=="?!
-    // why does this parse "aaA=" but not "aA=="?!
-
-    document = base64;
-}
-
-
-#include <string.h>
-#include <assert.h>
-#define TRUE (1)
-#define FALSE (0)
-
-void assert_parse(int expected, char *data) {
-    HParseResult *result;
-
-    size_t datasize = strlen(data);
-    result = h_parse(document, (void*)data, datasize);
-    if((result != NULL) != expected) {
-        fprintf(stderr, "Test failed: %s\n", data);
-    }
-#ifdef DEBUG
-    else {
-        fprintf(stderr, "Test succeeded: %s\n", data);
-        fprintf(stderr, "parsed=%" PRId64 " bytes\n", result->bit_length/8);
-        h_pprint(stdout, result->ast, 0, 0);
-    }
-#endif
-}
-
-void test() {
-    assert_parse(TRUE, "");
-    assert_parse(TRUE, "YQ==");
-    assert_parse(TRUE, "YXU=");
-    assert_parse(TRUE, "YXVy");
-    assert_parse(TRUE, "QVVSIFNBUkFG");
-    assert_parse(TRUE, "QVVSIEhFUlUgU0FSQUY=");
-    assert_parse(FALSE, "A");
-    assert_parse(FALSE, "A=");
-    assert_parse(FALSE, "A==");
-    assert_parse(FALSE, "AAA==");
-    assert_parse(FALSE, "aa==");
+    document = h_sequence(h_whitespace(base64), h_whitespace(h_end_p()), NULL);
 }
 
 
@@ -94,8 +49,6 @@ int main(int argc, char **argv)
 
     init_parser();
 
-    test();
-
     inputsize = fread(input, 1, sizeof(input), stdin);
     fprintf(stderr, "inputsize=%zu\ninput=", inputsize);
     fwrite(input, 1, inputsize, stderr);
@@ -104,6 +57,7 @@ int main(int argc, char **argv)
     if(result) {
         fprintf(stderr, "parsed=%" PRId64 " bytes\n", result->bit_length/8);
         h_pprint(stdout, result->ast, 0, 0);
+        h_parse_result_free(result);
         return 0;
     } else {
         return 1;

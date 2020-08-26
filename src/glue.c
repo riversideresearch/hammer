@@ -60,15 +60,8 @@ static void act_flatten_(HCountedArray *seq, const HParsedToken *tok) {
 }
 
 HParsedToken *h_act_flatten(const HParseResult *p, void* user_data) {
-  HCountedArray *seq = h_carray_new(p->arena);
-
-  act_flatten_(seq, p->ast);
-
-  HParsedToken *res = a_new_(p->arena, HParsedToken, 1);
-  res->token_type = TT_SEQUENCE;
-  res->seq = seq;
-  res->index = p->ast->index;
-  res->bit_offset = p->ast->bit_offset;
+  HParsedToken *res = h_make_seq(p->arena);
+  act_flatten_(res->seq, p->ast);
   return res;
 }
 
@@ -106,7 +99,7 @@ HParsedToken *h_make_seqn(HArena *arena, size_t n)
   return ret;
 }
 
-HParsedToken *h_make_bytes(HArena *arena, uint8_t *array, size_t len)
+HParsedToken *h_make_bytes(HArena *arena, const uint8_t *array, size_t len)
 {
   HParsedToken *ret = h_make_(arena, TT_BYTES);
   ret->bytes.len = len;
@@ -125,6 +118,20 @@ HParsedToken *h_make_uint(HArena *arena, uint64_t val)
 {
   HParsedToken *ret = h_make_(arena, TT_UINT);
   ret->uint = val;
+  return ret;
+}
+
+HParsedToken *h_make_double(HArena *arena, double val)
+{
+  HParsedToken *ret = h_make_(arena, TT_DOUBLE);
+  ret->dbl = val;
+  return ret;
+}
+
+HParsedToken *h_make_float(HArena *arena, float val)
+{
+  HParsedToken *ret = h_make_(arena, TT_FLOAT);
+  ret->flt = val;
   return ret;
 }
 

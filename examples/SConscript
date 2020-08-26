@@ -3,11 +3,18 @@ from __future__ import absolute_import, division, print_function
 Import('env')
 
 example = env.Clone()
-example.Append(LIBS="hammer", LIBPATH="../src")
+
+if 'GPROF' in env and env['GPROF'] == 1:
+    hammer_lib_name="hammer_pg"
+else:
+    hammer_lib_name="hammer"
+
+example.Append(LIBS=hammer_lib_name, LIBPATH="../src")
 
 dns = example.Program('dns', ['dns.c', 'rr.c', 'dns_common.c'])
+ttuser = example.Program('ttuser', 'ttuser.c')
 base64 = example.Program('base64', 'base64.c')
 base64_sem1 = example.Program('base64_sem1', 'base64_sem1.c')
 base64_sem2 = example.Program('base64_sem2', 'base64_sem2.c')
 ties = example.Program('ties', ['ties.c', 'grammar.c'])
-env.Alias("examples", [dns, base64, base64_sem1, base64_sem2, ties])
+env.Alias("examples", [dns, ttuser, base64, base64_sem1, base64_sem2, ties])

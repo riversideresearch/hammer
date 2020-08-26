@@ -6,9 +6,24 @@
 #include <ctype.h>
 
 
+// type of pairs used as memoization keys by h_follow and h_first
+struct k_nt {size_t k; const HCFChoice *nt;};
+
 // a special map value for use when the map is used to represent a set
 static void * const INSET = (void *)(uintptr_t)1;
 
+
+static bool eq_k_nt(const void *p, const void *q)
+{
+  const struct k_nt *a=p, *b=q;
+  return a->k == b->k && a->nt == b->nt;
+}
+
+static HHashValue hash_k_nt(const void *p)
+{
+  const struct k_nt *x = p;
+  return h_hash_ptr(x->nt) * x->k;
+}
 
 HCFGrammar *h_cfgrammar_new(HAllocator *mm__)
 {
@@ -20,13 +35,16 @@ HCFGrammar *h_cfgrammar_new(HAllocator *mm__)
   g->nts    = h_hashset_new(g->arena, h_eq_ptr, h_hash_ptr);
   g->start  = NULL;
   g->geneps = NULL;
-  g->first  = NULL;
-  g->follow = NULL;
-  g->kmax   = 0;    // will be increased as needed by ensure_k
+  g->first  = h_hashtable_new(g->arena, eq_k_nt, hash_k_nt);
+  g->follow = h_hashtable_new(g->arena, eq_k_nt, hash_k_nt);
 
   HStringMap *eps = h_stringmap_new(g->arena);
   h_stringmap_put_epsilon(eps, INSET);
   g->singleton_epsilon = eps;
+
+  HStringMap *end = h_stringmap_new(g->arena);
+  h_stringmap_put_end(end, INSET);
+  g->singleton_end = end;
 
   return g;
 }
@@ -42,6 +60,7 @@ void h_cfgrammar_free(HCFGrammar *g)
 // helpers
 static void collect_nts(HCFGrammar *grammar, HCFChoice *symbol);
 static void collect_geneps(HCFGrammar *grammar);
+static void eliminate_dead_rules(HCFGrammar *g);
 
 
 HCFGrammar *h_cfgrammar(HAllocator* mm__, const HParser *parser)
@@ -82,6 +101,9 @@ HCFGrammar *h_cfgrammar_(HAllocator* mm__, HCFChoice *desugared)
   } else {
     g->start = desugared;
   }
+
+  // simplifications
+  eliminate_dead_rules(g);
 
   // determine which nonterminals generate epsilon
   collect_geneps(g);
@@ -126,42 +148,6 @@ static void collect_nts(HCFGrammar *grammar, HCFChoice *symbol)
   default:  // should not be reachable
     assert_message(0, "unknown HCFChoice type");
   }
-}
-
-/* Increase g->kmax if needed, allocating enough first/follow slots. */
-static void ensure_k(HCFGrammar *g, size_t k)
-{
-  if (k <= g->kmax) {
-    return;
-  }
-  // NB: we don't actually use first/follow[0] but allocate it anyway
-  // so indices of the array correspond neatly to values of k
-
-  // allocate the new arrays
-  HHashTable **first  = h_arena_malloc(g->arena, (k+1)*sizeof(HHashTable *));
-  HHashTable **follow = h_arena_malloc(g->arena, (k+1)*sizeof(HHashTable *));
-
-  if (g->kmax > 0) {
-    // we are resizing, copy the old tables over
-    for(size_t i=0; i<=g->kmax; i++) {
-      first[i]  = g->first[i];
-      follow[i] = g->follow[i];
-    }
-  } else {
-    // we are initializing, allocate the first (in fact, dummy) tables
-    first[0]  = h_hashtable_new(g->arena, h_eq_ptr, h_hash_ptr);
-    follow[0] = h_hashtable_new(g->arena, h_eq_ptr, h_hash_ptr);
-  }
-
-  // allocate the new tables
-  for(size_t i=g->kmax+1; i<=k; i++) {
-    first[i]  = h_hashtable_new(g->arena, h_eq_ptr, h_hash_ptr);
-    follow[i] = h_hashtable_new(g->arena, h_eq_ptr, h_hash_ptr);
-  }
-
-  g->first = first;
-  g->follow = follow;
-  g->kmax = k;
 }
 
 bool h_derives_epsilon(HCFGrammar *g, const HCFChoice *symbol)
@@ -232,6 +218,76 @@ static void collect_geneps(HCFGrammar *g)
   } while(g->geneps->used != prevused);
 }
 
+static bool mentions_symbol(HCFChoice **s, const HCFChoice *x)
+{
+  for(; *s; s++) {
+    if (*s == x)
+      return true;
+  }
+  return false;
+}
+
+static void remove_productions_with(HCFGrammar *g, const HCFChoice *x)
+{
+  HHashTableEntry *hte;
+  const HCFChoice *symbol;
+  size_t i;
+
+  for(i=0; i < g->nts->capacity; i++) {
+    for(hte = &g->nts->contents[i]; hte; hte = hte->next) {
+      if (hte->key == NULL)
+        continue;
+      symbol = hte->key;
+      assert(symbol->type == HCF_CHOICE);
+
+      HCFSequence **p, **q;
+      for(p = symbol->seq; *p != NULL; ) {
+        if (mentions_symbol((*p)->items, x)) {
+          // remove production p
+          for(q=p; *(q+1) != NULL; q++);  // q = last production
+          *p = *q;                        // move q over p
+          *q = NULL;                      // delete old q
+        } else {
+          p++;
+        }
+      }
+    }
+  }
+}
+
+static void eliminate_dead_rules(HCFGrammar *g)
+{
+  HHashTableEntry *hte;
+  const HCFChoice *symbol = NULL;
+  size_t i;
+  bool found;
+
+  do {
+    found = false;
+    for(i=0; !found && i < g->nts->capacity; i++) {
+      for(hte = &g->nts->contents[i]; !found && hte; hte = hte->next) {
+        if (hte->key == NULL)
+          continue;
+        symbol = hte->key;
+        assert(symbol->type == HCF_CHOICE);
+
+        // this NT is dead if it has no productions
+        if (*symbol->seq == NULL)
+          found = true;
+      }
+    }
+    if (found) {
+      h_hashtable_del(g->nts, symbol);
+      remove_productions_with(g, symbol);
+    }
+  } while(found); // until nothing left to remove
+
+  // rebuild g->nts. there may now be symbols that no longer appear in any
+  // productions. we also might have removed g->start.
+  g->nts = h_hashset_new(g->arena, h_eq_ptr, h_hash_ptr);
+  collect_nts(g, g->start);
+}
+
 
 HStringMap *h_stringmap_new(HArena *a)
 {
@@ -240,6 +296,7 @@ HStringMap *h_stringmap_new(HArena *a)
   m->end_branch = NULL;
   m->char_branches = h_hashtable_new(a, h_eq_ptr, h_hash_ptr);
   m->arena = a;
+  m->taint = false;
   return m;
 }
 
@@ -396,30 +453,65 @@ bool h_stringmap_empty(const HStringMap *m)
           && h_hashtable_empty(m->char_branches));
 }
 
-const HStringMap *h_first(size_t k, HCFGrammar *g, const HCFChoice *x)
+static bool eq_stringmap(const void *a, const void *b)
 {
+  return h_stringmap_equal(a, b);
+}
+
+bool h_stringmap_equal(const HStringMap *a, const HStringMap *b)
+{
+  if (a->epsilon_branch != b->epsilon_branch)
+    return false;
+  if (a->end_branch != b->end_branch)
+    return false;
+  return h_hashtable_equal(a->char_branches, b->char_branches, eq_stringmap);
+}
+
+// helper for h_follow and h_first
+bool workset_equal(HHashTable *a, HHashTable *b)
+{
+  if (a == NULL || b == NULL)
+    return (a == b);
+  else
+    return h_hashtable_equal(a, b, eq_stringmap);
+}
+
+static const HStringMap *
+h_first_seq_work(size_t k, HCFGrammar *g, HHashTable **pws, HCFChoice **s);
+
+static const HStringMap *
+h_first_work(size_t k, HCFGrammar *g, HHashTable **pws, const HCFChoice *x)
+{
+  HHashTable *ws = *pws;
   HStringMap *ret;
   HCFSequence **p;
   uint8_t c;
+  struct k_nt kx = {k,x};
+  struct k_nt *pkx = NULL;
+  bool taint = false;
 
   // shortcut: first_0(X) is always {""}
   if (k==0) {
     return g->singleton_epsilon;
   }
-  // memoize via g->first
-  ensure_k(g, k);
-  ret = h_hashtable_get(g->first[k], x);
+  // shortcut: first_k($) is always {$}
+  if (x->type == HCF_END) {
+    return g->singleton_end;
+  }
+
+  // check memoization and workset
+  ret = h_hashtable_get(g->first, &kx);
+  if (ret == NULL && ws != NULL)
+    ret = h_hashtable_get(ws, &kx);
   if (ret != NULL) {
     return ret;
   }
+
+  // not found, create result
   ret = h_stringmap_new(g->arena);
   assert(ret != NULL);
-  h_hashtable_put(g->first[k], x, ret);
 
   switch(x->type) {
-  case HCF_END:
-    h_stringmap_put_end(ret, INSET);
-    break;
   case HCF_CHAR:
     h_stringmap_put_char(ret, x->chr, INSET);
     break;
@@ -433,14 +525,57 @@ const HStringMap *h_first(size_t k, HCFGrammar *g, const HCFChoice *x)
     break;
   case HCF_CHOICE:
     // this is a nonterminal
+
+    // to avoid recursive loops, taint ret and place it in workset
+    ret->taint = true;
+    if (ws == NULL)
+      ws = *pws = h_hashtable_new(g->arena, eq_k_nt, hash_k_nt);
+    pkx = h_arena_malloc(g->arena, sizeof kx);
+    *pkx = kx;
+    h_hashtable_put(ws, pkx, ret);
+
     // return the union of the first sets of all productions
-    for(p=x->seq; *p; ++p)
-      h_stringmap_update(ret, h_first_seq(k, g, (*p)->items));
+    for(p=x->seq; *p; ++p) {
+      const HStringMap *first_rhs = h_first_seq_work(k, g, pws, (*p)->items);
+      assert(ws == *pws); // call above did not change the workset pointer
+      taint |= first_rhs->taint;
+      h_stringmap_update(ret, first_rhs);
+    }
     break;
   default:  // should not be reached
-    assert_message(0, "unknown HCFChoice type");
+    assert_message(0, "unexpected HCFChoice type");
+  }
+
+  // immediately memoize ret and remove it from ws if untainted by recursion
+  if (!taint) {
+    if (pkx == NULL) {
+      pkx = h_arena_malloc(g->arena, sizeof kx);
+      *pkx = kx;
+    } else if (ws != NULL) {
+      // we already had a key, so ret might (will) be in ws; remove it.
+      h_hashtable_del(ws, pkx);
+    }
+    ret->taint = false;
+    h_hashtable_put(g->first, pkx, ret);
   }
   
+  return ret;
+}
+
+const HStringMap *h_first(size_t k, HCFGrammar *g, const HCFChoice *x)
+{
+  HHashTable *ws, *bak;
+  const HStringMap *ret;
+
+  // fixpoint iteration on workset
+  ws = NULL;
+  do {
+    bak = ws;
+    ws = NULL;
+    ret = h_first_work(k, g, &ws, x);
+  } while(!workset_equal(ws, bak));
+
+  assert(ret != NULL);
   return ret;
 }
 
@@ -449,14 +584,16 @@ static bool is_singleton_epsilon(const HStringMap *m);
 static bool any_string_shorter(size_t k, const HStringMap *m);
 
 // pointer to functions like h_first_seq
-typedef const HStringMap *(*StringSetFun)(size_t, HCFGrammar *, HCFChoice **);
+typedef const HStringMap *
+    (*StringSetFun)(size_t, HCFGrammar *, HHashTable **, HCFChoice **);
 
 // helper for h_first_seq and h_follow
-static void stringset_extend(HCFGrammar *g, HStringMap *ret,
+static bool stringset_extend(HCFGrammar *g, HHashTable **pws, HStringMap *ret,
                              size_t k, const HStringMap *as,
                              StringSetFun f, HCFChoice **tail);
 
-const HStringMap *h_first_seq(size_t k, HCFGrammar *g, HCFChoice **s)
+static const HStringMap *
+h_first_seq_work(size_t k, HCFGrammar *g, HHashTable **pws, HCFChoice **s)
 {
   // shortcut: the first set of the empty sequence, for any k, is {""}
   if (*s == NULL) {
@@ -467,11 +604,11 @@ const HStringMap *h_first_seq(size_t k, HCFGrammar *g, HCFChoice **s)
   HCFChoice *x = s[0];
   HCFChoice **tail = s+1;
 
-  const HStringMap *first_x = h_first(k, g, x);
+  const HStringMap *first_x = h_first_work(k, g, pws, x);
 
   // shortcut: if first_k(X) = {""}, just return first_k(tail)
   if (is_singleton_epsilon(first_x)) {
-    return h_first_seq(k, g, tail);
+    return h_first_seq_work(k, g, pws, tail);
   }
 
   // shortcut: if no elements of first_k(X) have length <k, just return first_k(X)
@@ -483,8 +620,25 @@ const HStringMap *h_first_seq(size_t k, HCFGrammar *g, HCFChoice **s)
   HStringMap *ret = h_stringmap_new(g->arena);
 
   // extend the elements of first_k(X) up to length k from tail
-  stringset_extend(g, ret, k, first_x, h_first_seq, tail);
+  ret->taint = stringset_extend(g, pws, ret, k, first_x, h_first_seq_work, tail);
 
+  return ret;
+}
+
+const HStringMap *h_first_seq(size_t k, HCFGrammar *g, HCFChoice **s)
+{
+  HHashTable *ws, *bak;
+  const HStringMap *ret;
+
+  // fixpoint iteration on workset
+  ws = NULL;
+  do {
+    bak = ws;
+    ws = NULL;
+    ret = h_first_seq_work(k, g, &ws, s);
+  } while(!workset_equal(ws, bak));
+
+  assert(ret != NULL);
   return ret;
 }
 
@@ -546,13 +700,25 @@ static void remove_all_shorter(size_t k, HStringMap *m)
 }
 
 // h_follow adapted to the signature of StringSetFun
-static inline
-const HStringMap *h_follow_(size_t k, HCFGrammar *g, HCFChoice **s)
+static const HStringMap *
+h_follow_(size_t k, HCFGrammar *g, HHashTable **pws, HCFChoice **s)
 {
+  assert(pws == NULL);
   return h_follow(k, g, *s);
 }
 
-const HStringMap *h_follow(size_t k, HCFGrammar *g, const HCFChoice *x)
+static const HStringMap *
+h_follow_work(size_t k, HCFGrammar *g, HHashTable **pws, const HCFChoice *x);
+
+// h_follow_work adapted to the signature of StringSetFun
+static const HStringMap *
+h_follow_work_(size_t k, HCFGrammar *g, HHashTable **pws, HCFChoice **s)
+{
+  return h_follow_work(k, g, pws, *s);
+}
+
+static const HStringMap *
+h_follow_work(size_t k, HCFGrammar *g, HHashTable **pws, const HCFChoice *x)
 {
   // consider all occurances of X in g
   // the follow set of X is the union of:
@@ -564,28 +730,45 @@ const HStringMap *h_follow(size_t k, HCFGrammar *g, const HCFChoice *x)
   //   { a b | a <- first_k(tail), b <- follow_l(A), l=k-|a| }
 
   HStringMap *ret;
+  HHashTable *ws = *pws;
+  struct k_nt kx = {k,x};
+  struct k_nt *pkx;
+  bool taint = false;
 
   // shortcut: follow_0(X) is always {""}
   if (k==0) {
     return g->singleton_epsilon;
   }
-  // memoize via g->follow
-  ensure_k(g, k);
-  ret = h_hashtable_get(g->follow[k], x);
+
+  // check memoization and workset
+  ret = h_hashtable_get(g->follow, &kx);
+  if (ret == NULL && ws != NULL)
+    ret = h_hashtable_get(ws, &kx);
   if (ret != NULL) {
     return ret;
   }
+
+  // not found, create result
   ret = h_stringmap_new(g->arena);
   assert(ret != NULL);
-  h_hashtable_put(g->follow[k], x, ret);
+
+  // to avoid recursive loops, taint ret and place it in workset
+  ret->taint = true;
+  if (ws == NULL)
+    ws = *pws = h_hashtable_new(g->arena, eq_k_nt, hash_k_nt);
+  pkx = h_arena_malloc(g->arena, sizeof kx);
+  *pkx = kx;
+  h_hashtable_put(ws, pkx, ret);
 
   // if X is the start symbol, the end token is in its follow set
   if (x == g->start) {
     h_stringmap_put_end(ret, INSET);
   }
-  // iterate over g->nts
+
+  // iterate over g->nts, looking for X
   size_t i;
   HHashTableEntry *hte;
+  int x_found=0;
   for (i=0; i < g->nts->capacity; i++) {
     for (hte = &g->nts->contents[i]; hte; hte = hte->next) {
       if (hte->key == NULL) {
@@ -600,19 +783,46 @@ const HStringMap *h_follow(size_t k, HCFGrammar *g, const HCFChoice *x)
         HCFChoice **s = (*p)->items;        // production's right-hand side
         
         for (; *s; s++) {
-          if (*s == x) { // occurance found
+          if (*s == x) { // occurrence found
+            x_found=1;
             HCFChoice **tail = s+1;
 
             const HStringMap *first_tail = h_first_seq(k, g, tail);
 
             // extend the elems of first_k(tail) up to length k from follow(A)
-            stringset_extend(g, ret, k, first_tail, h_follow_, &a);
+            taint |= stringset_extend(g, pws, ret, k,
+                                      first_tail, h_follow_work_, &a);
           }
         }
       }
     }
   }
+  assert(x_found || x == g->start);        // no orphan non-terminals
 
+  // immediately memoize ret and remove it from ws if untainted by recursion
+  if (!taint) {
+    ret->taint = false;
+    h_hashtable_del(ws, pkx);
+    h_hashtable_put(g->follow, pkx, ret);
+  }
+
+  return ret;
+}
+
+const HStringMap *h_follow(size_t k, HCFGrammar *g, const HCFChoice *x)
+{
+  HHashTable *ws, *bak;
+  const HStringMap *ret;
+
+  // fixpoint iteration on workset
+  ws = NULL;
+  do {
+    bak = ws;
+    ws = NULL;
+    ret = h_follow_work(k, g, &ws, x);
+  } while(!workset_equal(ws, bak));
+
+  assert(ret != NULL);
   return ret;
 }
 
@@ -629,7 +839,7 @@ HStringMap *h_predict(size_t k, HCFGrammar *g,
   // casting the const off of A below. note: stringset_extend does
   // not touch this argument, only passes it through to h_follow
   // in this case, which accepts it, once again, as const.
-  stringset_extend(g, ret, k, first_rhs, h_follow_, (HCFChoice **)&A);
+  stringset_extend(g, NULL, ret, k, first_rhs, h_follow_, (HCFChoice **)&A);
 
   // make sure there are only strings of length _exactly_ k
   remove_all_shorter(k, ret);
@@ -638,13 +848,17 @@ HStringMap *h_predict(size_t k, HCFGrammar *g,
 }
 
 // add the set { a b | a <- as, b <- f_l(S), l=k-|a| } to ret
-static void stringset_extend(HCFGrammar *g, HStringMap *ret,
+static bool stringset_extend(HCFGrammar *g, HHashTable **pws, HStringMap *ret,
                              size_t k, const HStringMap *as,
                              StringSetFun f, HCFChoice **tail)
 {
+  bool taint = false;
+
   if (as->epsilon_branch) {
     // for a="", add f_k(tail) to ret
-    h_stringmap_update(ret, f(k, g, tail));
+    const HStringMap *f_tail = f(k, g, pws, tail);
+    taint |= f_tail->taint;
+    h_stringmap_update(ret, f_tail);
   }
 
   if (as->end_branch) {
@@ -671,9 +885,11 @@ static void stringset_extend(HCFGrammar *g, HStringMap *ret,
       HStringMap *ret_ = h_stringmap_new(g->arena);
       h_stringmap_put_after(ret, c, ret_);
 
-      stringset_extend(g, ret_, k-1, as_, f, tail);
+      taint |= stringset_extend(g, pws, ret_, k-1, as_, f, tail);
     }
   }
+
+  return taint;
 }
 
 
@@ -818,13 +1034,15 @@ static void pprint_ntrules(FILE *f, const HCFGrammar *g, const HCFChoice *nt,
   fputs(name, f);
   i += strlen(name);
   for(; i<column; i++) fputc(' ', f);
-  fputs(" ->", f);
 
   assert(nt->type == HCF_CHOICE);
   HCFSequence **p = nt->seq;
   if (*p == NULL) {
-    return;          // shouldn't happen
+    fputs(" -x\n", f);            // empty choice, e.g. h_nothing_p()
+    return;
   }
+
+  fputs(" ->", f);
   pprint_sequence(f, g, *p++);    // print first production on the same line
   for(; *p; p++) {                // print the rest below with "or" bars
     for(i=0; i<column; i++) fputc(' ', f);    // indent
@@ -835,6 +1053,8 @@ static void pprint_ntrules(FILE *f, const HCFGrammar *g, const HCFChoice *nt,
 
 void h_pprint_grammar(FILE *file, const HCFGrammar *g, int indent)
 {
+  HAllocator *mm__ = g->mm__;
+
   if (g->nts->used < 1) {
     return;
   }
@@ -842,11 +1062,12 @@ void h_pprint_grammar(FILE *file, const HCFGrammar *g, int indent)
   // determine maximum string length of symbol names
   int len;
   size_t s;
-  for(len=1, s=26; s < g->nts->used; len++, s*=26); 
+  for(len=1, s=26; s < g->nts->used; len++, s*=26);
 
-  // iterate over g->nts
+  // iterate over g->nts and collect its entries in an ordered array
   size_t i;
   HHashTableEntry *hte;
+  const HCFChoice **arr = h_new(const HCFChoice *, g->nts->used);
   for(i=0; i < g->nts->capacity; i++) {
     for(hte = &g->nts->contents[i]; hte; hte = hte->next) {
       if (hte->key == NULL) {
@@ -855,9 +1076,16 @@ void h_pprint_grammar(FILE *file, const HCFGrammar *g, int indent)
       const HCFChoice *a = hte->key;        // production's left-hand symbol
       assert(a->type == HCF_CHOICE);
 
-      pprint_ntrules(file, g, a, indent, len);
+      size_t id = (uintptr_t)hte->value;    // nonterminal id
+      assert(id < g->nts->used);
+      arr[id] = a;
     }
   }
+
+  // print rules in alphabetical order
+  for(i=0; i < g->nts->used; i++)
+    pprint_ntrules(file, g, arr[i], indent, len);
+  h_free(arr);
 }
 
 void h_pprint_symbolset(FILE *file, const HCFGrammar *g, const HHashSet *set, int indent)

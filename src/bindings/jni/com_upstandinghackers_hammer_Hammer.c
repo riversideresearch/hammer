@@ -157,6 +157,13 @@ JNIEXPORT jobject JNICALL Java_com_upstandinghackers_hammer_Hammer_in
 }
 
 
+JNIEXPORT jobject JNICALL Java_com_upstandinghackers_hammer_Hammer_notIn
+  (JNIEnv *env, jclass class, jbyteArray charset, jint length)
+{
+    RETURNWRAP(env, h_not_in((uint8_t*) ((*env)->GetByteArrayElements(env, charset, NULL)), (size_t)length));
+}
+
+
 JNIEXPORT jobject JNICALL Java_com_upstandinghackers_hammer_Hammer_endP
   (JNIEnv *env, jclass class)
 {
@@ -223,6 +230,34 @@ JNIEXPORT jobject JNICALL Java_com_upstandinghackers_hammer_Hammer_choice
     parsers[length] = NULL;
 
     result = h_choice__a(parsers);
+    RETURNWRAP(env, result);
+}
+
+
+JNIEXPORT jobject JNICALL Java_com_upstandinghackers_hammer_Hammer_permutation
+  (JNIEnv *env, jclass class, jobjectArray permutation)
+{
+    jsize length;
+    void **parsers;
+    int i;
+    jobject current;
+    const HParser *result;
+
+    length = (*env)->GetArrayLength(env, permutation);
+    parsers = malloc(sizeof(HParser *)*(length+1));
+    if(NULL==parsers)
+    {
+        return NULL;
+    }
+
+    for(i=0; i<length; i++)
+    {
+        current = (*env)->GetObjectArrayElement(env, permutation, (jsize)i);
+        parsers[i] = UNWRAP(env, current);
+    }
+    parsers[length] = NULL;
+
+    result = h_permutation__a(parsers);
     RETURNWRAP(env, result);
 }
 
@@ -332,4 +367,29 @@ JNIEXPORT jobject JNICALL Java_com_upstandinghackers_hammer_Hammer_indirect
 }
 
 
+JNIEXPORT jobject JNICALL Java_com_upstandinghackers_hammer_Hammer_with_endianness
+  (JNIEnv *env, jclass class, jbyte endianess, jobject p)
+{
+    RETURNWRAP(env, h_with_endianness((char) endianess, UNWRAP(env, p)));
+}
 
+
+JNIEXPORT jobject JNICALL Java_com_upstandinghackers_hammer_Hammer_skip
+  (JNIEnv *env, jclass class, jint n)
+{
+    RETURNWRAP(env, h_skip((size_t) n));
+}
+
+
+JNIEXPORT jobject JNICALL Java_com_upstandinghackers_hammer_Hammer_seek
+  (JNIEnv *env, jclass class, jint offset, jint whence)
+{
+    RETURNWRAP(env, h_seek((ssize_t) offset, (int) whence));
+}
+
+
+JNIEXPORT jobject JNICALL Java_com_upstandinghackers_hammer_Hammer_tell
+  (JNIEnv *env, jclass class)
+{
+    RETURNWRAP(env, h_tell());
+}

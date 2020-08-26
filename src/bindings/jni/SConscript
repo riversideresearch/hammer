@@ -1,0 +1,42 @@
+# -*- python -*-
+
+from __future__ import absolute_import, division, print_function
+
+import os, os.path
+import sys
+Import('env libhammer_shared testruns targets')
+from src.bindings.jni.ConfigureJNI import ConfigureJNI
+
+javaenv = env.Clone()
+
+if not ConfigureJNI(javaenv):
+    print("Java Native Interface is required... Exiting")
+    Exit(0)
+
+
+javaenv.Append(CPPPATH=[".", "../.."],
+              LIBS=['hammer'],
+              LIBPATH=["../.."])
+
+# compile java classes
+jni_classes = javaenv.Java(".", "#src/bindings/jni/com")
+
+print(jni_classes)
+jni_headers = javaenv.JavaH(".", jni_classes)
+print(jni_headers)
+Default(jni_classes)
+Default(jni_headers)
+
+#print(javaenv.Dump())
+
+shlib_env = env.Clone(CPPPATH=javaenv['JNI_CPPPATH'] + ['../..'],
+              LIBS=['hammer'],
+              LIBPATH=["../.."])
+csources = ['com_upstandinghackers_hammer_Hammer.c',
+			'com_upstandinghackers_hammer_ParsedToken.c',
+			'com_upstandinghackers_hammer_Parser.c',
+			'com_upstandinghackers_hammer_ParseResult.c']
+
+libjhammer_shared = shlib_env.SharedLibrary('libjhammer', csources)
+Default(libjhammer_shared)
+

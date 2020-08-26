@@ -22,6 +22,9 @@ static HParseResult* parse_sequence(void *env, HParseState *state) {
   }
   HParsedToken *tok = a_new(HParsedToken, 1);
   tok->token_type = TT_SEQUENCE; tok->seq = seq;
+  tok->index = 0;
+  tok->bit_offset = 0;
+  tok->bit_length = 0;
   return make_result(state->arena, tok);
 }
 
@@ -60,6 +63,7 @@ static HParsedToken *reshape_sequence(const HParseResult *p, void* user_data) {
   res->seq = seq;
   res->index = p->ast->index;
   res->bit_offset = p->ast->bit_offset;
+  res->bit_length = p->bit_length;
 
   return res;
 }
@@ -171,5 +175,88 @@ HParser* h_sequence__ma(HAllocator* mm__, void *args[]) {
   ret->vtable = &sequence_vt; 
   ret->env = (void*)s; 
   ret->backend = PB_MIN;
+  ret->desugared = NULL;
   return ret;
+}
+
+HParser* h_drop_from_(HParser* p, ...) {
+  assert_message(p->vtable == &sequence_vt, "drop_from requires a sequence parser");
+  va_list ap;
+  va_start(ap, p);
+  HParser* ret = h_drop_from___mv(&system_allocator, p, ap);
+  va_end(ap);
+  return ret;
+}
+
+HParser* h_drop_from___m(HAllocator* mm__, HParser* p, ...) {
+  assert_message(p->vtable == &sequence_vt, "drop_from requires a sequence parser");
+  va_list ap;
+  va_start(ap, p);
+  HParser* ret = h_drop_from___mv(mm__, p, ap);
+  va_end(ap);
+  return ret;
+}
+
+HParser* h_drop_from___v(HParser* p, va_list ap) {
+  assert_message(p->vtable == &sequence_vt, "drop_from requires a sequence parser");
+  return h_drop_from___mv(&system_allocator, p, ap);
+}
+
+HParser* h_drop_from___mv(HAllocator* mm__, HParser *p, va_list ap) {
+  /* Ok, here's where things get funny.
+   *
+   * Saying `h_drop_from(h_sequence(a, b, c, d, e, NULL), 0, 4, -1)` is functionally
+   * equivalent to `h_sequence(h_ignore(a), b, c, d, h_ignore(e), NULL)`. Thus, this
+   * term rewrites itself, becoming an h_sequence where some parsers are ignored.
+   */
+  HSequence *s = (HSequence*)(p->env);
+  size_t indices[s->len];
+  size_t count = 0;
+  int arg = 0;
+  
+  for (arg = va_arg(ap, int); arg >= 0; arg = va_arg(ap, int)) {
+    indices[count] = arg;
+    count++;
+  }
+  va_end(ap);
+
+  HSequence *rewrite = h_new(HSequence, 1);
+  rewrite->p_array = h_new(HParser *, s->len);
+  rewrite->len = s->len;
+  for (size_t i=0, j=0; i<s->len; ++i) {
+    if (indices[j]==i) {
+      rewrite->p_array[i] = h_ignore(s->p_array[i]);
+      ++j;
+    } else {
+      rewrite->p_array[i] = s->p_array[i];
+    }
+  }
+  
+  return h_new_parser(mm__, &sequence_vt, rewrite);
+}
+
+HParser* h_drop_from___a(void *args[]) {
+  return h_drop_from___ma(&system_allocator, args);
+}
+
+HParser* h_drop_from___ma(HAllocator* mm__, void *args[]) {
+  HParser *p = (HParser*)(args[0]);
+  assert_message(p->vtable == &sequence_vt, "drop_from requires a sequence parser");
+  HSequence *s = (HSequence*)(p->env);
+  HSequence *rewrite = h_new(HSequence, 1);
+  rewrite->p_array = h_new(HParser *, s->len);
+  rewrite->len = s->len;
+
+  int i=0, *argp = (int*)(args[1]);
+  while (*argp >= 0) {
+    if (i == *argp) {
+      rewrite->p_array[i] = h_ignore(s->p_array[i]);
+      ++argp;
+    } else {
+      rewrite->p_array[i] = s->p_array[i];
+    }
+    ++i;
+  }
+
+  return h_new_parser(mm__, &sequence_vt, rewrite);
 }

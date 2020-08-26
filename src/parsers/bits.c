@@ -14,6 +14,9 @@ static HParseResult* parse_bits(void* env, HParseState *state) {
     result->sint = h_read_bits(&state->input_stream, env_->length, true);
   else
     result->uint = h_read_bits(&state->input_stream, env_->length, false);
+  result->index = 0;
+  result->bit_length = 0;
+  result->bit_offset = 0;
   return make_result(state->arena, result);
 }
 
@@ -29,7 +32,7 @@ static HParsedToken *reshape_bits(const HParseResult *p, void* signedp_p) {
   HParsedToken *ret = h_arena_malloc(p->arena, sizeof(HParsedToken));
   ret->token_type = TT_UINT;
 
-  if(signedp && (seq->elements[0]->uint & 128))
+  if(signedp && seq->used > 0 && (seq->elements[0]->uint & 128))
     ret->uint = -1; // all ones
 
   for(size_t i=0; i<seq->used; i++) {

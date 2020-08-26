@@ -362,8 +362,15 @@ char * h_get_short_name_with_no_params(HAllocator *mm__,
                                        HParserBackend be, void *params);
 
 int64_t h_read_bits(HInputStream* state, int count, char signed_p);
+void h_skip_bits(HInputStream* state, size_t count);
+void h_seek_bits(HInputStream* state, size_t pos);
 static inline size_t h_input_stream_pos(HInputStream* state) {
+  assert(state->index < SIZE_MAX / 8);
   return state->index * 8 + state->bit_offset + state->margin;
+}
+static inline size_t h_input_stream_length(HInputStream *state) {
+  assert(state->length <= SIZE_MAX / 8);
+  return state->length * 8;
 }
 // need to decide if we want to make this public. 
 HParseResult* h_do_parse(const HParser* parser, HParseState *state);
@@ -412,16 +419,22 @@ HSlist* h_slist_remove_all(HSlist *slist, const void* item);
 void h_slist_free(HSlist *slist);
 static inline bool h_slist_empty(const HSlist *sl) { return (sl->head == NULL); }
 
-HHashTable* h_hashtable_new(HArena *arena, HEqualFunc equalFunc, HHashFunc hashFunc);
-void* h_hashtable_get(const HHashTable* ht, const void* key);
-void  h_hashtable_put(HHashTable* ht, const void* key, void* value);
-void  h_hashtable_update(HHashTable* dst, const HHashTable *src);
-void  h_hashtable_merge(void *(*combine)(void *v1, const void *v2),
+HHashTable* h_hashtable_new(HArena *arena, HEqualFunc equalFunc,
+                            HHashFunc hashFunc);
+void * h_hashtable_get_precomp(const HHashTable *ht, const void *key,
+                               HHashValue hashval);
+void * h_hashtable_get(const HHashTable *ht, const void *key);
+void   h_hashtable_put_precomp(HHashTable *ht, const void *key,
+                               void *value, HHashValue hashval);
+void   h_hashtable_put(HHashTable *ht, const void *key, void *value);
+void   h_hashtable_update(HHashTable *dst, const HHashTable *src);
+void   h_hashtable_merge(void *(*combine)(void *v1, const void *v2),
                         HHashTable *dst, const HHashTable *src);
-int   h_hashtable_present(const HHashTable* ht, const void* key);
-void  h_hashtable_del(HHashTable* ht, const void* key);
-void  h_hashtable_free(HHashTable* ht);
-static inline bool h_hashtable_empty(const HHashTable* ht) { return (ht->used == 0); }
+int   h_hashtable_present(const HHashTable *ht, const void *key);
+void  h_hashtable_del(HHashTable *ht, const void *key);
+void  h_hashtable_free(HHashTable *ht);
+static inline bool h_hashtable_empty(const HHashTable *ht) { return (ht->used == 0); }
+bool h_hashtable_equal(const HHashTable *a, const HHashTable *b, HEqualFunc value_eq);
 
 typedef HHashTable HHashSet;
 #define h_hashset_new(a,eq,hash) h_hashtable_new(a,eq,hash)
@@ -480,6 +493,7 @@ typedef struct HTTEntry_ {
   const char* name;
   HTokenType value;
   void (*unamb_sub)(const HParsedToken *tok, struct result_buf *buf);
+  void (*pprint)(FILE* stream, const HParsedToken* tok, int indent, int delta);
 } HTTEntry;
 
 const HTTEntry* h_get_token_type_entry(HTokenType token_type);

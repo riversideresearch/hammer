@@ -84,6 +84,20 @@ public static void main(String args[])
     Parser i3parsers[] = {Hammer.ch((byte)'i'), Hammer.uInt8(), Hammer.int8()};
     handle(Hammer.parse(Hammer.sequence(Hammer.ch((byte)'i'), Hammer.uInt8(), Hammer.int8()), i3, i3.length));
 
+    out("permutation");
+    byte ch3[] = {(byte) 'a', (byte) 'b', (byte) 'c'};
+    handle(Hammer.parse(Hammer.permutation(Hammer.ch((byte)'a'), Hammer.ch((byte)'b'), Hammer.ch((byte)'c')), ch3, ch3.length));
+    handle(Hammer.parse(Hammer.permutation(Hammer.ch((byte)'b'), Hammer.ch((byte)'a'), Hammer.ch((byte)'c')), ch3, ch3.length));
+    
+    out("skip");
+    byte ch6[] = {(byte) 'a', (byte) 'b', (byte) 'c', (byte) 'd', (byte) 'e', (byte) 'f'};
+    handle(Hammer.parse(Hammer.sequence(Hammer.ch((byte)'a'), Hammer.skip((int)32), Hammer.ch((byte)'f')), ch6, ch6.length));
+    
+    out("seek");
+    final int SEEK_SET = 0;	/* Seek from beginning of file.  */
+    //final int SEEK_CUR = 1;	/* Seek from current position.  */
+    //final int SEEK_END = 2;	/* Seek from end of file.  */
+    handle(Hammer.parse(Hammer.sequence(Hammer.ch((byte)'a'), Hammer.seek((int)40, (int)SEEK_SET), Hammer.ch((byte)'f')), ch6, ch6.length));
     
 }
 

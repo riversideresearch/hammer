@@ -187,10 +187,289 @@ static void test_charset_bits(void) {
         .free = NULL,
     };
     test_charset_bits__buf[32] = 0xAB;
-    HCharset cs = new_charset(&alloc);
+    new_charset(&alloc);
     for(size_t i=0; i<32; i++)
         g_check_cmp_uint32(test_charset_bits__buf[i], ==, 0);
     g_check_cmp_uint32(test_charset_bits__buf[32], ==, 0xAB);
+}
+
+
+// Allocator for reproducing error 19.
+
+// The bug is a result of uninitialized data being used, initially
+// assumed to be zero.  Unfortunately, this assumption is often true,
+// so reproducing the bug reliably and in a minimal fashion requires
+// making it false.  Fortunately, glibc malloc has an M_PERTURB option
+// for making that assumption false.  Unfortunately, we want the test
+// to reproduce the bug on systems that don't use glibc.  Fortunately,
+// the standard Hammer system allocator has a DEBUG__MEMFILL option to
+// fill uninitialized memory with a fill byte.  Unfortunately, you
+// have to recompile Hammer with that symbol #defined in order to
+// enable it.  Fortunately, hammer allows you to supply your own
+// allocator.  So this is a simple non-#define-dependent allocator
+// that writes 0xbabababa† over all the memory it allocates.  (But not
+// the memory it reallocs, because, as it happens, the uninitialized
+// memory in this case didn't come from a realloc.)
+//
+// Honestly I think we ought to remove the #ifdefs from
+// system_allocator and always compile both the DEBUG__MEMFILL version
+// and the non-DEBUG__MEMFILL version, merely changing which one is
+// system_allocator, which is after all a struct of three pointers
+// that can even be modified at run-time.
+//
+// † Can you hear it, Mr. Toot?
+
+static void* deadbeefing_malloc(HAllocator *allocator, size_t size) {
+    char *block = malloc(size);
+    if (block) memset(block, 0xba, size);
+    return block;
+}
+
+// Don't deadbeef on realloc because it isn't necessary to reproduce this bug.
+static void* deadbeefing_realloc(HAllocator *allocator, void *uptr, size_t size) {
+    return realloc(uptr, size);
+}
+
+static void deadbeefing_free(HAllocator *allocator, void *uptr) {
+    free(uptr);
+}
+
+static HAllocator deadbeefing_allocator = {
+    .alloc = deadbeefing_malloc,
+    .realloc = deadbeefing_realloc,
+    .free = deadbeefing_free,
+};
+
+static void test_bug_19() {
+    void *args[] = {
+        h_ch_range__m(&deadbeefing_allocator, '0', '9'),
+        h_ch_range__m(&deadbeefing_allocator, 'A', 'Z'),
+        h_ch_range__m(&deadbeefing_allocator, 'a', 'z'),
+        NULL,
+    };
+
+    HParser *parser = h_choice__ma(&deadbeefing_allocator, args);
+
+    // In bug 19 ("GLR backend reaches unreachable code"), this call
+    // would fail because h_choice__ma allocated an HParser with h_new
+    // and didn't initialize its ->desugared field; consequently in
+    // the call chain h_compile ... h_lalr_compile ... h_desugar,
+    // h_desugar would find that ->desugared was already non-NULL (set
+    // to 0xbabababa in the above deadbeefing_malloc), and just return
+    // it, leading to a crash immediately afterwards in collect_nts.
+    // We don't actually care if the compile succeeds or fails, just
+    // that it doesn't crash.
+    h_compile(parser, PB_GLR, NULL);
+
+    // The same bug happened in h_sequence__ma.
+    h_compile(h_sequence__ma(&deadbeefing_allocator, args), PB_GLR, NULL);
+
+    // It also exists in h_permutation__ma, but it doesn't happen to
+    // manifest in the same way.  I don't know how to write a test for
+    // the h_permutation__ma case.
+    g_assert_true(1);
+}
+
+static void test_flatten_null() {
+  // h_act_flatten() produces a flat sequence from a nested sequence. it also
+  // hapens to produce a one-element sequence when given a non-sequence token.
+  // but given a null token (as from h_epsilon_p() or h_ignore()), it would
+  // previously segfault.
+  //
+  // let's make sure the behavior is consistent and a singular null token
+  // produces the same thing as a sequence around h_epsilon_p() or h_ignore().
+
+  HParser *A = h_many(h_ch('a'));
+  HParser *B = h_ch('b');
+  HParser *C = h_sequence(h_ch('c'), NULL);
+
+  HParser *V = h_action(h_epsilon_p(), h_act_flatten, NULL);
+  HParser *W = h_action(B, h_act_flatten, NULL);
+  HParser *X = h_action(h_sequence(h_ignore(A), NULL), h_act_flatten, NULL);
+  HParser *Y = h_action(h_sequence(h_epsilon_p(), NULL), h_act_flatten, NULL);
+  HParser *Z = h_action(h_sequence(A, B, C, NULL), h_act_flatten, NULL);
+
+  g_check_parse_match(V, PB_PACKRAT, "", 0, "()");
+  g_check_parse_match(W, PB_PACKRAT, "b", 1, "(u0x62)");
+  g_check_parse_match(X, PB_PACKRAT, "", 0, "()");
+  g_check_parse_match(Y, PB_PACKRAT, "", 0, "()");
+  g_check_parse_match(Z, PB_PACKRAT, "aabc", 4, "(u0x61 u0x61 u0x62 u0x63)");
+
+#if 0 // XXX ast->bit_length and ast->index are currently not set
+  // let's also check that position and length info get attached correctly...
+
+  HParseResult *p = h_parse(h_sequence(A,V,B, NULL), (uint8_t *)"aaab", 4);
+
+  // top-level token
+  assert(p != NULL);
+  assert(p->ast != NULL);
+  g_check_cmp_int64(p->bit_length, ==, 32);
+  g_check_cmp_size(p->ast->bit_length, ==, 32);
+  g_check_cmp_size(p->ast->index, ==, 0);
+  g_check_cmp_int((int)p->ast->bit_offset, ==, 0);
+
+  // the empty sequence
+  HParsedToken *tok = H_INDEX_TOKEN(p->ast, 1);
+  assert(tok != NULL);
+  assert(tok->token_type == TT_SEQUENCE);
+  assert(tok->seq->used == 0);
+  g_check_cmp_size(tok->bit_length, ==, 0);
+  g_check_cmp_size(tok->index, ==, 2);
+  g_check_cmp_int((int)tok->bit_offset, ==, 0);
+#endif // 0
+}
+
+#if 0 // XXX ast->bit_length and ast->index are currently not set
+static void test_ast_length_index() {
+  HParser *A = h_many(h_ch('a'));
+  HParser *B = h_ch('b');
+  HParser *C = h_sequence(h_ch('c'), NULL);
+
+  const uint8_t input[] = "aabc";
+  size_t len = sizeof input - 1; // sans null
+  HParseResult *p = h_parse(h_sequence(A,B,C, NULL), input, len);
+  assert(p != NULL);
+  assert(p->ast != NULL);
+
+  // top-level token
+  g_check_cmp_int64(p->bit_length, ==, (int64_t)(8 * len));
+  g_check_cmp_size(p->ast->bit_length, ==, 8 * len);
+  g_check_cmp_size(p->ast->index, ==, 0);
+
+  HParsedToken *tok;
+
+  // "aa"
+  tok = H_INDEX_TOKEN(p->ast, 0);
+  g_check_cmp_size(tok->bit_length, ==, 16);
+  g_check_cmp_size(tok->index, ==, 0);
+
+  // "a", "a"
+  tok = H_INDEX_TOKEN(p->ast, 0, 0);
+  g_check_cmp_size(tok->bit_length, ==, 8);
+  g_check_cmp_size(tok->index, ==, 0);
+  tok = H_INDEX_TOKEN(p->ast, 0, 1);
+  g_check_cmp_size(tok->bit_length, ==, 8);
+  g_check_cmp_size(tok->index, ==, 1);
+
+  // "b"
+  tok = H_INDEX_TOKEN(p->ast, 1);
+  g_check_cmp_size(tok->bit_length, ==, 8);
+  g_check_cmp_size(tok->index, ==, 2);
+
+  // "c"
+  tok = H_INDEX_TOKEN(p->ast, 2);
+  g_check_cmp_size(tok->bit_length, ==, 8);
+  g_check_cmp_size(tok->index, ==, 3);
+  tok = H_INDEX_TOKEN(p->ast, 2, 0);
+  g_check_cmp_size(tok->bit_length, ==, 8);
+  g_check_cmp_size(tok->index, ==, 3);
+}
+#endif // 0
+
+static void test_issue91() {
+  // this ambiguous grammar caused intermittent (?) assertion failures when
+  // trying to compile with the LALR backend:
+  //
+  // assertion "action->type == HLR_SHIFT" failed: file "src/backends/lalr.c",
+  // line 34, function "follow_transition"
+  //
+  // cf. https://gitlab.special-circumstanc.es/hammer/hammer/issues/91
+
+  H_RULE(schar,   h_ch_range(' ', '~'));    /* overlaps digit */
+  H_RULE(digit,   h_ch_range('0', '9'));
+  H_RULE(digits,  h_choice(h_repeat_n(digit, 2), digit, NULL));
+  H_RULE(p,       h_many(h_choice(schar, digits, NULL)));
+
+  int r = h_compile(p, PB_LALR, NULL);
+  g_check_cmp_int(r, ==, -2);
+}
+
+// a different instance of issue 91
+static void test_issue87() {
+  HParser *a = h_ch('a');
+  HParser *a2 = h_ch_range('a', 'a');
+  HParser *p = h_many(h_many(h_choice(a, a2, NULL)));
+
+  int r = h_compile(p, PB_LALR, NULL);
+  g_check_cmp_int(r, ==, -2);
+}
+
+static void test_issue92() {
+  HParser *a = h_ch('a');
+  HParser *b = h_ch('b');
+
+  HParser *str_a  = h_indirect();
+  HParser *str_b  = h_choice(h_sequence(b, str_a, NULL), str_a, NULL);
+                    //h_sequence(h_optional(b), str_a, NULL);  // this works
+  HParser *str_a_ = h_optional(h_sequence(a, str_b, NULL));
+  HParser *str    = str_a;
+  h_bind_indirect(str_a, str_a_);
+  /*
+   * grammar generated from the above:
+   *
+   *   A -> B           -- "augmented" with a fresh start symbol
+   *   B -> C           -- B = str_a
+   *      | ""
+   *   C -> "a" D       -- C = h_sequence(a, str_b)
+   *   D -> E           -- D = str_b
+   *      | B
+   *   E -> "b" B       -- E = h_sequence(b, str_a)
+   *
+   * transformed to the following "enhanced grammar":
+   *
+   *    S  -> 0B3
+   *   0B3 -> 0C2
+   *        | ""
+   *   1B4 -> 1C2
+   *        | ""
+   *   6B8 -> 6C2
+   *        | ""           (*) here
+   *   0C2 -> "a" 1D7
+   *   1C2 -> "a" 1D7
+   *   6C2 -> "a" 1D7
+   *   1D7 -> 1E5
+   *        | 1B4
+   *   1E5 -> "b" 6B8
+   */
+
+  /*
+   * the following call would cause an assertion failure.
+   *
+   * assertion "!h_stringmap_empty(fs)" failed: file
+   * "src/backends/lalr.c", line 341, function "h_lalr_compile"
+   *
+   * the bug happens when trying to compute h_follow() for 6B8 in state 6,
+   * production "" (*). intermediate results could end up in the memoization
+   * table and be treated as final by later calls to h_follow(). the problem
+   * could appear or not depending on the order of nonterminals (i.e. pointers)
+   * in a hashtable.
+   */
+  int r = h_compile(str, PB_LALR, NULL);
+  g_check_cmp_int(r, ==, 0);
+}
+
+static void test_issue83() {
+  HParser *p = h_sequence(h_sequence(NULL, NULL), h_nothing_p(), NULL);
+  /*
+   * A -> B
+   * B -> C D
+   * C -> ""
+   * D -x
+   *
+   * (S) -> 0B1
+   * 0B1 -> 0C2 2D3
+   * 0C2 -> ""           (*) h_follow()
+   * 2D3 -x
+   */
+
+  /*
+   * similar to issue 91, this would cause the same assertion failure, but for
+   * a different reason. the follow set of 0C2 above is equal to the first set
+   * of 2D3, but 2D3 is an empty choice. The first set of an empty choice
+   * is legitimately empty. the asserting in h_lalr_compile() missed this case.
+   */
+  int r = h_compile(p, PB_LALR, NULL);
+  g_check_cmp_int(r, ==, 0);
 }
 
 void register_regression_tests(void) {
@@ -202,4 +481,11 @@ void register_regression_tests(void) {
   g_test_add_func("/core/regression/lalr_charset_lhs", test_lalr_charset_lhs);
   g_test_add_func("/core/regression/cfg_many_seq", test_cfg_many_seq);
   g_test_add_func("/core/regression/charset_bits", test_charset_bits);
+  g_test_add_func("/core/regression/bug19", test_bug_19);
+  g_test_add_func("/core/regression/flatten_null", test_flatten_null);
+  //XXX g_test_add_func("/core/regression/ast_length_index", test_ast_length_index);
+  g_test_add_func("/core/regression/issue91", test_issue91);
+  g_test_add_func("/core/regression/issue87", test_issue87);
+  g_test_add_func("/core/regression/issue92", test_issue92);
+  g_test_add_func("/core/regression/issue83", test_issue83);
 }

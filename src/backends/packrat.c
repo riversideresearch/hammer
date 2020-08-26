@@ -3,6 +3,17 @@
 #include "../internal.h"
 #include "../parsers/parser_internal.h"
 
+/* #define DETAILED_PACKRAT_STATISTICS */
+
+#ifdef DETAILED_PACKRAT_STATISTICS
+static size_t packrat_hash_count = 0;
+static size_t packrat_hash_bytes = 0;
+static size_t packrat_cmp_count = 0;
+static size_t packrat_cmp_bytes = 0;
+#endif
+
+static uint32_t cache_key_hash(const void* key);
+
 // short-hand for creating lowlevel parse cache values (parse result case)
 static
 HParserCacheValue * cached_result(HParseState *state, HParseResult *result) {
@@ -56,31 +67,38 @@ static inline HParseResult* perform_lowlevel_parse(HParseState *state, const HPa
   return tmp_res;
 }
 
-HParserCacheValue* recall(HParserCacheKey *k, HParseState *state) {
-  HParserCacheValue *cached = h_hashtable_get(state->cache, k);
+HParserCacheValue* recall(HParserCacheKey *k, HParseState *state, HHashValue keyhash) {
+  HParserCacheValue *cached = h_hashtable_get_precomp(state->cache, k, keyhash);
   HRecursionHead *head = h_hashtable_get(state->recursion_heads, &k->input_pos);
-  if (!head) { // No heads found
+
+  if (!head) {
+    /* No heads found */
     return cached;
-  } else { // Some heads found
+  } else {
+    /* Some heads found */
     if (!cached && head->head_parser != k->parser && !h_slist_find(head->involved_set, k->parser)) {
-      // Nothing in the cache, and the key parser is not involved
+      /* Nothing in the cache, and the key parser is not involved */
       cached = cached_result(state, NULL);
       cached->input_stream = k->input_pos;
     }
     if (h_slist_find(head->eval_set, k->parser)) {
-      // Something is in the cache, and the key parser is in the eval set. Remove the key parser from the eval set of the head. 
+      /*
+       * Something is in the cache, and the key parser is in the eval set.
+       * Remove the key parser from the eval set of the head.
+       */
       head->eval_set = h_slist_remove_all(head->eval_set, k->parser);
       HParseResult *tmp_res = perform_lowlevel_parse(state, k->parser);
-      // update the cache
+      /* update the cache */
       if (!cached) {
-	cached = cached_result(state, tmp_res);
-	h_hashtable_put(state->cache, k, cached);
+        cached = cached_result(state, tmp_res);
+        h_hashtable_put_precomp(state->cache, k, cached, keyhash);
       } else {
-	cached->value_type = PC_RIGHT;
-	cached->right = tmp_res;
-	cached->input_stream = state->input_stream;
+        cached->value_type = PC_RIGHT;
+        cached->right = tmp_res;
+        cached->input_stream = state->input_stream;
       }
     }
+
     return cached;
   }
 }
@@ -180,36 +198,50 @@ HParseResult* lr_answer(HParserCacheKey *k, HParseState *state, HLeftRec *growab
 /* Warth's recursion. Hi Alessandro! */
 HParseResult* h_do_parse(const HParser* parser, HParseState *state) {
   HParserCacheKey *key = a_new(HParserCacheKey, 1);
+  HHashValue keyhash;
+  HLeftRec *base = NULL;
+  HParserCacheValue *m = NULL, *cached = NULL;
+
   key->input_pos = state->input_stream; key->parser = parser;
-  HParserCacheValue *m = NULL;
+  keyhash = cache_key_hash(key);
+
   if (parser->vtable->higher) {
-    m = recall(key, state);
+    m = recall(key, state, keyhash);
   }
-  // check to see if there is already a result for this object...
+
+  /* check to see if there is already a result for this object... */
   if (!m) {
-    // It doesn't exist, so create a dummy result to cache
-    HLeftRec *base = NULL;
-    // But only cache it now if there's some chance it could grow; primitive parsers can't
+    /*
+     * But only cache it now if there's some chance it could grow; primitive
+     * parsers can't
+     */
     if (parser->vtable->higher) {
       base = a_new(HLeftRec, 1);
       base->seed = NULL; base->rule = parser; base->head = NULL;
       h_slist_push(state->lr_stack, base);
-      // cache it
-      h_hashtable_put(state->cache, key, cached_lr(state, base));
-      // parse the input
+      /* cache it */
+      h_hashtable_put_precomp(state->cache, key,
+                              cached_lr(state, base), keyhash);
     }
+
+    /* parse the input */
     HParseResult *tmp_res = perform_lowlevel_parse(state, parser);
     if (parser->vtable->higher) {
-      // the base variable has passed equality tests with the cache
+      /* the base variable has passed equality tests with the cache */
       h_slist_pop(state->lr_stack);
-      // update the cached value to our new position
-      HParserCacheValue *cached = h_hashtable_get(state->cache, key);
+      /* update the cached value to our new position */
+      cached = h_hashtable_get_precomp(state->cache, key, keyhash);
       assert(cached != NULL);
       cached->input_stream = state->input_stream;
     }
-    // setupLR, used below, mutates the LR to have a head if appropriate, so we check to see if we have one
+
+    /*
+     * setupLR, used below, mutates the LR to have a head if appropriate,
+     * so we check to see if we have one
+     */
     if (!base || NULL == base->head) {
-      h_hashtable_put(state->cache, key, cached_result(state, tmp_res));
+      h_hashtable_put_precomp(state->cache, key,
+                              cached_result(state, tmp_res), keyhash);
       return tmp_res;
     } else {
       base->seed = tmp_res;
@@ -217,7 +249,7 @@ HParseResult* h_do_parse(const HParser* parser, HParseState *state) {
       return res;
     }
   } else {
-    // it exists!
+    /* it exists! */
     state->input_stream = m->input_stream;
     if (PC_LEFT == m->value_type) {
       setupLR(parser, state, m->left);
@@ -239,17 +271,34 @@ void h_packrat_free(HParser *parser) {
 }
 
 static uint32_t cache_key_hash(const void* key) {
+#ifdef DETAILED_PACKRAT_STATISTICS
+  ++(packrat_hash_count);
+  packrat_hash_bytes += sizeof(HParserCacheKey);
+#endif
   return h_djbhash(key, sizeof(HParserCacheKey));
 }
+
 static bool cache_key_equal(const void* key1, const void* key2) {
+#ifdef DETAILED_PACKRAT_STATISTICS
+  ++(packrat_cmp_count);
+  packrat_cmp_bytes += sizeof(HParserCacheKey);
+#endif
   return memcmp(key1, key2, sizeof(HParserCacheKey)) == 0;
 }
 
 static uint32_t pos_hash(const void* key) {
+#ifdef DETAILED_PACKRAT_STATISTICS
+  ++(packrat_hash_count);
+  packrat_hash_bytes += sizeof(HInputStream);
+#endif
   return h_djbhash(key, sizeof(HInputStream));
 }
 
 static bool pos_equal(const void* key1, const void* key2) {
+#ifdef DETAILED_PACKRAT_STATISTICS
+  ++(packrat_cmp_count);
+  packrat_cmp_bytes += sizeof(HInputStream);
+#endif
   return memcmp(key1, key2, sizeof(HInputStream)) == 0;
 }
 
@@ -271,6 +320,7 @@ HParseResult *h_packrat_parse(HAllocator* mm__, const HParser* parser, HInputStr
   parse_state->lr_stack = h_slist_new(arena);
   parse_state->recursion_heads = h_hashtable_new(arena, pos_equal, pos_hash);
   parse_state->arena = arena;
+  parse_state->symbol_table = NULL;
   HParseResult *res = h_do_parse(parser, parse_state);
   h_slist_free(parse_state->lr_stack);
   h_hashtable_free(parse_state->recursion_heads);

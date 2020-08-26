@@ -14,7 +14,7 @@ int h_glr_compile(HAllocator* mm__, HParser* parser, const void* params)
   }
   int result = h_lalr_compile(mm__, parser, params);
 
-  if(result == -1 && parser->backend_data) {
+  if(result == -2 && parser->backend_data) {
     // table is there, just has conflicts? nevermind, that's okay.
     result = 0;
   }
@@ -225,6 +225,8 @@ HParseResult *h_glr_parse(HAllocator* mm__, const HParser* parser, HInputStream*
       HLREngine *engine = h_slist_pop(engines);
       const HLRAction *action = h_lrengine_action(engine);
       glr_step(&result, engback, engine, action);
+      // XXX detect ambiguous results - two engines terminating at the same pos
+      // -> kill both engines, i.e. ignore if there is a later unamb. success
     }
 
     // swap the lists

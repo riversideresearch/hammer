@@ -31,18 +31,24 @@ static size_t follow_transition(const HLRTable *table, size_t x, HCFChoice *A)
 {
   HLRAction *action = lrtable_lookup(table, x, A);
   assert(action != NULL);
-  assert(action->type == HLR_SHIFT);
-  return action->nextstate;
-}
 
-static inline HLRTransition *transition(HArena *arena,
-                                        size_t x, const HCFChoice *A, size_t y)
-{
-  HLRTransition *t = h_arena_malloc(arena, sizeof(HLRTransition));
-  t->from = x;
-  t->symbol = A;
-  t->to = y;
-  return t;
+  // we are interested in a transition out of state x, i.e. a shift action.
+  // while there could also be reduce actions associated with A in state x,
+  // those are not what we are here for. so if action is a conflict, search it
+  // for the shift. there will only be one and it will be the bottom element.
+  if(action->type == HLR_CONFLICT) {
+    HSlistNode *x;
+    for(x=action->branches->head; x; x=x->next) {
+      action = x->elem;
+      assert(action->type != HLR_CONFLICT); // no nesting of conflicts
+      if(action->type == HLR_SHIFT)
+        break;
+    }
+    assert(x != NULL && x->next == NULL);   // shift found at the bottom
+  }
+  assert(action->type == HLR_SHIFT);
+
+  return action->nextstate;
 }
 
 // no-op on terminal symbols
@@ -69,8 +75,8 @@ static void transform_productions(const HLRTable *table, HLREnhGrammar *eg,
     HCFChoice **iBj = items;
     for(; *B; B++, iBj++) {
       size_t j = follow_transition(table, i, *B);
-      HLRTransition *i_B_j = transition(arena, i, *B, j);
-      *iBj = h_hashtable_get(eg->tmap, i_B_j);
+      HLRTransition i_B_j = {i, *B, j};
+      *iBj = h_hashtable_get(eg->tmap, &i_B_j);
       assert(*iBj != NULL);
       i = j;
     }
@@ -279,18 +285,18 @@ int h_lalr_compile(HAllocator* mm__, HParser* parser, const void* params)
   }
   HCFGrammar *g = h_cfgrammar_(mm__, h_desugar_augmented(mm__, parser));
   if(g == NULL)     // backend not suitable (language not context-free)
-    return -1;
+    return 2;
 
   HLRDFA *dfa = h_lr0_dfa(g);
   if (dfa == NULL) {     // this should normally not happen
     h_cfgrammar_free(g);
-    return -1;
+    return 3;
   }
 
   HLRTable *table = h_lr0_table(g, dfa);
   if (table == NULL) {   // this should normally not happen
     h_cfgrammar_free(g);
-    return -1;
+    return 4;
   }
 
   if(has_conflicts(table)) {
@@ -300,7 +306,7 @@ int h_lalr_compile(HAllocator* mm__, HParser* parser, const void* params)
     if(eg == NULL) {    // this should normally not happen
       h_cfgrammar_free(g);
       h_lrtable_free(table);
-      return -1;
+      return 5;
     }
 
     // go through the inadequate states; replace inadeq with a new list
@@ -332,7 +338,11 @@ int h_lalr_compile(HAllocator* mm__, HParser* parser, const void* params)
             const HStringMap *fs = h_follow(1, eg->grammar, lhs);
             assert(fs != NULL);
             assert(fs->epsilon_branch == NULL);
-            assert(!h_stringmap_empty(fs));
+            // NB: there is a case where fs can be empty: when reducing by lhs
+            // would lead to certain parse failure, by means of h_nothing_p()
+            // for instance. in that case, the below code correctly adds no
+            // reduce action.
+            assert(!h_stringmap_empty(fs)); // XXX
 
             // for each lookahead symbol, put action into table cell
             if(terminals_put(table->tmap[state], fs, action) < 0)
@@ -345,11 +355,13 @@ int h_lalr_compile(HAllocator* mm__, HParser* parser, const void* params)
         h_slist_push(table->inadeq, (void *)(uintptr_t)state);
       }
     }
+
+    h_cfgrammar_free(eg->grammar);
   }
 
   h_cfgrammar_free(g);
   parser->backend_data = table;
-  return has_conflicts(table)? -1 : 0;
+  return has_conflicts(table)? -2 : 0;
 }
 
 void h_lalr_free(HParser *parser)

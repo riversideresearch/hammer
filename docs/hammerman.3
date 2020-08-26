@@ -77,11 +77,13 @@ Benchmarking for parsing backends -- determine empirically which backend will be
 11
 12      HParseResult *result = h_parse(hello_parser, input, inputsize);
 13      if(result) {
-14          printf("yay!\n");
+14          printf("yay!\\n");
 15      } else {
-16          printf("boo!\n");
+16          printf("boo!\\n");
 17      }
-18  }
+18      h_parse_result_free(result);
+19      return 0 == result;
+20  }
 .fi
 .SH "AUTHOR"
 .sp

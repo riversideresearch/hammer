@@ -14,7 +14,7 @@ if platform.system() == 'Windows':
 vars = Variables(None, ARGUMENTS)
 vars.Add(PathVariable('DESTDIR', "Root directory to install in (useful for packaging scripts)", None, PathVariable.PathIsDirCreate))
 vars.Add(PathVariable('prefix', "Where to install in the FHS", "/usr/local", PathVariable.PathAccept))
-vars.Add(ListVariable('bindings', 'Language bindings to build', 'none', ['cpp', 'dotnet', 'perl', 'php', 'python', 'ruby']))
+vars.Add(ListVariable('bindings', 'Language bindings to build', 'none', ['cpp', 'dotnet', 'jni', 'perl', 'php', 'python', 'ruby']))
 vars.Add('python', 'Python interpreter', 'python')
 
 tools = ['default', 'scanreplace']
@@ -73,6 +73,18 @@ AddOption('--coverage',
           action='store_true',
           help='Build with coverage instrumentation')
 
+AddOption('--force-debug',
+          dest='force_debug',
+          default=False,
+          action='store_true',
+          help='Build with debug symbols, even in the opt variant')
+
+AddOption('--gprof',
+          dest='gprof',
+          default=False,
+          action="store_true",
+          help='Build with profiling instrumentation for gprof')
+
 AddOption('--in-place',
           dest='in_place',
           default=False,
@@ -106,7 +118,15 @@ if env['CC'] == 'cl':
         ]
     )
 else:
-    env.MergeFlags('-std=c99 -D_POSIX_C_SOURCE=200809L -Wall -Wextra -Werror -Wno-unused-parameter -Wno-attributes -Wno-unused-variable')
+    if env['PLATFORM'] == 'darwin':
+        # It's reported -D_POSIX_C_SOURCE breaks the Mac OS build; I think we
+        # may need _DARWIN_C_SOURCE instead/in addition to, but let's wait to
+        # have access to a Mac to test/repo
+        env.MergeFlags('-std=c99 -Wall -Wextra -Werror -Wno-unused-parameter -Wno-attributes -Wno-unused-variable')
+    else:
+        # Using -D_POSIX_C_SOURCE=200809L here, not on an ad-hoc basis when,
+        # #including, is important
+        env.MergeFlags('-std=c99 -D_POSIX_C_SOURCE=200809L -Wall -Wextra -Werror -Wno-unused-parameter -Wno-attributes -Wno-unused-variable')
 
 # Linker options
 if env['PLATFORM'] == 'darwin':
@@ -120,13 +140,30 @@ else:
     env.MergeFlags('-lrt')
 
 if GetOption('coverage'):
-    env.Append(CFLAGS=['--coverage'],
-               CXXFLAGS=['--coverage'],
-               LDFLAGS=['--coverage'])
+    env.Append(CCFLAGS=['--coverage'],
+               LDFLAGS=['--coverage'],
+               LINKFLAGS=['--coverage'])
     if env['CC'] == 'gcc':
         env.Append(LIBS=['gcov'])
     else:
         env.ParseConfig('llvm-config --ldflags')
+
+if GetOption('force_debug'):
+    if env['CC'] == 'cl':
+        env.Append(CCFLAGS=['/Z7'])
+    else:
+        env.Append(CCFLAGS=['-g'])
+
+if GetOption('gprof'):
+    if env['CC'] == 'gcc' and env['CXX'] == 'g++':
+        env.Append(CCFLAGS=['-pg'],
+		   LDFLAGS=['-pg'],
+                   LINKFLAGS=['-pg'])
+        env['GPROF'] = 1
+    else:
+        print("Can only use gprof with gcc")
+        Exit(1)
+        
 
 dbg = env.Clone(VARIANT='debug')
 if env['CC'] == 'cl':

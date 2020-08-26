@@ -37,6 +37,9 @@ static HParseResult *parse_many(void* env, HParseState *state) {
   HParsedToken *res = a_new(HParsedToken, 1);
   res->token_type = TT_SEQUENCE;
   res->seq = seq;
+  res->index = 0;
+  res->bit_length = 0;
+  res->bit_offset = 0;
   return make_result(state->arena, res);
  err0:
   if (count >= env_->count) {
@@ -85,6 +88,7 @@ static HParsedToken *reshape_many(const HParseResult *p, void *user)
   res->seq = seq;
   res->index = p->ast->index;
   res->bit_offset = p->ast->bit_offset;
+  res->bit_length = p->bit_length;
   return res;
 }
 
@@ -92,22 +96,17 @@ static void desugar_many(HAllocator *mm__, HCFStack *stk__, void *env) {
   // TODO: refactor this.
   HRepeat *repeat = (HRepeat*)env;
   if (!repeat->min_p) {
-    assert(!"Unreachable");
+    // count is an exact count.
+    assert(repeat->sep == NULL);
     HCFS_BEGIN_CHOICE() {
       HCFS_BEGIN_SEQ() {
-	for (size_t i = 0; i < repeat->count; i++) {
-	  if (i != 0 && repeat->sep != NULL)
-	    HCFS_DESUGAR(repeat->sep); // Should be ignored.
+	for (size_t i = 0; i < repeat->count; i++)
 	  HCFS_DESUGAR(repeat->p);
-	}
       } HCFS_END_SEQ();
     } HCFS_END_CHOICE();
     return;
   }
-  if(repeat->count > 1) {
-    assert_message(0, "'h_repeat_n' is not context-free, can't be desugared");
-    return;
-  }
+  assert(repeat->count <= 1);
 
   /* many(A) =>
          Ma  -> A Mar

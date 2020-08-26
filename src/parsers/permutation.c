@@ -89,6 +89,9 @@ static HParseResult *parse_permutation(void *env, HParseState *state)
     HParsedToken *tok = a_new(HParsedToken, 1);
     tok->token_type  = TT_SEQUENCE;
     tok->seq = seq;
+    tok->index = 0;
+    tok->bit_length = 0;
+    tok->bit_offset = 0;
     return make_result(state->arena, tok);
   } else {
     // no parse
@@ -176,5 +179,6 @@ HParser* h_permutation__ma(HAllocator* mm__, void *args[]) {
   ret->vtable = &permutation_vt; 
   ret->env = (void*)s;
   ret->backend = PB_MIN;
+  ret->desugared = NULL;
   return ret;
 }

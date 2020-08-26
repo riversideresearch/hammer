@@ -56,7 +56,8 @@ parsers = ['parsers/%s.c'%s for s in
             'unimplemented',
             'whitespace',
             'xor',
-            'value']]
+            'value',
+            'seek']]
 
 backends = ['backends/%s.c' % s for s in
             ['missing', 'packrat', 'llk', 'regex', 'glr', 'lalr', 'lr', 'lr0']]
@@ -103,10 +104,21 @@ if env['PLATFORM'] == 'win32':
     # prevent collision between .lib from dll and .lib for static lib
     static_library_name = 'hammer_s'
 
-libhammer_shared = env.SharedLibrary('hammer', parsers + backends + misc_hammer_parts, \
+if 'GPROF' in env and env['GPROF'] == 1:
+    # Disable the shared library (it won't work with gprof) and rename the static one
+    build_shared_library=False
+    static_library_name = 'hammer_pg'
+
+# Markers for later
+libhammer_static = None
+libhammer_shared = None
+
+if build_shared_library:
+    libhammer_shared = env.SharedLibrary('hammer', parsers + backends + misc_hammer_parts, \
                                      SHLIBVERSION=hammer_shlib_version)
 libhammer_static = env.StaticLibrary(static_library_name, parsers + backends + misc_hammer_parts)
-if build_shared_library:
+
+if libhammer_shared is not None:
     Default(libhammer_shared, libhammer_static)
     env.Install('$libpath', [libhammer_static, libhammer_shared])
 else:
@@ -121,14 +133,20 @@ env.Install('$pkgconfigpath', '../../../libhammer.pc')
 if GetOption('with_tests'):
     testenv = env.Clone()
     testenv.ParseConfig('pkg-config --cflags --libs glib-2.0')
-    testenv.Append(LIBS=['hammer'])
+    if libhammer_shared is not None:
+        testenv.Append(LIBS=['hammer'])
+    else:
+        testenv.Append(LIBS=[static_library_name])
     testenv.Prepend(LIBPATH=['.'])
     ctestexec = testenv.Program('test_suite', ctests + ['test_suite.c'], LINKFLAGS='--coverage' if testenv.GetOption('coverage') else None)
     ctest = Alias('testc', [ctestexec], ''.join(['env LD_LIBRARY_PATH=', os.path.dirname(ctestexec[0].path), ' ', ctestexec[0].path]))
     AlwaysBuild(ctest)
     testruns.append(ctest)
 
-Export('libhammer_static libhammer_shared')
+if libhammer_shared is not None:
+    Export('libhammer_static libhammer_shared')
+else:
+    Export('libhammer_static')
 
 for b in env['bindings']:
     env.SConscript(['bindings/%s/SConscript' % b])
