@@ -397,11 +397,11 @@ char * h_lalr_get_description(HAllocator *mm__,
     /*
      * No specific k; TODO actually have a default and fix the backend
      */
-    len = snprintf(NULL, 0, generic_descr_format_str);
+    len = strlen(generic_descr_format_str);
     /* Allocate and do the real snprintf */
     descr = h_new(char, len + 1);
     if (descr) {
-      snprintf(descr, len + 1, generic_descr_format_str);
+      strncpy(descr, generic_descr_format_str, len + 1);
     }
   }
 
@@ -436,6 +436,23 @@ char * h_lalr_get_short_name(HAllocator *mm__,
   return name;
 }
 
+int h_lalr_extract_params(void ** params, char* raw_params) {
+
+	params = NULL;
+
+    int param_0 = -1;
+    int success = 0;
+
+    success = sscanf(raw_params + 1, "%d", &param_0);
+
+    if(success) {
+    	*params = (void *)(unsigned long long) param_0;
+    }
+
+    return success;
+
+}
+
 HParserBackendVTable h__lalr_backend_vtable = {
   .compile = h_lalr_compile,
   .parse = h_lr_parse,
@@ -450,7 +467,9 @@ HParserBackendVTable h__lalr_backend_vtable = {
   .backend_short_name = "lalr",
   .backend_description = "LALR(k) parser backend",
   .get_description_with_params = h_lalr_get_description,
-  .get_short_name_with_params = h_lalr_get_short_name
+  .get_short_name_with_params = h_lalr_get_short_name,
+
+  .extract_params = h_lalr_extract_params
 };
 
 // dummy!

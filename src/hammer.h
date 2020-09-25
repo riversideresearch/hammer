@@ -55,7 +55,9 @@ typedef enum HParserBackend_ {
 } HParserBackend;
 
 typedef struct HParserBackendWithParams_ {
-  /* The backend */
+  /* Name of backend (for loading backends from modules */
+  char *name;
+  /* The backend (if backend is to be loaded from an external module set to invalid (?))*/
   HParserBackend backend;
   /*
    * Backend-specific parameters - if this needs to be freed, the backend
@@ -64,6 +66,8 @@ typedef struct HParserBackendWithParams_ {
    * and PB_GLR take an integer cast to void *
    */
   void *params;
+  /*raw substring the params were extracted from*/
+  char *raw_params;
   /* Allocator to use to free this (and the params if necessary) */
   HAllocator *mm__;
 } HParserBackendWithParams;
@@ -348,6 +352,21 @@ HAMMER_FN_DECL(char *, h_get_descriptive_text_for_backend_with_params,
  */
 
 HParserBackend h_query_backend_by_name(const char *name);
+
+/**
+ * Get a Hammer Backend with params from a string of the form
+ * backend_name(params) for example "lalr(1)".
+ *
+ * If the backend is one of the existing backends in the HBackend enum,
+ * HBackend will be populated in the result.
+ *
+ * TODO: actually do the below, also improve this comment to be more clear and concise.
+ * Otherwise the result will save the name for use in attempts later at
+ * loading the named module.
+ *
+ */
+
+HAMMER_FN_DECL(HParserBackendWithParams *, h_get_backend_with_params_by_name, const char *name_with_params);
 
 /**
  * Top-level function to call a parser that has been built over some
@@ -881,6 +900,8 @@ void h_pprintln(FILE* stream, const HParsedToken* tok);
  *
  * Consult each backend for details.
  */
+HAMMER_FN_DECL(int, h_compile_for_named_backend, HParser* parser, HParserBackendWithParams *be_with_params);
+
 HAMMER_FN_DECL(int, h_compile, HParser* parser, HParserBackend backend, const void* params);
 
 /**

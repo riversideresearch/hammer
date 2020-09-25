@@ -328,6 +328,70 @@ char * h_get_short_name_with_no_params(HAllocator *mm__,
   return h_get_backend_text_with_no_params(mm__, be, 0);
 }
 
+HParserBackendWithParams * h_get_backend_with_params_by_name(const char *name_with_params) {
+	
+	HParserBackendWithParams *result = NULL;
+
+	HAllocator *mm__ = &system_allocator;
+
+	char *name_with_no_params = NULL;
+	char *params_as_string = NULL;
+
+	size_t name_len, params_len;
+	size_t len = strlen(name_with_params);
+
+    params_as_string = strstr(name_with_params, "(");
+
+    if(params_as_string) {
+    	params_len = strlen(params_as_string);
+    	name_len = len - params_len;
+    } else {
+    	name_len = len;
+    }
+
+	name_with_no_params = h_new(char, name_len+1);
+	memset(name_with_no_params, 0, name_len+1);
+	strncpy(name_with_no_params, name_with_params, name_len);
+
+	HParserBackend backend = h_query_backend_by_name(name_with_no_params);
+
+	result = h_new(HParserBackendWithParams, 1);
+
+	if (result) {
+
+	    result->backend = backend;
+
+	    result->name = name_with_no_params;
+
+	    if(params_as_string) {
+	    	//store the raw string containing the param(s)
+	    	char * raw_params_string = h_new(char, params_len+1);
+	    	memset(name_with_no_params, 0, params_len+1);
+	    	strncpy(raw_params_string, params_as_string, params_len);
+	    	result->raw_params = raw_params_string;
+
+	    	//if the backend is one built as part of hammer, use it
+	    	if(backend){
+	    		int s = backends[backend]->extract_params(&(result->params), params_as_string);
+		        if (!s) {
+		            /* copy_params() failed */
+		            h_free(result);
+		            result = NULL;
+		        }
+		     }
+
+	    } else {
+	          /* else just ignore it and set it to NULL */
+	        result->params = NULL;
+	        result->raw_params = NULL;
+	    }
+
+	}
+
+	return result;
+
+}
+
 #define DEFAULT_ENDIANNESS (BIT_BIG_ENDIAN | BYTE_BIG_ENDIAN)
 
 HParseResult* h_parse(const HParser* parser, const uint8_t* input, size_t length) {
@@ -371,6 +435,28 @@ bool h_true(void* env) {
 bool h_not_regular(HRVMProg *prog, void *env) {
   (void)env;
   return false;
+}
+
+int h_compile_for_named_backend(HParser* parser, HParserBackendWithParams* be_with_params){
+	HAllocator* mm__ = be_with_params->mm__;
+
+	if(mm__ == NULL){
+		mm__ = &system_allocator;
+	}
+
+	return h_compile_for_named_backend__m(mm__, parser, be_with_params);
+}
+
+int h_compile_for_named_backend__m(HAllocator* mm__, HParser* parser, HParserBackendWithParams* be_with_params) {
+	  /*if (parser->backend >= PB_MIN && parser->backend <= PB_MAX &&
+	      backends[parser->backend]->free != NULL) {
+	    backends[parser->backend]->free(parser);
+	  }
+	  int ret = backends[be_with_params->backend]->compile(mm__, parser, (const void*) be_with_params->params);
+	  if (!ret)
+	    parser->backend = be_with_params->backend;
+	  return ret;*/
+	return h_compile__m(mm__, parser, be_with_params->backend, be_with_params->params);
 }
 
 int h_compile(HParser* parser, HParserBackend backend, const void* params) {

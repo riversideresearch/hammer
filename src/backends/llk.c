@@ -670,6 +670,23 @@ char * h_llk_get_short_name(HAllocator *mm__,
   return name;
 }
 
+int h_llk_extract_params(void ** params, char * raw_params) {
+
+	params = NULL;
+
+    int param_0 = -1;
+    int success = 0;
+
+    success = sscanf(raw_params + 1, "%d", &param_0);
+
+    if(success) {
+    	*params = (void *)(unsigned long long) param_0;
+    }
+
+    return success;
+
+}
+
 
 HParserBackendVTable h__llk_backend_vtable = {
   .compile = h_llk_compile,
@@ -687,7 +704,10 @@ HParserBackendVTable h__llk_backend_vtable = {
   .backend_short_name = "llk",
   .backend_description = "LL(k) parser backend",
   .get_description_with_params = h_llk_get_description,
-  .get_short_name_with_params = h_llk_get_short_name
+  .get_short_name_with_params = h_llk_get_short_name,
+
+  /*extraction of params from string*/
+  .extract_params = h_llk_extract_params
 };
 
 
