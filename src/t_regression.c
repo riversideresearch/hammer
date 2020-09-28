@@ -472,6 +472,57 @@ static void test_issue83() {
   g_check_cmp_int(r, ==, 0);
 }
 
+
+static void test_bug60() {
+
+//There is probably an even smaller example that shows the issue
+
+	  HParser *zed = NULL;
+	  HParser *alpha = NULL;
+	  HParser *vchar = NULL;
+	  HParser *why = NULL;
+	  HParser *plural_zed = NULL;
+	  HParser *plural_zed_zed = NULL;
+	  HParser *a_to_zed = NULL;
+	  HParser *alphas = NULL;
+	  HParser *rule = NULL;
+	  HParser *rulelist = NULL;
+	  HParser *p = NULL;
+	  HParseResult *r = NULL;
+	  int n;
+
+	  zed =  h_ch('z');
+
+	  vchar = h_ch_range(0x79, 0x7a); // allows y and z
+
+	  alpha = h_ch('a');
+
+	  why = h_ch('y');
+
+	  plural_zed = h_sequence(
+	      why,
+	      h_many(h_choice(alpha, vchar, NULL)),
+	      NULL);
+	  plural_zed_zed = h_choice(plural_zed, zed, NULL);
+	  alphas = h_choice(alpha, h_sequence(plural_zed_zed, alpha, NULL), NULL);
+
+	  a_to_zed = h_sequence(
+	      zed,
+	      h_many(h_sequence(h_many1(alphas), zed, NULL)),
+	      NULL);
+	  rule = h_sequence(a_to_zed, plural_zed_zed, NULL);
+	  rulelist = h_many1(h_choice(
+	      rule,
+	      h_sequence(h_many(alphas), plural_zed_zed, NULL),
+	      NULL));
+
+	  p = rulelist;
+
+	  g_check_parse_ok(p, PB_GLR, "ayzza", 5);
+	  g_check_parse_match(p, PB_GLR, "ayzza", 5, "(((u0x61) (u0x79 (u0x7a u0x7a u0x61))))");
+
+}
+
 void register_regression_tests(void) {
   g_test_add_func("/core/regression/bug118", test_bug118);
   g_test_add_func("/core/regression/seq_index_path", test_seq_index_path);
@@ -488,4 +539,5 @@ void register_regression_tests(void) {
   g_test_add_func("/core/regression/issue87", test_issue87);
   g_test_add_func("/core/regression/issue92", test_issue92);
   g_test_add_func("/core/regression/issue83", test_issue83);
+  g_test_add_func("/core/regression/bug60", test_bug60);
 }

@@ -174,9 +174,9 @@ static bool glr_step(HParseResult **result, HSlist *engines,
     HSlistNode *x;
     for(x=engines->head; x; x=x->next) {
       HLREngine *eng = x->elem;
-      if(eng->state == engine->state) {
-        x->elem = lrengine_merge(eng, engine);
-        break;
+      if(eng->state == engine->state && eng->input.index == engine->input.index) {
+    	x->elem = lrengine_merge(eng, engine);
+    	break;
       }
     }
     if(!x)  // no merge happened
