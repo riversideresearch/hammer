@@ -71,30 +71,12 @@
   } while(0)
 
 #define g_check_compilable(lang, backend, params) do {	\
-    if (!h_compile(lang, backend, params)) {		\
-      g_test_message("Language is not %s(%s)", #backend, params);	\
+    int r = h_compile((HParser *)(lang), (HParserBackend)(backend), (void *)(params)); \
+    if (r != 0) {		\
+      g_test_message("Language is not %s(%s)", #backend, #params);	\
       g_test_fail();					\
     }							\
   } while(0)
-
-  
-#define g_check_parse_failed__m(mm__, parser, backend, input, inp_len) do { \
-    int skip = h_compile__m(mm__, (HParser *)(parser), (HParserBackend)backend, NULL); \
-    if(skip != 0) {	\
-      g_test_message("Compile failed");					\
-      g_test_fail();							\
-      break;	\
-    }	\
-    HParseResult *result = h_parse__m(mm__, parser, (const uint8_t*)input, inp_len); \
-    if (NULL != result) {						\
-      h_parse_result_free(result);					\
-      g_test_message("Check failed: shouldn't have succeeded, but did"); \
-      g_test_fail();							\
-    }									\
-  } while(0)
-
-#define g_check_parse_failed(p, be, input, len)				\
-    g_check_parse_failed__m(&system_allocator, p, be, input, len)
 
 #define print_arena_stats(arena) do {					\
     if (g_test_verbose()) {						\
@@ -107,14 +89,46 @@
     }									\
   } while(0)
 
-#define g_check_parse_ok(parser, backend, input, inp_len) do {		\
-    int skip = h_compile((HParser *)(parser), (HParserBackend) backend, NULL); \
+#define g_check_parse_failed__m(mm__, parser, backend, input, inp_len) do { \
+    int skip = h_compile__m(mm__, (HParser *)(parser), (HParserBackend)backend, NULL); \
+    if(skip != 0) {	\
+      g_test_message("Compile failed on line %d", __LINE__);					\
+      g_test_fail();							\
+      break;	\
+    }	\
+    HParseResult *res = h_parse__m(mm__, parser, (const uint8_t*)input, inp_len); \
+    if (NULL != res) {						\
+      print_arena_stats(res->arena); \
+      h_parse_result_free(res);					\
+      g_test_message("Check failed: parse shouldn't have succeeded, but did on line %d", __LINE__); \
+      g_test_fail();							\
+    }									\
+  } while(0)
+
+#define g_check_parse_failed(p, be, input, len)				\
+    g_check_parse_failed__m(&system_allocator, p, be, input, len)
+
+#define g_check_parse_failed_no_compile__m(mm__, parser, input, inp_len) do { \
+    HParseResult *res = h_parse__m(mm__, parser, (const uint8_t*)input, inp_len); \
+    if (NULL != res) {						\
+      print_arena_stats(res->arena); \
+      h_parse_result_free(res);					\
+      g_test_message("Check failed: shouldn't have succeeded, but did on ;ine %d", __LINE__); \
+      g_test_fail();							\
+    }									\
+  } while(0)
+
+#define g_check_parse_failed_no_compile(p, input, len)				\
+    g_check_parse_failed__m(&system_allocator, p, input, len)
+
+#define g_check_parse_ok__m(mm__, parser, backend, input, inp_len) do {		\
+    int skip = h_compile__m(mm__, (HParser *)(parser), (HParserBackend) backend, NULL); \
     if(skip) {								\
       g_test_message("Compile failed");					\
       g_test_fail();							\
       break;								\
     }									\
-    HParseResult *res = h_parse(parser, (const uint8_t*)input, inp_len); \
+    HParseResult *res = h_parse__m(mm__, parser, (const uint8_t*)input, inp_len); \
     if (!res) {								\
       g_test_message("Parse failed on line %d", __LINE__);		\
       g_test_fail();							\
@@ -124,14 +138,31 @@
     }									\
   } while(0)
 
-#define g_check_parse_match(parser, backend, input, inp_len, result) do { \
-    int skip = h_compile((HParser *)(parser), (HParserBackend) backend, NULL); \
+#define g_check_parse_ok(p, be, input, len)				\
+    g_check_parse_ok__m(&system_allocator, p, be, input, len)
+
+#define g_check_parse_ok_no_compile__m(mm__, parser, input, inp_len) do {		\
+    HParseResult *res = h_parse__m(mm__, parser, (const uint8_t*)input, inp_len); \
+    if (!res) {								\
+      g_test_message("Parse failed on line %d", __LINE__);		\
+      g_test_fail();							\
+    } else {								\
+      print_arena_stats(res->arena);					\
+      h_parse_result_free(res);						\
+    }									\
+  } while(0)
+
+#define g_check_parse_ok_no_compile(p, input, len)				\
+    g_check_parse_ok_no_compile__m(&system_allocator, p, input, len)
+
+#define g_check_parse_match__m(mm__, parser, backend, input, inp_len, result) do { \
+    int skip = h_compile__m(mm__, (HParser *)(parser), (HParserBackend) backend, NULL); \
     if(skip) {								\
       g_test_message("Compile failed");					\
       g_test_fail();							\
       break;								\
     }									\
-    HParseResult *res = h_parse(parser, (const uint8_t*)input, inp_len); \
+    HParseResult *res = h_parse__m(mm__, (HParser *)(parser), (const uint8_t*)input, inp_len); \
     if (!res) {								\
       g_test_message("Parse failed on line %d", __LINE__);		\
       g_test_fail();							\
@@ -144,6 +175,26 @@
     }									\
   } while(0)
 
+#define g_check_parse_match(parser, backend, input, inp_len, result) \
+    g_check_parse_match__m(&system_allocator, parser, backend, input, inp_len, result)
+
+#define g_check_parse_match_no_compile__m(mm__, parser, input, inp_len, result) do { \
+    HParseResult *res = h_parse__m(mm__, (HParser *)(parser), (const uint8_t*)input, inp_len); \
+    if (!res) {								\
+      g_test_message("Parse failed on line %d", __LINE__);		\
+      g_test_fail();							\
+    } else {								\
+      char* cres = h_write_result_unamb(res->ast);			\
+      g_check_string(cres, ==, result);					\
+      (&system_allocator)->free(&system_allocator, cres);		\
+      print_arena_stats(res->arena);					\
+      h_parse_result_free(res);						\
+    }									\
+  } while(0)
+
+#define g_check_parse_match_no_compile(parser, input, inp_len, result) \
+    g_check_parse_match_no_compile__m(&system_allocator, parser, input, inp_len, result)
+
 #define g_check_parse_chunks_failed__m(mm__, parser, backend, chunk1, c1_len, chunk2, c2_len) do { \
     int skip = h_compile__m(mm__, (HParser *)(parser), (HParserBackend)backend, NULL); \
     if(skip) {								\
@@ -155,7 +206,7 @@
   } while(0)
 
 #define g_check_parse_chunks_failed___m(mm__, parser, chunk1, c1_len, chunk2, c2_len) do { \
-    HSuspendedParser *s = h_parse_start__m(mm__, parser);		\
+    HSuspendedParser *s = h_parse_start__m(mm__, (HParser *)(parser));		\
     if(!s) {								\
       g_test_message("Chunk-wise parsing not available");		\
       g_test_fail();							\
@@ -188,7 +239,7 @@
   } while(0)
 
 #define g_check_parse_chunks_ok_(parser, chunk1, c1_len, chunk2, c2_len) do {	\
-    HSuspendedParser *s = h_parse_start(parser);			\
+    HSuspendedParser *s = h_parse_start((HParser *)(parser));			\
     if(!s) {								\
       g_test_message("Chunk-wise parsing not available");		\
       g_test_fail();							\
@@ -217,7 +268,7 @@
   } while(0)
 
 #define g_check_parse_chunks_match_(parser, chunk1, c1_len, chunk2, c2_len, result) do { \
-    HSuspendedParser *s = h_parse_start(parser);			\
+    HSuspendedParser *s = h_parse_start((HParser *)(parser));			\
     if(!s) {								\
       g_test_message("Chunk-wise parsing not available");		\
       g_test_fail();							\
