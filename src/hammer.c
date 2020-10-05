@@ -340,24 +340,26 @@ HParserBackendWithParams * h_get_backend_with_params_by_name(const char *name_wi
 	size_t name_len, params_len;
 	size_t len = strlen(name_with_params);
 
-    params_as_string = strstr(name_with_params, "(");
-
-    if(params_as_string) {
-    	params_len = strlen(params_as_string);
-    	name_len = len - params_len;
-    } else {
-    	name_len = len;
-    }
-
-	name_with_no_params = h_new(char, name_len+1);
-	memset(name_with_no_params, 0, name_len+1);
-	strncpy(name_with_no_params, name_with_params, name_len);
-
-	HParserBackend backend = h_query_backend_by_name(name_with_no_params);
-
 	result = h_new(HParserBackendWithParams, 1);
 
 	if (result) {
+
+
+	    params_as_string = strstr(name_with_params, "(");
+
+	    if(params_as_string) {
+	    	params_len = strlen(params_as_string);
+	    	name_len = len - params_len;
+	    } else {
+	    	name_len = len;
+	    }
+
+		name_with_no_params = h_new(char, name_len+1);
+		memset(name_with_no_params, '\0', name_len+1);
+		strncpy(name_with_no_params, name_with_params, name_len);
+
+		HParserBackend backend = h_query_backend_by_name(name_with_no_params);
+
 
 	    result->backend = backend;
 
@@ -366,7 +368,7 @@ HParserBackendWithParams * h_get_backend_with_params_by_name(const char *name_wi
 	    if(params_as_string) {
 	    	//store the raw string containing the param(s)
 	    	char * raw_params_string = h_new(char, params_len+1);
-	    	memset(name_with_no_params, 0, params_len+1);
+	    	memset(raw_params_string, '\0', params_len+1);
 	    	strncpy(raw_params_string, params_as_string, params_len);
 	    	result->raw_params = raw_params_string;
 

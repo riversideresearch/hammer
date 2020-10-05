@@ -307,15 +307,17 @@ char * h_glr_get_short_name(HAllocator *mm__,
 
 int h_glr_extract_params(void ** params, char* raw_params) {
 
-	params = NULL;
+	*params = NULL;
 
     int param_0 = -1;
     int success = 0;
+    uintptr_t param;
 
     success = sscanf(raw_params + 1, "%d", &param_0);
 
     if(success) {
-    	*params = (void *)(unsigned long long) param_0;
+    	param = (uintptr_t) param_0;
+    	*params = (void *)param;
     }
 
     return success;
