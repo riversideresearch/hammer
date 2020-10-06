@@ -82,6 +82,7 @@ HParserBackendWithParams * h_copy_backend_with_params__m(HAllocator *mm__,
       r = h_new(HParserBackendWithParams, 1);
       if (r) {
         r->mm__ = mm__;
+        r->name = be_with_params->name;
         r->backend = be_with_params->backend;
         if (backends[be_with_params->backend]->copy_params) {
           s = backends[be_with_params->backend]->copy_params(mm__,
@@ -337,7 +338,7 @@ HParserBackendWithParams * h_get_backend_with_params_by_name(const char *name_wi
 	char *name_with_no_params = NULL;
 	char *params_as_string = NULL;
 
-	size_t name_len, params_len;
+	size_t name_len
 	size_t len = strlen(name_with_params);
 
 	result = h_new(HParserBackendWithParams, 1);
@@ -348,8 +349,7 @@ HParserBackendWithParams * h_get_backend_with_params_by_name(const char *name_wi
 	    params_as_string = strstr(name_with_params, "(");
 
 	    if(params_as_string) {
-	    	params_len = strlen(params_as_string);
-	    	name_len = len - params_len;
+	    	name_len = len - strlen(params_as_string);
 	    } else {
 	    	name_len = len;
 	    }
@@ -366,11 +366,6 @@ HParserBackendWithParams * h_get_backend_with_params_by_name(const char *name_wi
 	    result->name = name_with_no_params;
 
 	    if(params_as_string) {
-	    	//store the raw string containing the param(s)
-	    	char * raw_params_string = h_new(char, params_len+1);
-	    	memset(raw_params_string, '\0', params_len+1);
-	    	strncpy(raw_params_string, params_as_string, params_len);
-	    	result->raw_params = raw_params_string;
 
 	    	//if the backend is one built as part of hammer, use it
 	    	if(backend){
@@ -385,7 +380,6 @@ HParserBackendWithParams * h_get_backend_with_params_by_name(const char *name_wi
 	    } else {
 	          /* else just ignore it and set it to NULL */
 	        result->params = NULL;
-	        result->raw_params = NULL;
 	    }
 
 	}

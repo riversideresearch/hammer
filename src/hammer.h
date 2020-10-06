@@ -55,7 +55,7 @@ typedef enum HParserBackend_ {
 } HParserBackend;
 
 typedef struct HParserBackendWithParams_ {
-  /* Name of backend (for loading backends from modules */
+  /* Name of backend (if called via string, need to keep this for loading backends from modules)  */
   const char *name;
   /* The backend (if backend is to be loaded from an external module set to invalid (?))*/
   HParserBackend backend;
@@ -66,8 +66,6 @@ typedef struct HParserBackendWithParams_ {
    * and PB_GLR take an integer cast to void *
    */
   void *params;
-  /*raw substring the params were extracted from*/
-  const char *raw_params;
   /* Allocator to use to free this (and the params if necessary) */
   HAllocator *mm__;
 } HParserBackendWithParams;
