@@ -240,8 +240,10 @@ HParseResult* h_do_parse(const HParser* parser, HParseState *state) {
      * so we check to see if we have one
      */
     if (!base || NULL == base->head) {
-      h_hashtable_put_precomp(state->cache, key,
-                              cached_result(state, tmp_res), keyhash);
+      if (parser->vtable->higher) {
+        h_hashtable_put_precomp(state->cache, key,
+                                cached_result(state, tmp_res), keyhash);
+      }
       return tmp_res;
     } else {
       base->seed = tmp_res;
