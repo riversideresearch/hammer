@@ -1,5 +1,6 @@
 #include <glib.h>
 #include <stdint.h>
+#include <stdlib.h>
 #include "glue.h"
 #include "hammer.h"
 #include "test_suite.h"
@@ -472,6 +473,141 @@ static void test_issue83() {
   g_check_cmp_int(r, ==, 0);
 }
 
+/*
+ * This is Meg's cut-down bug 60 test case
+ */
+
+static void test_bug60() {
+    /* There is probably an even smaller example that shows the issue */
+
+	  HParser *zed = NULL;
+	  HParser *alpha = NULL;
+	  HParser *vchar = NULL;
+	  HParser *why = NULL;
+	  HParser *plural_zed = NULL;
+	  HParser *plural_zed_zed = NULL;
+	  HParser *a_to_zed = NULL;
+	  HParser *alphas = NULL;
+	  HParser *rule = NULL;
+	  HParser *rulelist = NULL;
+	  HParser *p = NULL;
+	  HParseResult *r = NULL;
+	  int n;
+
+	  zed =  h_ch('z');
+
+	  vchar = h_ch_range(0x79, 0x7a); /* allows y and z */
+
+	  alpha = h_ch('a');
+
+	  why = h_ch('y');
+
+	  plural_zed = h_sequence(
+	      why,
+	      h_many(h_choice(alpha, vchar, NULL)),
+	      NULL);
+	  plural_zed_zed = h_choice(plural_zed, zed, NULL);
+	  alphas = h_choice(alpha, h_sequence(plural_zed_zed, alpha, NULL), NULL);
+
+	  a_to_zed = h_sequence(
+	      zed,
+	      h_many(h_sequence(h_many1(alphas), zed, NULL)),
+	      NULL);
+	  rule = h_sequence(a_to_zed, plural_zed_zed, NULL);
+	  rulelist = h_many1(h_choice(
+	      rule,
+	      h_sequence(h_many(alphas), plural_zed_zed, NULL),
+	      NULL));
+
+	  p = rulelist;
+
+	  g_check_parse_ok(p, PB_GLR, "ayzza", 5);
+	  g_check_parse_match(p, PB_GLR, "ayzza", 5, "(((u0x61) (u0x79 (u0x7a u0x7a u0x61))))");
+
+}
+
+/*
+ * This is the original bug60 test case; cut down from an ABNF parser
+ */
+
+#define BUG60_ABNF_SCAN_UP_TO 64
+
+static void test_bug60_abnf() {
+  HParser *newline = NULL;
+  HParser *alpha = NULL;
+  HParser *sp = NULL;
+  HParser *vchar = NULL;
+  HParser *equal = NULL;
+  HParser *semicolon = NULL;
+  HParser *comment = NULL;
+  HParser *c_nl = NULL;
+  HParser *c_sp = NULL;
+  HParser *defined_as = NULL;
+  HParser *alphas = NULL;
+  HParser *rule = NULL;
+  HParser *rulelist = NULL;
+  HParser *p = NULL;
+  int i, j, r, s_size;
+  char *s = NULL;
+  const char *test_string_template = "x = y z%s;%s\n\n";
+  char buf_1[BUG60_ABNF_SCAN_UP_TO+1];
+  char buf_2[2*BUG60_ABNF_SCAN_UP_TO+1];
+
+  newline = h_ch('\n');
+  alpha = h_choice(h_ch_range('A', 'Z'), h_ch_range('a', 'z'), NULL);
+  sp = h_ch(' ');
+  vchar = h_ch_range(0x21, 0x7e);
+  equal = h_ch('=');
+  semicolon = h_ch(';');
+  comment = h_sequence(
+    semicolon,
+    h_many(h_choice(sp, vchar, NULL)),
+    newline,
+    NULL);
+  c_nl = h_choice(comment, newline, NULL);
+  c_sp = h_choice(sp, h_sequence(c_nl, sp, NULL), NULL);
+  defined_as = h_sequence(h_many(c_sp), equal, h_many(c_sp), NULL);
+  alphas = h_sequence(
+    alpha,
+    h_many(h_sequence(h_many1(c_sp), alpha, NULL)),
+    h_many(c_sp),
+    NULL);
+  rule = h_sequence(alpha, defined_as, alphas, c_nl, NULL);
+  rulelist = h_many1(h_choice(
+    rule,
+    h_sequence(h_many(c_sp), c_nl, NULL),
+    NULL));
+
+  p = rulelist;
+  g_check_compilable(p, PB_GLR, 1);
+
+  /* Have a buffer for the string */
+  s_size = strlen(test_string_template) + 3*BUG60_ABNF_SCAN_UP_TO + 1;
+  s = malloc(s_size);
+  g_check_cmp_ptr(s, !=, NULL);
+
+  /*
+   * Try to parse all the different strings according to the template up to
+   * the scan limit.
+   *
+   * Correct behavior: it parses for all values of i, j.
+   * Bugged behavior: when i % 3 != 0, parse failures begin to occur at
+   * j == (i / 3) + (i % 3).
+   */
+  for (i = 0; i < BUG60_ABNF_SCAN_UP_TO; ++i) {
+    memset(buf_1, ' ', i);
+    buf_1[i] = 0;
+    for (j = 0; j < 2*BUG60_ABNF_SCAN_UP_TO; ++j) {
+      memset(buf_2, 'x', j);
+      buf_2[j] = 0;
+      snprintf(s, s_size, test_string_template, buf_1, buf_2);
+      g_check_parse_ok_no_compile(p, s, strlen(s));
+    }
+  }
+
+  free(s);
+}
+
 void register_regression_tests(void) {
   g_test_add_func("/core/regression/bug118", test_bug118);
   g_test_add_func("/core/regression/seq_index_path", test_seq_index_path);
@@ -488,4 +624,6 @@ void register_regression_tests(void) {
   g_test_add_func("/core/regression/issue87", test_issue87);
   g_test_add_func("/core/regression/issue92", test_issue92);
   g_test_add_func("/core/regression/issue83", test_issue83);
+  g_test_add_func("/core/regression/bug60", test_bug60);
+  g_test_add_func("/core/regression/bug60_abnf", test_bug60_abnf);
 }
