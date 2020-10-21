@@ -329,6 +329,7 @@ char * h_get_short_name_with_no_params(HAllocator *mm__,
   return h_get_backend_text_with_no_params(mm__, be, 0);
 }
 
+/*TODO: refactor and clean this up more */
 HParserBackendWithParams * h_get_backend_with_params_by_name(const char *name_with_params) {
 	
 	HParserBackendWithParams *result = NULL;
@@ -338,7 +339,7 @@ HParserBackendWithParams * h_get_backend_with_params_by_name(const char *name_wi
 	char *name_with_no_params = NULL;
 	char *params_as_string = NULL;
 
-	size_t name_len
+	size_t name_len;
 	size_t len = strlen(name_with_params);
 
 	result = h_new(HParserBackendWithParams, 1);
@@ -434,24 +435,16 @@ bool h_not_regular(HRVMProg *prog, void *env) {
 }
 
 int h_compile_for_named_backend(HParser* parser, HParserBackendWithParams* be_with_params){
-	HAllocator* mm__ = be_with_params->mm__;
+	HAllocator *mm__ = &system_allocator;
 
-	if(mm__ == NULL){
-		mm__ = &system_allocator;
+	if (be_with_params) {
+	    if (be_with_params->mm__) mm__ = be_with_params->mm__;
 	}
 
 	return h_compile_for_named_backend__m(mm__, parser, be_with_params);
 }
 
 int h_compile_for_named_backend__m(HAllocator* mm__, HParser* parser, HParserBackendWithParams* be_with_params) {
-	  /*if (parser->backend >= PB_MIN && parser->backend <= PB_MAX &&
-	      backends[parser->backend]->free != NULL) {
-	    backends[parser->backend]->free(parser);
-	  }
-	  int ret = backends[be_with_params->backend]->compile(mm__, parser, (const void*) be_with_params->params);
-	  if (!ret)
-	    parser->backend = be_with_params->backend;
-	  return ret;*/
 	return h_compile__m(mm__, parser, be_with_params->backend, be_with_params->params);
 }
 
