@@ -329,62 +329,50 @@ char * h_get_short_name_with_no_params(HAllocator *mm__,
   return h_get_backend_text_with_no_params(mm__, be, 0);
 }
 
-/*TODO: refactor and clean this up more */
 HParserBackendWithParams * h_get_backend_with_params_by_name(const char *name_with_params) {
-	
-	HParserBackendWithParams *result = NULL;
-
 	HAllocator *mm__ = &system_allocator;
-
+	HParserBackendWithParams *result = NULL;
+	HParserBackend be;
 	char *name_with_no_params = NULL;
 	char *params_as_string = NULL;
+	size_t name_len, len;
 
-	size_t name_len;
-	size_t len = strlen(name_with_params);
+	if(name_with_params != NULL) {
 
-	result = h_new(HParserBackendWithParams, 1);
+		result = h_new(HParserBackendWithParams, 1);
 
-	if (result) {
+		if (result) {
+			len = strlen(name_with_params);
+			params_as_string = strstr(name_with_params, "(");
 
+			if(params_as_string) {
+				name_len = len - strlen(params_as_string);
+			} else {
+				name_len = len;
+			}
 
-	    params_as_string = strstr(name_with_params, "(");
+			name_with_no_params = h_new(char, name_len+1);
+			memset(name_with_no_params, '\0', name_len+1);
+			strncpy(name_with_no_params, name_with_params, name_len);
 
-	    if(params_as_string) {
-	    	name_len = len - strlen(params_as_string);
-	    } else {
-	    	name_len = len;
-	    }
+			be = h_query_backend_by_name(name_with_no_params);
 
-		name_with_no_params = h_new(char, name_len+1);
-		memset(name_with_no_params, '\0', name_len+1);
-		strncpy(name_with_no_params, name_with_params, name_len);
+			result->backend = be;
+			result->name = name_with_no_params;
 
-		HParserBackend backend = h_query_backend_by_name(name_with_no_params);
-
-
-	    result->backend = backend;
-
-	    result->name = name_with_no_params;
-
-	    if(params_as_string) {
-
-	    	//if the backend is one built as part of hammer, use it
-	    	if(backend){
-	    		int s = backends[backend]->extract_params(&(result->params), params_as_string);
-		        if (!s) {
-		            /* copy_params() failed */
-		            h_free(result);
-		            result = NULL;
-		        }
-		     }
-
-	    } else {
-	          /* else just ignore it and set it to NULL */
-	        result->params = NULL;
-	    }
+			/* use the backend supplied method to extract any params from the input */
+			result->params = NULL;
+			if(params_as_string) {
+				if (be >= PB_MIN && be <= PB_MAX && be != PB_INVALID &&
+						backends[be] != backends[PB_INVALID]) {
+					if (backends[be]->extract_params) {
+						backends[be]->extract_params(&(result->params), params_as_string);
+					}
+				}
+			}
+		}
 
 	}
-
 	return result;
 
 }
