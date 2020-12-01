@@ -54,6 +54,7 @@ typedef enum HParserBackend_ {
   PB_MAX = PB_GLR
 } HParserBackend;
 
+/*TODO double check which of my additions are needed for this change (as opposed to for the dlopen change)*/
 typedef struct HParserBackendWithParams_ {
   /* Name of backend (if called via string, need to keep this for loading backends from modules)  */
   const char *name;

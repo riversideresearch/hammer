@@ -329,12 +329,26 @@ char * h_get_short_name_with_no_params(HAllocator *mm__,
   return h_get_backend_text_with_no_params(mm__, be, 0);
 }
 
+char* get_params_as_string(char *remainder, char *end_paren,
+		char *params_as_string, HAllocator *mm__) {
+	char *after_open_paren = remainder + 1;
+	size_t params_len = strlen(after_open_paren) - strlen(end_paren);
+	if(params_len > 0) {
+		params_as_string = h_new(char, params_len + 1);
+		memset(params_as_string, '\0', params_len + 1);
+		strncpy(params_as_string, after_open_paren, params_len);
+	}
+	return params_as_string;
+}
+
 HParserBackendWithParams * h_get_backend_with_params_by_name(const char *name_with_params) {
 	HAllocator *mm__ = &system_allocator;
 	HParserBackendWithParams *result = NULL;
 	HParserBackend be;
 	char *name_with_no_params = NULL;
+	char *remainder = NULL;
 	char *params_as_string = NULL;
+	char *end_paren = NULL;
 	size_t name_len, len;
 
 	if(name_with_params != NULL) {
@@ -343,10 +357,16 @@ HParserBackendWithParams * h_get_backend_with_params_by_name(const char *name_wi
 
 		if (result) {
 			len = strlen(name_with_params);
-			params_as_string = strstr(name_with_params, "(");
+			remainder = strstr(name_with_params, "(");
 
-			if(params_as_string) {
-				name_len = len - strlen(params_as_string);
+			if(remainder != NULL) {
+				name_len = len - strlen(remainder);
+				end_paren = strrchr(params_as_string, ')');
+				if(end_paren != NULL && end_paren != remainder +1) {
+					params_as_string = get_params_as_string(
+							remainder, end_paren, params_as_string, mm__);
+				} /* else error */
+
 			} else {
 				name_len = len;
 			}
