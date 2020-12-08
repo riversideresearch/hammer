@@ -54,10 +54,9 @@ typedef enum HParserBackend_ {
   PB_MAX = PB_GLR
 } HParserBackend;
 
-/*TODO double check which of my additions are needed for this change (as opposed to for the dlopen change)*/
 typedef struct HParserBackendWithParams_ {
-  /* Name of backend (if called via string, need to keep this for loading backends from modules)  */
-  const char *name;
+  /* Name of backend (if called via string, will need to keep this for loading backends with dlopen)  */
+  char *name;
   /* The backend (if backend is to be loaded from an external module set to invalid (?))*/
   HParserBackend backend;
   /*
@@ -67,6 +66,7 @@ typedef struct HParserBackendWithParams_ {
    * and PB_GLR take an integer cast to void *
    */
   void *params;
+  char * params_string;
   /* Allocator to use to free this (and the params if necessary) */
   HAllocator *mm__;
 } HParserBackendWithParams;
@@ -359,7 +359,6 @@ HParserBackend h_query_backend_by_name(const char *name);
  * If the backend is one of the existing backends in the HBackend enum,
  * HBackend will be populated in the result.
  *
- * TODO: actually do the below, also improve this comment to be more clear and concise.
  * Otherwise the result will save the name for use in attempts later at
  * loading the named module.
  *

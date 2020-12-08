@@ -83,6 +83,7 @@ HParserBackendWithParams * h_copy_backend_with_params__m(HAllocator *mm__,
       if (r) {
         r->mm__ = mm__;
         r->name = be_with_params->name;
+        r->params_string = be_with_params->params_string;
         r->backend = be_with_params->backend;
         if (backends[be_with_params->backend]->copy_params) {
           s = backends[be_with_params->backend]->copy_params(mm__,
@@ -136,6 +137,8 @@ void h_free_backend_with_params(HParserBackendWithParams *be_with_params) {
       }
     }
 
+    h_free(be_with_params->name);
+    h_free(be_with_params->params_string);
     h_free(be_with_params);
   }
 }
@@ -332,11 +335,14 @@ char * h_get_short_name_with_no_params(HAllocator *mm__,
 char* get_params_as_string(char *remainder, char *end_paren,
 		char *params_as_string, HAllocator *mm__) {
 	char *after_open_paren = remainder + 1;
+
 	size_t params_len = strlen(after_open_paren) - strlen(end_paren);
+
 	if(params_len > 0) {
 		params_as_string = h_new(char, params_len + 1);
 		memset(params_as_string, '\0', params_len + 1);
 		strncpy(params_as_string, after_open_paren, params_len);
+
 	}
 	return params_as_string;
 }
@@ -360,8 +366,10 @@ HParserBackendWithParams * h_get_backend_with_params_by_name(const char *name_wi
 			remainder = strstr(name_with_params, "(");
 
 			if(remainder != NULL) {
+
 				name_len = len - strlen(remainder);
-				end_paren = strrchr(params_as_string, ')');
+				end_paren = strrchr(remainder, ')');
+
 				if(end_paren != NULL && end_paren != remainder +1) {
 					params_as_string = get_params_as_string(
 							remainder, end_paren, params_as_string, mm__);
@@ -379,6 +387,7 @@ HParserBackendWithParams * h_get_backend_with_params_by_name(const char *name_wi
 
 			result->backend = be;
 			result->name = name_with_no_params;
+			result->params_string = params_as_string;
 
 			/* use the backend supplied method to extract any params from the input */
 			result->params = NULL;
