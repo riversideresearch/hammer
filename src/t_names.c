@@ -58,64 +58,81 @@ static void test_tt_get_backend_with_params_by_name(void) {
 	be_w_p = h_get_backend_with_params_by_name(packrat_name);
 	g_check_inttype("%d", HParserBackend, be_w_p->backend, ==, PB_PACKRAT);
 	g_check_maybe_string_eq(be_w_p->name, packrat_name);
+	h_free_backend_with_params(be_w_p);
 
 	be_w_p = h_get_backend_with_params_by_name(glr_name);
 	g_check_inttype("%d", HParserBackend, be_w_p->backend, ==, PB_GLR);
 	g_check_maybe_string_eq(be_w_p->name, glr_name);
+    h_free_backend_with_params(be_w_p);
 
 	/* request with params */
     be_w_p = h_get_backend_with_params_by_name("glr(1)");
     g_check_inttype("%d", HParserBackend, be_w_p->backend, ==, PB_GLR);
     g_check_maybe_string_eq(be_w_p->name, glr_name);
     g_check_cmp_size((uintptr_t)be_w_p->params, ==, 1);
+	h_free_backend_with_params(be_w_p);
 
     /*request for default params - alternative possible style */
 	be_w_p = h_get_backend_with_params_by_name("glr()");
 	g_check_inttype("%d", HParserBackend, be_w_p->backend, ==, PB_GLR);
 	g_check_maybe_string_eq(be_w_p->name, glr_name);
+	h_free_backend_with_params(be_w_p);
 
 	/*request for a backend not in the enum of backends included in hammer */
 	be_w_p = h_get_backend_with_params_by_name("llvm");
 	g_check_inttype("%d", HParserBackend, be_w_p->backend, ==, PB_INVALID);
 	g_check_maybe_string_eq(be_w_p->name, "llvm");
+	h_free_backend_with_params(be_w_p);
 
     be_w_p = h_get_backend_with_params_by_name("packrat(0)");
     g_check_inttype("%d", HParserBackend, be_w_p->backend, ==, PB_PACKRAT);
     g_check_maybe_string_eq(be_w_p->name, packrat_name);
+	h_free_backend_with_params(be_w_p);
 
 	be_w_p = h_get_backend_with_params_by_name("glr(1,2)");
 	g_check_inttype("%d", HParserBackend, be_w_p->backend, ==, PB_GLR);
 	g_check_maybe_string_eq(be_w_p->name, glr_name);
 	g_check_cmp_size((uintptr_t)be_w_p->params, ==, 1);
+	h_free_backend_with_params(be_w_p);
 
 	be_w_p = h_get_backend_with_params_by_name("glr(1 vnvnvn)");
 	g_check_inttype("%d", HParserBackend, be_w_p->backend, ==, PB_GLR);
 	g_check_maybe_string_eq(be_w_p->name, glr_name);
 	g_check_cmp_size((uintptr_t)be_w_p->params, ==, 1);
+	h_free_backend_with_params(be_w_p);
 
 	be_w_p = h_get_backend_with_params_by_name("glr(");
 	g_check_inttype("%d", HParserBackend, be_w_p->backend, ==, PB_GLR);
 	g_check_maybe_string_eq(be_w_p->name, glr_name);
+	h_free_backend_with_params(be_w_p);
 
 	be_w_p = h_get_backend_with_params_by_name("glr(2");
 	g_check_inttype("%d", HParserBackend, be_w_p->backend, ==, PB_GLR);
 	g_check_maybe_string_eq(be_w_p->name, glr_name);
+	h_free_backend_with_params(be_w_p);
+
+	be_w_p = h_get_backend_with_params_by_name("(");
+	h_free_backend_with_params(be_w_p);
+
 
 }
 
 /* test that we can request a backend with params from character
  * and compile a parser using it */
-static void test_tt_h_compile_for_named_backend(void) {
+static void test_tt_h_compile_for_backend_with_params(void) {
 	HParserBackendWithParams * be_w_p = NULL;
 
-	be_w_p = h_get_backend_with_params_by_name(llk_name);
+	be_w_p = h_get_backend_with_params_by_name("llk(1)");
 	g_check_inttype("%d", HParserBackend, be_w_p->backend, ==, PB_LLk);
 
 	be_w_p->mm__ = &system_allocator;
 
 	HParser *p = h_many(h_sequence(h_ch('A'), h_ch('B'), NULL));
 
-	int r = h_compile_for_named_backend(p, be_w_p);
+	int r = h_compile_for_backend_with_params(p, be_w_p);
+
+	h_free_backend_with_params(be_w_p);
+
 	if (r != 0) {
 		g_test_message("Compile failed");
 	    g_test_fail();
@@ -127,5 +144,5 @@ void register_names_tests(void) {
   g_test_add_func("/core/names/tt_backend_description", test_tt_backend_description);
   g_test_add_func("/core/names/tt_query_backend_by_name", test_tt_query_backend_by_name);
   g_test_add_func("/core/names/tt_get_backend_with_params_by_name", test_tt_get_backend_with_params_by_name);
-  g_test_add_func("/core/names/tt_h_compile_for_named_backend", test_tt_h_compile_for_named_backend);
+  g_test_add_func("/core/names/tt_h_compile_for_backend_with_params", test_tt_h_compile_for_backend_with_params);
  }

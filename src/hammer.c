@@ -137,8 +137,14 @@ void h_free_backend_with_params(HParserBackendWithParams *be_with_params) {
       }
     }
 
-    h_free(be_with_params->name);
-    h_free(be_with_params->params_string);
+    if(be_with_params->name) {
+    	h_free(be_with_params->name);
+    }
+
+    if(be_with_params->params_string) {
+    	h_free(be_with_params->params_string);
+    }
+
     h_free(be_with_params);
   }
 }
@@ -332,75 +338,77 @@ char * h_get_short_name_with_no_params(HAllocator *mm__,
   return h_get_backend_text_with_no_params(mm__, be, 0);
 }
 
-char* get_params_as_string(char *remainder, char *end_paren,
-		char *params_as_string, HAllocator *mm__) {
+size_t h_get_params_as_string(HParserBackendWithParams *be_with_params , char *remainder) {
+	HAllocator *mm__ = &system_allocator;
+	size_t params_len = 0;
+
 	char *after_open_paren = remainder + 1;
+	char *end_paren = NULL;
+	end_paren =	strrchr(remainder, ')');
 
-	size_t params_len = strlen(after_open_paren) - strlen(end_paren);
+	if (be_with_params->mm__) mm__ = be_with_params->mm__;
 
-	if(params_len > 0) {
-		params_as_string = h_new(char, params_len + 1);
-		memset(params_as_string, '\0', params_len + 1);
-		strncpy(params_as_string, after_open_paren, params_len);
+	if(end_paren != NULL) {
+		params_len = strlen(after_open_paren) - strlen(end_paren);
 
-	}
-	return params_as_string;
+		if(params_len > 0) {
+			be_with_params->params_string = h_new(char, params_len + 1);
+			memset(be_with_params->params_string, '\0', params_len + 1);
+			strncpy(be_with_params->params_string, after_open_paren, params_len);
+		}
+	} /* else error: to what degree do we care right now about enforcing format of the
+	   * parameters section of the input, and how are we reporting usage errors like this? */
+
+	return params_len;
 }
 
 HParserBackendWithParams * h_get_backend_with_params_by_name(const char *name_with_params) {
 	HAllocator *mm__ = &system_allocator;
 	HParserBackendWithParams *result = NULL;
 	HParserBackend be;
-	char *name_with_no_params = NULL;
+
 	char *remainder = NULL;
-	char *params_as_string = NULL;
-	char *end_paren = NULL;
-	size_t name_len, len;
+	size_t len, name_len, params_len;
 
 	if(name_with_params != NULL) {
 
 		result = h_new(HParserBackendWithParams, 1);
+		result->params_string = NULL;
 
 		if (result) {
+			result->mm__ = mm__;
+			params_len = 0;
 			len = strlen(name_with_params);
 			remainder = strstr(name_with_params, "(");
 
 			if(remainder != NULL) {
 
 				name_len = len - strlen(remainder);
-				end_paren = strrchr(remainder, ')');
 
-				if(end_paren != NULL && end_paren != remainder +1) {
-					params_as_string = get_params_as_string(
-							remainder, end_paren, params_as_string, mm__);
-				} /* else error */
+				params_len = h_get_params_as_string(result, remainder);
 
 			} else {
 				name_len = len;
 			}
 
-			name_with_no_params = h_new(char, name_len+1);
-			memset(name_with_no_params, '\0', name_len+1);
-			strncpy(name_with_no_params, name_with_params, name_len);
+			result->name = h_new(char, name_len+1);
+			memset(result->name, '\0', name_len+1);
+			strncpy(result->name, name_with_params, name_len);
 
-			be = h_query_backend_by_name(name_with_no_params);
+			be = h_query_backend_by_name(result->name);
 
 			result->backend = be;
-			result->name = name_with_no_params;
-			result->params_string = params_as_string;
-
 			/* use the backend supplied method to extract any params from the input */
 			result->params = NULL;
-			if(params_as_string) {
+			if(params_len > 0) {
 				if (be >= PB_MIN && be <= PB_MAX && be != PB_INVALID &&
 						backends[be] != backends[PB_INVALID]) {
 					if (backends[be]->extract_params) {
-						backends[be]->extract_params(&(result->params), params_as_string);
+						backends[be]->extract_params(&(result->params), result->params_string);
 					}
 				}
 			}
 		}
-
 	}
 	return result;
 
@@ -451,17 +459,17 @@ bool h_not_regular(HRVMProg *prog, void *env) {
   return false;
 }
 
-int h_compile_for_named_backend(HParser* parser, HParserBackendWithParams* be_with_params){
+int h_compile_for_backend_with_params(HParser* parser, HParserBackendWithParams* be_with_params){
 	HAllocator *mm__ = &system_allocator;
 
 	if (be_with_params) {
 	    if (be_with_params->mm__) mm__ = be_with_params->mm__;
 	}
 
-	return h_compile_for_named_backend__m(mm__, parser, be_with_params);
+	return h_compile_for_backend_with_params__m(mm__, parser, be_with_params);
 }
 
-int h_compile_for_named_backend__m(HAllocator* mm__, HParser* parser, HParserBackendWithParams* be_with_params) {
+int h_compile_for_backend_with_params__m(HAllocator* mm__, HParser* parser, HParserBackendWithParams* be_with_params) {
 	return h_compile__m(mm__, parser, be_with_params->backend, be_with_params->params);
 }
 
@@ -558,7 +566,7 @@ HParseResult* h_parse_finish(HSuspendedParser* s) {
     assert(s->done);
   }
 
-  // extract result
+  // extract be_with_params
   HParseResult *r = backends[s->parser->backend]->parse_finish(s);
   if(r)
     r->bit_length = s->pos * 8 + s->bit_offset;

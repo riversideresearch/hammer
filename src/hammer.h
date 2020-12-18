@@ -55,7 +55,8 @@ typedef enum HParserBackend_ {
 } HParserBackend;
 
 typedef struct HParserBackendWithParams_ {
-  /* Name of backend (if called via string, will need to keep this for loading backends with dlopen)  */
+  /* Name of backend extracted from a string if the choice of backend was specified in a call using a string
+   * Note: we're not using this yet for anything further - we will need to use it in future for loading backends with dlopen.  */
   char *name;
   /* The backend (if backend is to be loaded from an external module set to invalid (?))*/
   HParserBackend backend;
@@ -66,6 +67,8 @@ typedef struct HParserBackendWithParams_ {
    * and PB_GLR take an integer cast to void *
    */
   void *params;
+  /* parameters as string, as extracted if the choice of backend was specified in a call using a string
+   * Note: we're not using this yet for anything further - we will need to use it in future for using backends with dlopen/dlsym.  */
   char * params_string;
   /* Allocator to use to free this (and the params if necessary) */
   HAllocator *mm__;
@@ -898,7 +901,7 @@ void h_pprintln(FILE* stream, const HParsedToken* tok);
  *
  * Consult each backend for details.
  */
-HAMMER_FN_DECL(int, h_compile_for_named_backend, HParser* parser, HParserBackendWithParams *be_with_params);
+HAMMER_FN_DECL(int, h_compile_for_backend_with_params, HParser* parser, HParserBackendWithParams *be_with_params);
 
 HAMMER_FN_DECL(int, h_compile, HParser* parser, HParserBackend backend, const void* params);
 
