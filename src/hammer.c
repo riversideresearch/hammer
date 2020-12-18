@@ -338,7 +338,7 @@ char * h_get_short_name_with_no_params(HAllocator *mm__,
   return h_get_backend_text_with_no_params(mm__, be, 0);
 }
 
-size_t h_get_params_as_string(HParserBackendWithParams *be_with_params , char *remainder) {
+size_t extract_params_as_string(HParserBackendWithParams *be_with_params , char *remainder) {
 	HAllocator *mm__ = &system_allocator;
 	size_t params_len = 0;
 
@@ -385,7 +385,7 @@ HParserBackendWithParams * h_get_backend_with_params_by_name(const char *name_wi
 
 				name_len = len - strlen(remainder);
 
-				params_len = h_get_params_as_string(result, remainder);
+				params_len = extract_params_as_string(result, remainder);
 
 			} else {
 				name_len = len;
