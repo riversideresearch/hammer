@@ -373,6 +373,7 @@ HParserBackendWithParams * h_get_backend_with_params_by_name(const char *name_wi
 	if(name_with_params != NULL) {
 
 		result = h_new(HParserBackendWithParams, 1);
+		result->name = NULL;
 		result->params_string = NULL;
 
 		if (result) {
@@ -391,27 +392,28 @@ HParserBackendWithParams * h_get_backend_with_params_by_name(const char *name_wi
 				name_len = len;
 			}
 
-			result->name = h_new(char, name_len+1);
-			memset(result->name, '\0', name_len+1);
-			strncpy(result->name, name_with_params, name_len);
+			if(name_len > 0) {
+				result->name = h_new(char, name_len+1);
+				memset(result->name, '\0', name_len+1);
+				strncpy(result->name, name_with_params, name_len);
 
-			be = h_query_backend_by_name(result->name);
+				be = h_query_backend_by_name(result->name);
 
-			result->backend = be;
-			/* use the backend supplied method to extract any params from the input */
-			result->params = NULL;
-			if(params_len > 0) {
-				if (be >= PB_MIN && be <= PB_MAX && be != PB_INVALID &&
-						backends[be] != backends[PB_INVALID]) {
-					if (backends[be]->extract_params) {
-						backends[be]->extract_params(&(result->params), result->params_string);
+				result->backend = be;
+				/* use the backend supplied method to extract any params from the input */
+				result->params = NULL;
+				if(params_len > 0) {
+					if (be >= PB_MIN && be <= PB_MAX && be != PB_INVALID &&
+							backends[be] != backends[PB_INVALID]) {
+						if (backends[be]->extract_params) {
+							backends[be]->extract_params(&(result->params), result->params_string);
+						}
 					}
 				}
 			}
 		}
 	}
 	return result;
-
 }
 
 #define DEFAULT_ENDIANNESS (BIT_BIG_ENDIAN | BYTE_BIG_ENDIAN)
@@ -566,7 +568,7 @@ HParseResult* h_parse_finish(HSuspendedParser* s) {
     assert(s->done);
   }
 
-  // extract be_with_params
+  // extract result
   HParseResult *r = backends[s->parser->backend]->parse_finish(s);
   if(r)
     r->bit_length = s->pos * 8 + s->bit_offset;
