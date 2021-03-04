@@ -671,7 +671,7 @@ char * h_llk_get_short_name(HAllocator *mm__,
 }
 
 /*TODO better error handling*/
-int h_llk_extract_params(void ** params, char * raw_params) {
+int h_llk_extract_params(void ** params, char ** raw_params) {
 
 	*params = NULL;
 
@@ -679,7 +679,7 @@ int h_llk_extract_params(void ** params, char * raw_params) {
     int success = 0;
     uintptr_t param;
 
-    success = sscanf(raw_params, "%d", &param_0);
+    success = sscanf(raw_params[0], "%d", &param_0);
 
     if(success) {
     	param = (uintptr_t) param_0;
