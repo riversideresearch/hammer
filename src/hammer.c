@@ -84,7 +84,9 @@ HParserBackendWithParams * h_copy_backend_with_params__m(HAllocator *mm__,
       if (r) {
         r->mm__ = mm__;
         r->name = be_with_params->name;
-        r->params_string = be_with_params->params_string;
+        /*TODO:
+         * copy be_with_params->parsed_params
+         */
         r->backend = be_with_params->backend;
         if (backends[be_with_params->backend]->copy_params) {
           s = backends[be_with_params->backend]->copy_params(mm__,

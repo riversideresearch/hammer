@@ -67,11 +67,7 @@ typedef struct HParserBackendWithParams_ {
    * and PB_GLR take an integer cast to void *
    */
   void *params;
-  /* parameters as string, as extracted if the choice of backend was specified in a call using a string
-   * Note: we're not using this yet for anything further - we will need to use it in future for using backends with dlopen/dlsym.  */
-  char * params_string;
-  /*
-   * this is the version for extraction using hammer parsers, probably also the version for a better version of via strings
+  /* parameters as strings, as extracted if the choice of backend was specified in a call using a string
    */
   char ** parsed_params;
   /* Allocator to use to free this (and the params if necessary) */
