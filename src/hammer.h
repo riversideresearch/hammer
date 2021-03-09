@@ -54,17 +54,16 @@ typedef enum HParserBackend_ {
   PB_MAX = PB_GLR
 } HParserBackend;
 
+typedef struct HParserBackendVTable_ HParserBackendVTable;
+
 typedef struct HParserBackendWithParams_ {
   /* Name of backend extracted from a string if the choice of backend was specified in a call using a string
    * Note: we're not using this yet for anything further - we will need to use it in future for loading backends with dlopen.  */
   char *name;
   /* The backend (if backend is to be loaded from an external module set to invalid (?))*/
   HParserBackend backend;
-  /* The backend vtable for the chosen backend to llow us to gradually shift over to removing all use of the enum
-   * for this iteration, because HParserBackendVTable is defined in internal.h (which imports hammer.h) I am trying using
-   * void * here, then casting in hammer.c TODO: discuss where we really want to define things to deal most elegantly with
-   * this part of removing the enum of backends. */
-  void * backend_vtable;
+  /* Backend vtable (TODO: use this instead of the enum so we can get rid of that) */
+  HParserBackendVTable * backend_vtable;
   /*
    * Backend-specific parameters - if this needs to be freed, the backend
    * should provide a free_params method in its vtable; currently no backends

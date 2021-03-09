@@ -413,16 +413,15 @@ HParserBackendWithParams * get_backend_with_params_by_name_using_strings(const c
 
 				result->backend_vtable = NULL;
 				if (be >= PB_MIN && be <= PB_MAX)
-					result->backend_vtable = (void*) backends[be];
+					result->backend_vtable = backends[be];
 				/* use the backend supplied method to extract any params from the input */
 
 
 				if(params_len > 0) {
 					if (result->backend_vtable != NULL && be != PB_INVALID &&
-							result->backend_vtable != (void*) backends[PB_INVALID]) {
-						HParserBackendVTable* backend_vtable = (HParserBackendVTable *) result->backend_vtable;
-						if (backend_vtable->extract_params) {
-							backend_vtable->extract_params(&(result->params), result->parsed_params);
+							result->backend_vtable != backends[PB_INVALID]) {
+						if (result->backend_vtable->extract_params) {
+							result->backend_vtable->extract_params(&(result->params), result->parsed_params);
 						}
 					}
 				}
@@ -626,15 +625,14 @@ HParserBackendWithParams * get_backend_with_params_by_name_using_hammer_parser(c
 				result->backend = be;
 				result->backend_vtable = NULL;
 								if (be >= PB_MIN && be <= PB_MAX)
-									result->backend_vtable =  (void *) backends[be];
+									result->backend_vtable =  backends[be];
 				/* use the backend supplied method to extract any params from the input */
 				result->params = NULL;
 				if(params->len > 0) {
 					if (result->backend_vtable != NULL && be != PB_INVALID &&
-							result->backend_vtable != (void *) backends[PB_INVALID]) {
-						HParserBackendVTable* backend_vtable = (HParserBackendVTable *) result->backend_vtable;
-						if (backend_vtable->extract_params) {
-							backend_vtable->extract_params(&(result->params), result->parsed_params);
+							result->backend_vtable != backends[PB_INVALID]) {
+						if (result->backend_vtable->extract_params) {
+							result->backend_vtable->extract_params(&(result->params), result->parsed_params);
 						}
 					}
 				}
