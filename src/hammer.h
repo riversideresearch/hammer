@@ -57,8 +57,7 @@ typedef enum HParserBackend_ {
 typedef struct HParserBackendVTable_ HParserBackendVTable;
 
 typedef struct HParserBackendWithParams_ {
-  /* Name of backend extracted from a string if the choice of backend was specified in a call using a string
-   * Note: we're not using this yet for anything further - we will need to use it in future for loading backends with dlopen.  */
+  /* Name of backend extracted from a string if the choice of backend was specified in a call using a string  */
   char *name;
   /* The backend (if backend is to be loaded from an external module set to invalid (?))*/
   HParserBackend backend;
@@ -71,9 +70,6 @@ typedef struct HParserBackendWithParams_ {
    * and PB_GLR take an integer cast to void *
    */
   void *params;
-  /* parameters as strings, as extracted if the choice of backend was specified in a call using a string
-   */
-  char ** parsed_params;
   /* Allocator to use to free this (and the params if necessary) */
   HAllocator *mm__;
 } HParserBackendWithParams;
