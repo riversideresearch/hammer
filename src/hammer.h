@@ -200,6 +200,39 @@ typedef bool (*HPredicate)(HParseResult *p, void* user_data);
  */
 typedef HParser* (*HContinuation)(HAllocator *mm__, const HParsedToken *x, void *env);
 
+/*
+ * For parser used when extracting name and params for backend by name
+ * TODO: possibly move to its own file?
+ */
+
+enum BackendTokenType_ {
+	TT_backend_with_params_t = TT_USER,
+	TT_backend_name_t,
+	TT_backend_param_t,
+	TT_backend_params_t
+};
+
+typedef struct backend_param {
+	size_t len;
+	uint8_t *param;
+} backend_param_t;
+
+typedef struct {
+	uint8_t *name;
+	size_t len;
+} backend_name_t;
+
+typedef struct backend_params {
+	backend_param_t *params;
+	size_t len;
+} backend_params_t;
+
+typedef struct backend_with_params {
+	backend_name_t name;
+	backend_params_t params;
+} backend_with_params_t;
+
+
 // {{{ Stuff for benchmarking
 typedef struct HParserTestcase_ {
   unsigned char* input;
