@@ -175,6 +175,7 @@ HParser* h_sequence__ma(HAllocator* mm__, void *args[]) {
   ret->vtable = &sequence_vt; 
   ret->env = (void*)s; 
   ret->backend = PB_MIN;
+  ret->backend_vtable = &h__missing_backend_vtable;
   ret->desugared = NULL;
   return ret;
 }

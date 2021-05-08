@@ -56,6 +56,10 @@ HParserBackend h_get_default_backend(void) {
   return h_get_default_backend__int();
 }
 
+HParserBackendVTable * h_get_default_backend_vtable(void){
+  return h_get_default_backend_vtable__int();
+}
+
 /*
  * Copy an HParserBackendWithParams, using the backend-supplied copy
  * method.

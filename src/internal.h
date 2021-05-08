@@ -387,6 +387,14 @@ static inline HParserBackend h_get_default_backend__int(void) {
   return PB_PACKRAT;
 }
 
+static inline HParserBackendVTable * h_get_default_backend_vtable__int(void) {
+  return &h__packrat_backend_vtable;
+}
+
+static inline HParserBackendVTable * h_get_missing_backend_vtable__int(void) {
+  return &h__missing_backend_vtable;
+}
+
 /* copy_params for backends where the parameter is not actually a pointer */
 
 int h_copy_numeric_param(HAllocator *mm__, void **out, void *in);
@@ -402,6 +410,7 @@ HParser *h_new_parser(HAllocator *mm__, const HParserVtable *vt, void *env) {
    * can't set a default backend that requires any parameters to h_compile()
    */
   p->backend = h_get_default_backend__int();
+  p->backend_vtable = h_get_default_backend_vtable__int();
   return p;
 }
 

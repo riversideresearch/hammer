@@ -254,7 +254,8 @@ void h_llk_free(HParser *parser)
   HLLkTable *table = parser->backend_data;
   h_llktable_free(table);
   parser->backend_data = NULL;
-  parser->backend = PB_PACKRAT;
+  parser->backend_vtable = h_get_default_backend_vtable();
+  parser->backend = h_get_default_backend();
 }
 
 

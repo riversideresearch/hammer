@@ -162,6 +162,7 @@ typedef struct HParserVtable_ HParserVtable;
 typedef struct HParser_ {
   const HParserVtable *vtable;
   HParserBackend backend;
+  HParserBackendVTable * backend_vtable;
   void* backend_data;
   void *env;
   HCFChoice *desugared; /* if the parser can be desugared, its desugared form */
@@ -331,6 +332,8 @@ int h_is_backend_available(HParserBackend backend);
  */
 
 HParserBackend h_get_default_backend(void);
+
+HParserBackendVTable * h_get_default_backend_vtable(void);
 
 /**
  * Copy a backend+params, using the backend-supplied copy method; the

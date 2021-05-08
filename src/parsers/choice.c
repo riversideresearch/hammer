@@ -164,6 +164,7 @@ HParser* h_choice__ma(HAllocator* mm__, void *args[]) {
   ret->vtable = &choice_vt; 
   ret->env = (void*)s;
   ret->backend = PB_MIN;
+  ret->backend_vtable = &h__missing_backend_vtable;
   ret->desugared = NULL;
   return ret;
 }

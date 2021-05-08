@@ -417,7 +417,8 @@ static void h_regex_free(HParser *parser) {
   h_free(prog->actions);
   h_free(prog);
   parser->backend_data = NULL;
-  parser->backend = PB_PACKRAT;
+  parser->backend_vtable = h_get_default_backend_vtable();
+  parser->backend = h_get_default_backend();
 }
 
 static int h_regex_compile(HAllocator *mm__, HParser* parser, const void* params) {

@@ -263,13 +263,15 @@ HParseResult* h_do_parse(const HParser* parser, HParseState *state) {
 }
 
 int h_packrat_compile(HAllocator* mm__, HParser* parser, const void* params) {
+  parser->backend_vtable = &h__packrat_backend_vtable;
   parser->backend = PB_PACKRAT;
   return 0; // No compilation necessary, and everything should work
 	    // out of the box.
 }
 
 void h_packrat_free(HParser *parser) {
-  parser->backend = PB_PACKRAT; // revert to default, oh that's us
+  parser->backend_vtable = h_get_default_backend_vtable();
+  parser->backend = h_get_default_backend();
 }
 
 static uint32_t cache_key_hash(const void* key) {
