@@ -90,8 +90,9 @@ HParserBackendWithParams * h_copy_backend_with_params__m(HAllocator *mm__,
         r->name = be_with_params->name;
         r->backend = be_with_params->backend;
         r->backend_vtable = be_with_params->backend_vtable;
-        if (backends[be_with_params->backend]->copy_params) {
-          s = backends[be_with_params->backend]->copy_params(mm__,
+        if (be_with_params->backend_vtable != NULL
+        		&& be_with_params->backend_vtable->copy_params) {
+          s = be_with_params->backend_vtable->copy_params(mm__,
               &(r->params), be_with_params->params);
           if (s != 0) {
             /* copy_params() failed */
@@ -136,8 +137,9 @@ void h_free_backend_with_params(HParserBackendWithParams *be_with_params) {
     if (be_with_params->mm__) mm__ = be_with_params->mm__;
 
     if (h_is_backend_available(be_with_params->backend)) {
-      if (backends[be_with_params->backend]->free_params) {
-        backends[be_with_params->backend]->
+      if (be_with_params->backend_vtable != NULL
+    		  && be_with_params->backend_vtable->free_params) {
+        be_with_params->backend_vtable->
           free_params(be_with_params->mm__, be_with_params->params);
       }
     }
@@ -627,7 +629,8 @@ HParserBackendWithParams * get_backend_with_params_by_name_using_hammer_parser(c
 			   r = NULL;
 
 			  //free the parser
-		      backends[parser->backend]->free(parser);
+			  //(TODO: code to completely free the memory used for this parser)
+		      parser->backend_vtable->free(parser);
 			}
 		}
 	}
@@ -662,7 +665,7 @@ HParseResult* h_parse__m(HAllocator* mm__, const HParser* parser, const uint8_t*
     .last_chunk = true
   };
   
-  return backends[parser->backend]->parse(mm__, parser, &input_stream);
+  return parser->backend_vtable->parse(mm__, parser, &input_stream);
 }
 
 void h_parse_result_free__m(HAllocator *alloc, HParseResult *result) {
@@ -700,7 +703,10 @@ int h_compile_for_backend_with_params(HParser* parser, HParserBackendWithParams*
 }
 
 int h_compile_for_backend_with_params__m(HAllocator* mm__, HParser* parser, HParserBackendWithParams* be_with_params) {
-	return h_compile__m(mm__, parser, be_with_params->backend, be_with_params->params);
+  int ret = h_compile__m(mm__, parser, be_with_params->backend, be_with_params->params);
+  if (!ret)
+	  be_with_params->backend_vtable = parser->backend_vtable;
+  return ret;
 }
 
 int h_compile(HParser* parser, HParserBackend backend, const void* params) {
@@ -713,8 +719,10 @@ int h_compile__m(HAllocator* mm__, HParser* parser, HParserBackend backend, cons
     backends[parser->backend]->free(parser);
   }
   int ret = backends[backend]->compile(mm__, parser, params);
-  if (!ret)
+  if (!ret) {
     parser->backend = backend;
+    parser->backend_vtable = backends[backend];
+  }
   return ret;
 }
 
@@ -723,7 +731,7 @@ HSuspendedParser* h_parse_start(const HParser* parser) {
   return h_parse_start__m(&system_allocator, parser);
 }
 HSuspendedParser* h_parse_start__m(HAllocator* mm__, const HParser* parser) {
-  if(!backends[parser->backend]->parse_start)
+  if(!parser->backend_vtable || !parser->backend_vtable->parse_start)
     return NULL;
 
   // allocate and init suspended state
@@ -740,13 +748,13 @@ HSuspendedParser* h_parse_start__m(HAllocator* mm__, const HParser* parser) {
 
   // backend-specific initialization
   // should allocate s->backend_state
-  backends[parser->backend]->parse_start(s);
+  parser->backend_vtable->parse_start(s);
 
   return s;
 }
 
 bool h_parse_chunk(HSuspendedParser* s, const uint8_t* input, size_t length) {
-  assert(backends[s->parser->backend]->parse_chunk != NULL);
+  assert(s->parser->backend_vtable->parse_chunk != NULL);
 
   // no-op if parser is already done
   if(s->done)
@@ -765,7 +773,7 @@ bool h_parse_chunk(HSuspendedParser* s, const uint8_t* input, size_t length) {
   };
 
   // process chunk
-  s->done = backends[s->parser->backend]->parse_chunk(s, &input_stream);
+  s->done = s->parser->backend_vtable->parse_chunk(s, &input_stream);
   s->endianness = input_stream.endianness;
   s->pos += input_stream.index;
   s->bit_offset = input_stream.bit_offset;
@@ -774,8 +782,8 @@ bool h_parse_chunk(HSuspendedParser* s, const uint8_t* input, size_t length) {
 }
 
 HParseResult* h_parse_finish(HSuspendedParser* s) {
-  assert(backends[s->parser->backend]->parse_chunk != NULL);
-  assert(backends[s->parser->backend]->parse_finish != NULL);
+  assert(s->parser->backend_vtable->parse_chunk != NULL);
+  assert(s->parser->backend_vtable->parse_finish != NULL);
 
   HAllocator *mm__ = s->mm__;
 
@@ -792,12 +800,12 @@ HParseResult* h_parse_finish(HSuspendedParser* s) {
       .last_chunk = true
     };
 
-    s->done = backends[s->parser->backend]->parse_chunk(s, &empty);
+    s->done = s->parser->backend_vtable->parse_chunk(s, &empty);
     assert(s->done);
   }
 
   // extract result
-  HParseResult *r = backends[s->parser->backend]->parse_finish(s);
+  HParseResult *r = s->parser->backend_vtable->parse_finish(s);
   if(r)
     r->bit_length = s->pos * 8 + s->bit_offset;
 
