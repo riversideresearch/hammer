@@ -78,9 +78,7 @@ static void* system_realloc(HAllocator *allocator, void* uptr, size_t size) {
 }
 
 static void system_free(HAllocator *allocator, void* uptr) {
-//  printf("system free \n");
   if (uptr) {
-//	printf(" system free user poiinter %p\n", &uptr);
     free(block_for_user_ptr(uptr));
   }
 }
