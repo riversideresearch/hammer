@@ -58,7 +58,7 @@ typedef struct HParserBackendVTable_ HParserBackendVTable;
 
 typedef struct HParserBackendWithParams_ {
   /* Name of backend extracted from a string if the choice of backend was specified in a call using a string  */
-  char *name;
+  char *requested_name;
   /* The backend (if backend is to be loaded from an external module set to invalid (?))*/
   HParserBackend backend;
   /* Backend vtable (TODO: use this instead of the enum so we can get rid of that) */
@@ -207,30 +207,44 @@ typedef HParser* (*HContinuation)(HAllocator *mm__, const HParsedToken *x, void 
  */
 
 enum BackendTokenType_ {
-	TT_backend_with_params_t = TT_USER,
-	TT_backend_name_t,
-	TT_backend_param_t,
-	TT_backend_params_t
+  TT_backend_with_params_t = TT_USER,
+  TT_backend_name_t,
+  TT_backend_param_t,
+  TT_backend_param_name_t,
+  TT_backend_param_with_name_t,
+  TT_backend_params_t
 };
 
 typedef struct backend_param {
-	size_t len;
-	uint8_t *param;
+  size_t len;
+  uint8_t *param;
+  uint8_t *param_name;
 } backend_param_t;
 
+typedef struct backend_param_name {
+  size_t len;
+  uint8_t *param_name;
+  size_t param_id;
+} backend_param_name_t;
+
+typedef struct backend_param_with_name {
+  backend_param_name_t param_name;
+  backend_param_t param;
+} backend_param_with_name_t;
+
 typedef struct {
-	uint8_t *name;
-	size_t len;
+  uint8_t *name;
+  size_t len;
 } backend_name_t;
 
 typedef struct backend_params {
-	backend_param_t *params;
-	size_t len;
+  backend_param_with_name_t *params;
+  size_t len;
 } backend_params_t;
 
 typedef struct backend_with_params {
-	backend_name_t name;
-	backend_params_t params;
+  backend_name_t name;
+  backend_params_t params;
 } backend_with_params_t;
 
 

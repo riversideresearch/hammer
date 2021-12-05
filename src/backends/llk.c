@@ -672,22 +672,30 @@ char * h_llk_get_short_name(HAllocator *mm__,
 }
 
 /*TODO better error handling*/
-int h_llk_extract_params(void ** params, char ** raw_params) {
+int h_llk_extract_params(HParserBackendWithParams * be_with_params, backend_with_params_t *be_with_params_t) {
 
-	*params = NULL;
+  be_with_params->params = NULL;
 
-    int param_0 = -1;
-    int success = 0;
-    uintptr_t param;
+  int param_0 = -1;
+  int success = 0;
+  uintptr_t param;
 
-    success = sscanf(raw_params[0], "%d", &param_0);
+  size_t expected_params_len = 1;
+  backend_params_t params_t = be_with_params_t->params;
+  size_t actual_params_len = params_t.len;
 
-    if(success) {
-    	param = (uintptr_t) param_0;
-    	*params = (void *)param;
-    }
+  if(actual_params_len >= expected_params_len) {
+    backend_param_with_name_t param_t = params_t.params[0];
+    uint8_t * param = param_t.param.param;
+    success = sscanf((char*)param, "%d", &param_0);
+  }
 
-    return success;
+  if(success) {
+    param = (uintptr_t) param_0;
+    be_with_params->params = (void *)param;
+  }
+
+  return success;
 
 }
 

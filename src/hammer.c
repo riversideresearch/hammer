@@ -87,7 +87,7 @@ HParserBackendWithParams * h_copy_backend_with_params__m(HAllocator *mm__,
       r = h_new(HParserBackendWithParams, 1);
       if (r) {
         r->mm__ = mm__;
-        r->name = be_with_params->name;
+        r->requested_name = be_with_params->requested_name;
         r->backend = be_with_params->backend;
         r->backend_vtable = be_with_params->backend_vtable;
         if (be_with_params->backend_vtable != NULL
@@ -144,8 +144,8 @@ void h_free_backend_with_params(HParserBackendWithParams *be_with_params) {
       }
     }
 
-    if(be_with_params->name) {
-    	h_free(be_with_params->name);
+    if(be_with_params->requested_name != NULL) {
+    	h_free(be_with_params->requested_name);
     }
 
     h_free(be_with_params);
@@ -341,106 +341,6 @@ char * h_get_short_name_with_no_params(HAllocator *mm__,
   return h_get_backend_text_with_no_params(mm__, be, 0);
 }
 
-char * extract_params_as_string(HParserBackendWithParams *be_with_params , char *remainder) {
-	HAllocator *mm__ = &system_allocator;
-	char * params_string = NULL;
-	size_t params_len = 0;
-	char *after_open_paren = remainder + 1;
-	char *end_paren = NULL;
-
-	end_paren =	strrchr(remainder, ')');
-
-	if (be_with_params->mm__) mm__ = be_with_params->mm__;
-
-	if(end_paren != NULL) {
-		params_len = strlen(after_open_paren) - strlen(end_paren);
-
-		if(params_len > 0) {
-			params_string = h_new(char, params_len + 1);
-			memset(params_string, '\0', params_len + 1);
-			strncpy(params_string, after_open_paren, params_len);
-		}
-	} /* else error: to what degree do we care right now about enforcing format of the
-	   * parameters section of the input, and how are we reporting usage errors like this? */
-
-	return params_string;
-}
-
-HParserBackendWithParams * get_backend_with_params_by_name_using_strings(const char *name_with_params) {
-	HAllocator *mm__ = &system_allocator;
-	HParserBackendWithParams *result = NULL;
-	HParserBackend be = PB_INVALID;
-	char *remainder = NULL;
-	char ** params_as_strings = NULL;
-	size_t len, name_len, params_len, num_params;
-
-	if(name_with_params != NULL) {
-
-		result = h_new(HParserBackendWithParams, 1);
-
-
-		if (result) {
-			result->mm__ = mm__;
-			result->name = NULL;
-
-			params_len = 0;
-			num_params = 0;
-			len = strlen(name_with_params);
-			remainder = strstr(name_with_params, "(");
-
-			if(remainder != NULL) {
-
-				name_len = len - strlen(remainder);
-
-				/*TODO:
-				 * If we are going to go with using string functions to parse this, we'd need to finish having code to split on the commas
-				 * (I think long run we'll use the hammer parser approach really?)
-				 */
-				num_params = 1;
-				params_as_strings = h_new(char*, num_params);
-				params_as_strings[0] = extract_params_as_string(result, remainder);
-				if(params_as_strings[0] != NULL)
-					params_len = strlen(params_as_strings[0]);
-			} else {
-				name_len = len;
-			}
-
-			if(name_len > 0) {
-				result->name = h_new(char, name_len+1);
-				memset(result->name, '\0', name_len+1);
-				strncpy(result->name, name_with_params, name_len);
-
-				be = h_query_backend_by_name(result->name);
-
-				result->backend = be;
-
-				result->backend_vtable = NULL;
-				if (be >= PB_MIN && be <= PB_MAX)
-					result->backend_vtable = backends[be];
-				/* use the backend supplied method to extract any params from the input */
-
-
-				if(params_len > 0) {
-					if (result->backend_vtable != NULL && be != PB_INVALID &&
-							result->backend_vtable != backends[PB_INVALID]) {
-						if (result->backend_vtable->extract_params) {
-							result->backend_vtable->extract_params(&(result->params), params_as_strings);
-						}
-					}
-				}
-			}
-
-			//free everything we don't need to return the result:
-			if(params_as_strings != NULL) {
-				for (size_t i = 0; i < num_params; i++) {
-					h_free(params_as_strings[i]);
-				}
-				h_free(params_as_strings);
-			}
-		}
-	}
-	return result;
-}
 
 /*TODO: possibly move to its own file?
  * If so, move include of glue.h as well
@@ -449,201 +349,220 @@ HParserBackendWithParams * get_backend_with_params_by_name_using_strings(const c
 
 HParsedToken *act_backend_with_params(const HParseResult *p, void* user_data)
 {
-	backend_with_params_t *be_with_params = H_ALLOC(backend_with_params_t);
+  backend_with_params_t *be_with_params = H_ALLOC(backend_with_params_t);
 
-	backend_name_t *name = H_FIELD(backend_name_t, 0);
-	be_with_params->name = *name;
+  backend_name_t *name = H_FIELD(backend_name_t, 0);
+  be_with_params->name = *name;
 
-	backend_params_t *params = H_FIELD(backend_params_t, 2);
-	be_with_params->params = *params;
+  HParsedToken * param_list = p->ast->seq->elements[1];
+  if (param_list->token_type == TT_SEQUENCE && param_list->seq->used == 3) {
+    backend_params_t *params = H_INDEX(backend_params_t, param_list, 1);
+    be_with_params->params = *params;
+  }
 
-	return H_MAKE(backend_with_params_t, (void*)be_with_params);
+  return H_MAKE(backend_with_params_t, (void*)be_with_params);
 }
 
 HParsedToken* act_backend_name(const HParseResult *p, void* user_data) {
-	backend_name_t *r = H_ALLOC(backend_name_t);
+  backend_name_t *r = H_ALLOC(backend_name_t);
 
-	HParsedToken *flat = h_act_flatten(p, user_data);
+  HParsedToken *flat = h_act_flatten(p, user_data);
 
-	r->len = h_seq_len(flat);
-	r->name = h_arena_malloc(p->arena, r->len + 1);
-	for (size_t i=0; i<r->len; ++i) {
+  r->len = h_seq_len(flat);
+  r->name = h_arena_malloc(p->arena, r->len + 1);
+  for (size_t i=0; i<r->len; ++i) {
 
-		r->name[i] = flat->seq->elements[i]->uint;
-	}
-	r->name[r->len] = 0;
+    r->name[i] = flat->seq->elements[i]->uint;
+  }
+  r->name[r->len] = 0;
 
-	return H_MAKE(backend_name_t, r);
+  return H_MAKE(backend_name_t, r);
 }
 
 HParsedToken *act_param(const HParseResult *p, void* user_data)
 {
-	backend_param_t *r = H_ALLOC(backend_param_t);
+  backend_param_t *r = H_ALLOC(backend_param_t);
 
-	r->len = h_seq_len(p->ast);
-	r->param = h_arena_malloc(p->arena, r->len + 1);
-	for (size_t i=0; i<r->len; ++i)
-		r->param[i] = H_FIELD_UINT(i);
-	r->param[r->len] = 0;
+  r->len = h_seq_len(p->ast);
+  r->param = h_arena_malloc(p->arena, r->len + 1);
+  for (size_t i=0; i<r->len; ++i)
+    r->param[i] = H_FIELD_UINT(i);
+  r->param[r->len] = 0;
 
-	return H_MAKE(backend_param_t, r);
+  return H_MAKE(backend_param_t, r);
 
+}
+
+HParsedToken *act_param_name(const HParseResult *p, void* user_data)
+{
+  backend_param_name_t *r = H_ALLOC(backend_param_name_t);
+
+  HParsedToken *flat = h_act_flatten(p, user_data);
+
+  r->len = h_seq_len(flat);
+  r->param_name = h_arena_malloc(p->arena, r->len + 1);
+  for (size_t i=0; i<r->len; ++i)
+    r->param_name[i] = flat->seq->elements[i]->uint;
+  r->param_name[r->len] = 0;
+
+  return H_MAKE(backend_param_name_t, r);
+
+}
+
+HParsedToken *act_param_with_name(const HParseResult *p, void* user_data)
+{
+  backend_param_with_name_t *backend_param_with_name = H_ALLOC(backend_param_with_name_t);
+
+  HParsedToken *tok = p->ast->seq->elements[0];
+
+  if (tok->token_type == TT_SEQUENCE) {
+    backend_param_name_t *param_name = H_INDEX(backend_param_name_t, tok, 0);
+    backend_param_with_name->param_name = *param_name;
+  }
+
+  backend_param_t *param = H_FIELD(backend_param_t, 1);
+  backend_param_with_name->param = *param;
+
+  return H_MAKE(backend_param_with_name_t, backend_param_with_name);
 }
 
 HParsedToken *act_backend_params(const HParseResult *p, void* user_data)
 {
-	HParsedToken *res = H_MAKE(backend_params_t, (void*)p->ast);
+  HParsedToken *res = H_MAKE(backend_params_t, (void*)p->ast);
 
-	backend_params_t *bp = H_ALLOC(backend_params_t);
+  backend_params_t *bp = H_ALLOC(backend_params_t);
 
-	HParsedToken **fields = h_seq_elements(p->ast);
+  HParsedToken **fields = h_seq_elements(p->ast);
 
-	bp->len  = h_seq_len(p->ast);
-	bp->params = h_arena_malloc(p->arena, sizeof(backend_param_t)*bp->len);
-	for(size_t i=0; i<bp->len; i++) {
-		bp->params[i] = *H_INDEX(backend_param_t, p->ast, i);
-	}
+  bp->len  = h_seq_len(p->ast);
+  bp->params = h_arena_malloc(p->arena, sizeof(backend_param_with_name_t)*bp->len);
+  for(size_t i=0; i<bp->len; i++) {
+    bp->params[i] = *H_INDEX(backend_param_with_name_t, p->ast, i);
+  }
 
-	return H_MAKE(backend_params_t, bp);
+  return H_MAKE(backend_params_t, bp);
 
-	return res;
+  return res;
 }
 
 static HParser * build_hparser_rule(void) {
 
+  H_RULE(alpha, h_choice(h_ch_range('A', 'Z'), h_ch_range('a', 'z'), NULL));
+  H_RULE(digit, h_ch_range(0x30, 0x39));
+  H_RULE(sp, h_ch(' '));
+  H_RULE(eq, h_ch('='));
+  H_RULE(comma, h_ch(','));
+  H_RULE(sep, h_sequence(comma, h_optional(sp), NULL));
+  H_RULE(left_paren, h_ch('('));
+  H_RULE(right_paren, h_ch(')'));
 
-	// H_RULE(digit, h_ch_range(0x30, 0x39));
-	H_RULE(alpha, h_choice(h_ch_range('A', 'Z'), h_ch_range('a', 'z'), NULL));
-	H_RULE(digit, h_ch_range(0x30, 0x39));
-	H_RULE(sp, h_ch(' '));
-	H_RULE(comma, h_ch(','));
-	H_RULE(left_paren, h_ch('('));
-	H_RULE(right_paren, h_ch(')'));
+  H_RULE(alphas, h_many1(alpha));
+  H_RULE(digits, h_many1(digit));
 
-	H_RULE(alphas, h_many1(alpha));
-	H_RULE(digits, h_many1(digit));
+  H_ARULE(backend_name, h_sequence(
+      alphas,
+      h_many(h_choice(digit, alpha, NULL)),
+      NULL));
+  H_ARULE(param, h_choice(digits, alphas, NULL));
+  H_ARULE(param_name, h_sequence(alphas, h_optional(digits), NULL));
+  H_ARULE(param_with_name,
+      h_sequence(h_optional(h_sequence(
+        param_name, eq, NULL)), param, NULL));
+  H_ARULE(backend_params, h_sepBy(param_with_name, sep));
 
-	H_ARULE(backend_name, h_sequence(
-			alphas,
-			h_many(h_choice(digit, alpha, NULL)),
-			NULL));
-	H_ARULE(param, h_choice(digits, alphas, NULL));
-	H_ARULE(backend_params, h_sepBy(param,comma));
+  H_RULE(param_list, h_sequence(left_paren, backend_params, right_paren, NULL) );
 
-	//TODO: work out how to make this an optional part of the final parser
-	//so calls can be of form "glr" not just "glr()" for no params
-	//current issue is that the action for backend_params craps out on this form somehow
-	// H_RULE(params, h_sequence(left_paren, backend_params, right_paren, NULL));
-	//H_ARULE(backend_with_params, h_sequence(backend_name, h_optional(params), NULL));
+  H_ARULE(backend_with_params, h_sequence(backend_name, h_optional(param_list), NULL));
 
-	H_ARULE(backend_with_params, h_sequence(backend_name, left_paren, backend_params, right_paren, NULL));
-
-	return backend_with_params;
+  return backend_with_params;
 }
 
 
 
 static HParser * build_hparser(void) {
 
-	HParser *p = NULL;
-	int r;
-	p = build_hparser_rule();
-	r = h_compile(p, PB_PACKRAT, NULL);
+  HParser *p = NULL;
+  int r;
+  p = build_hparser_rule();
+  r = h_compile(p, PB_PACKRAT, NULL);
 
-	if (r == 0) {
-		return p;
-	} else {
-		printf("Compiling parser failed\n");
-		return NULL;
-	}
+  if (r == 0) {
+    return p;
+  } else {
+    printf("Compiling parser failed\n");
+    return NULL;
+  }
 }
 
-
 HParserBackendWithParams * get_backend_with_params_by_name_using_hammer_parser(const char *name_with_params) {
-	HAllocator *mm__ = &system_allocator;
-	HParserBackendWithParams *result = NULL;
-	HParserBackend be = PB_INVALID;
-	HParser *parser = NULL;
-	HParseResult *r = NULL;
-	char ** parsed_params = NULL;
+  HAllocator *mm__ = &system_allocator;
+  HParserBackendWithParams *result = NULL;
 
-	if(name_with_params != NULL) {
-		result = h_new(HParserBackendWithParams, 1);
-		if (result) {
-			result->mm__ = mm__;
-			result->name = NULL;
+  HParser *parser = NULL;
+  HParseResult *r = NULL;
 
-			parser = build_hparser();
-			if (!parser) {
-				return NULL;
-			}
+  if(name_with_params != NULL) {
+    result = h_new(HParserBackendWithParams, 1);
+    if (result) {
+      result->mm__ = mm__;
+      result->requested_name = NULL;
 
-			r = h_parse(parser, (const uint8_t *)name_with_params, strlen(name_with_params));
+      parser = build_hparser();
+      if (!parser) {
+        return NULL;
+      }
 
-			if (r) {
+      r = h_parse(parser, (const uint8_t *)name_with_params, strlen(name_with_params));
 
-				backend_with_params_t *be_w_params = r->ast->user;
+      if (r) {
+
+        backend_with_params_t *be_w_params = r->ast->user;
 
 
-				backend_name_t *name = &be_w_params->name;
+        backend_name_t *name = &be_w_params->name;
 
-				backend_params_t *params = &be_w_params->params;
+        backend_params_t *params = &be_w_params->params;
 
-				result->name = h_new(char,name->len+1);
-				memset(result->name, '\0', name->len+1);
-				strncpy(result->name, (char*) name->name, name->len);
+        result->requested_name = h_new(char,name->len+1);
+        memset(result->requested_name, '\0', name->len+1);
+        strncpy(result->requested_name, (char*) name->name, name->len);
 
-				parsed_params = h_new(char*, params->len);
-				for (size_t i = 0; i < params->len; i++) {
-					parsed_params[i] = h_new(char, params->params[i].len+1);
-					memset(parsed_params[i], '\0', params->params[i].len+1);
-					strncpy(parsed_params[i], (char*) params->params[i].param, params->params[i].len);
-				}
+        result->backend = h_query_backend_by_name(result->requested_name);
 
-				be = h_query_backend_by_name(result->name);
 
-				result->backend = be;
-				result->backend_vtable = NULL;
-				if (be >= PB_MIN && be <= PB_MAX)
-					result->backend_vtable =  backends[be];
-				/* use the backend supplied method to extract any params from the input */
-				result->params = NULL;
-				if(params->len > 0) {
-					if (result->backend_vtable != NULL && be != PB_INVALID &&
-							result->backend_vtable != backends[PB_INVALID]) {
-						if (result->backend_vtable->extract_params) {
-							result->backend_vtable->extract_params(&(result->params), parsed_params);
-						}
-					}
-				}
-				// free the parsed parameters strings
-				if(parsed_params != NULL) {
-					for (size_t i = 0; i < params->len; i++) {
-						h_free(parsed_params[i]);
-					}
-					h_free(parsed_params);
-				}
 
-			// free the parse result
-			   h_parse_result_free(r);
-			   r = NULL;
+        if (result->backend >= PB_MIN && result->backend <= PB_MAX)
+          result->backend_vtable =  backends[result->backend];
+        else
+          result->backend_vtable = backends[PB_INVALID];
 
-			  //free the parser
-			  //(TODO: code to completely free the memory used for this parser)
-		      parser->backend_vtable->free(parser);
-			}
-		}
-	}
-	return result;
+        /* use the backend supplied method to extract any params from the input */
+        result->params = NULL;
+        if(params->len > 0) {
+          if (result->backend_vtable->extract_params) {
+            result->backend_vtable->extract_params(result, be_w_params);
+          }
+        }
+        // free the parse result
+        h_parse_result_free(r);
+        r = NULL;
+
+        //free the memory used by the backend for parser data
+        //(TODO: code to completely free the memory used for this parser)
+        parser->backend_vtable->free(parser);
+      }
+    }
+  }
+
+  return result;
 }
 
 HParserBackendWithParams * h_get_backend_with_params_by_name(const char *name_with_params) {
-    HParserBackendWithParams *result = NULL;
+  HParserBackendWithParams *result = NULL;
 
-	result = get_backend_with_params_by_name_using_hammer_parser(name_with_params);
-			//get_backend_with_params_by_name_using_strings(name_with_params);
+  result = get_backend_with_params_by_name_using_hammer_parser(name_with_params);
 
-	return result;
+  return result;
 }
 
 
@@ -664,7 +583,7 @@ HParseResult* h_parse__m(HAllocator* mm__, const HParser* parser, const uint8_t*
     .input = input,
     .last_chunk = true
   };
-  
+
   return parser->backend_vtable->parse(mm__, parser, &input_stream);
 }
 
@@ -693,19 +612,19 @@ bool h_not_regular(HRVMProg *prog, void *env) {
 }
 
 int h_compile_for_backend_with_params(HParser* parser, HParserBackendWithParams* be_with_params){
-	HAllocator *mm__ = &system_allocator;
+  HAllocator *mm__ = &system_allocator;
 
-	if (be_with_params) {
-	    if (be_with_params->mm__) mm__ = be_with_params->mm__;
-	}
+  if (be_with_params) {
+    if (be_with_params->mm__) mm__ = be_with_params->mm__;
+  }
 
-	return h_compile_for_backend_with_params__m(mm__, parser, be_with_params);
+  return h_compile_for_backend_with_params__m(mm__, parser, be_with_params);
 }
 
 int h_compile_for_backend_with_params__m(HAllocator* mm__, HParser* parser, HParserBackendWithParams* be_with_params) {
   int ret = h_compile__m(mm__, parser, be_with_params->backend, be_with_params->params);
   if (!ret)
-	  be_with_params->backend_vtable = parser->backend_vtable;
+    be_with_params->backend_vtable = parser->backend_vtable;
   return ret;
 }
 
