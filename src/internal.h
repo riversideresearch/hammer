@@ -264,7 +264,7 @@ typedef struct HParserBackendVTable_ {
                                        void *params);
 
   /* extract params from the input string */
-  int (*extract_params)(void** params, char **raw_params);
+  int (*extract_params)(HParserBackendWithParams * be_with_params, backend_with_params_t *be_with_params_t);
 } HParserBackendVTable;
 
 
