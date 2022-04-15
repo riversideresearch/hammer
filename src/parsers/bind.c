@@ -21,8 +21,7 @@ static void *aa_alloc(HAllocator *allocator, size_t size)
 static void *aa_realloc(HAllocator *allocator, void *ptr, size_t size)
 {
     HArena *arena = ((ArenaAllocator *)allocator)->arena;
-    assert(((void)"XXX need realloc for arena allocator", 0));
-    return NULL;
+    return h_arena_realloc(arena, ptr, size);
 }
 
 static void aa_free(HAllocator *allocator, void *ptr)
