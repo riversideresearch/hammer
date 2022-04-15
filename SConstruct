@@ -18,6 +18,8 @@ vars.Add(ListVariable('bindings', 'Language bindings to build', 'none', ['cpp', 
 vars.Add('python', 'Python interpreter', 'python')
 
 tools = ['default', 'scanreplace']
+if os.getenv('CC') == 'clang' or platform.system() == 'Darwin':
+	tools.append('clang')
 if 'dotnet' in ARGUMENTS.get('bindings', []):
 	tools.append('csharp/mono')
 
@@ -99,10 +101,6 @@ AddOption('--tests',
 
 env['CC'] = os.getenv('CC') or env['CC']
 env['CXX'] = os.getenv('CXX') or env['CXX']
-
-if os.getenv('CC') == 'clang' or env['PLATFORM'] == 'darwin':
-    env.Replace(CC='clang',
-                CXX='clang++')
 
 # Language standard and warnings
 if env['CC'] == 'cl':
