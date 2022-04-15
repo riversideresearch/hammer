@@ -31,6 +31,7 @@ else:
 	ver = subprocess.run([cc, '--version'], capture_output=True).stdout
 	if b'clang' in ver.split():
 		tools.append('clang')
+		os.environ['CC'] = cc	# make sure we call it as we saw it
 
 envvars = {'PATH' : os.environ['PATH']}
 if 'PKG_CONFIG_PATH' in os.environ:
