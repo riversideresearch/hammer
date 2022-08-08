@@ -111,6 +111,7 @@ AddOption('--tests',
 
 env['CC'] = os.getenv('CC') or env['CC']
 env['CXX'] = os.getenv('CXX') or env['CXX']
+env['CFLAGS'] = os.getenv('CFLAGS') or env['CFLAGS']
 
 # Language standard and warnings
 if env['CC'] == 'cl':
