@@ -636,7 +636,7 @@ static void test_bug95_lalr_k_param() {
 
   g_check_parse_match_no_compile(p, "abc",3, "(u0x61 u0x62 u0x63)");
 
-  /* The nest test shows that the default works for compile with param == NULL */
+  /* The next test shows that the default works for compile with param == NULL */
   /* (default is k = 1) */
 
   g_check_parse_match(h_sequence(a, b, c, NULL), PB_LALR, "abc",3, "(u0x61 u0x62 u0x63)");
