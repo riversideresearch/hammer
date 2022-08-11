@@ -608,6 +608,41 @@ static void test_bug60_abnf() {
   free(s);
 }
 
+static void test_bug95_lalr_k_param() {
+
+/*
+ * The LR backends had been left hardcoded to k = 1 and were ignoring the param value
+ * This example compiles for LALR(k) where k = 2
+ * but does not compile for k = 1
+ * This shows that the parameter is being used rather than ignored.
+ * The default value of k when the param == NULL is set to k = 1
+ */
+  HParser *a = h_ch('a');
+  HParser *b = h_ch('b');
+  HParser *c = h_ch('c');
+  HParser *B = h_indirect();
+  HParser *A = h_sequence (a, B, c, NULL);
+  HParser *B_ = h_choice(B, b, NULL);
+  h_bind_indirect(B, B_);
+
+  HParser *p = A;
+
+  if (h_compile(p, PB_LALR, (void *)1) == 0) {
+    g_test_message("should not compile for lalr(1)");
+    g_test_fail();
+  }
+
+  g_check_compilable(p, PB_LALR, 2);
+
+  g_check_parse_match_no_compile(p, "abc",3, "(u0x61 u0x62 u0x63)");
+
+  /* The next test shows that the default works for compile with param == NULL */
+  /* (default is k = 1) */
+
+  g_check_parse_match(h_sequence(a, b, c, NULL), PB_LALR, "abc",3, "(u0x61 u0x62 u0x63)");
+
+}
+
 void register_regression_tests(void) {
   g_test_add_func("/core/regression/bug118", test_bug118);
   g_test_add_func("/core/regression/seq_index_path", test_seq_index_path);
@@ -626,4 +661,5 @@ void register_regression_tests(void) {
   g_test_add_func("/core/regression/issue83", test_issue83);
   g_test_add_func("/core/regression/bug60", test_bug60);
   g_test_add_func("/core/regression/bug60_abnf", test_bug60_abnf);
+  g_test_add_func("/core/regression/bug95_lalrk_param", test_bug95_lalr_k_param);
 }
