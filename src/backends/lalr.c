@@ -2,7 +2,7 @@
 #include "contextfree.h"
 #include "lr.h"
 
-
+static const size_t DEFAULT_K = 1;
 
 /* LALR-via-SLR grammar transformation */
 
@@ -275,6 +275,7 @@ HCFChoice *h_desugar_augmented(HAllocator *mm__, HParser *parser)
 
 int h_lalr_compile(HAllocator* mm__, HParser* parser, const void* params)
 {
+  size_t k = params? (uintptr_t)params : DEFAULT_K;
   // generate (augmented) CFG from parser
   // construct LR(0) DFA
   // build LR(0) table
@@ -335,7 +336,7 @@ int h_lalr_compile(HAllocator* mm__, HParser* parser, const void* params)
           if(match_any_production(table, eg, lhs, item->rhs, state)) {
             // the left-hand symbol's follow set is this production's
             // contribution to the lookahead
-            const HStringMap *fs = h_follow(1, eg->grammar, lhs);
+            const HStringMap *fs = h_follow(k, eg->grammar, lhs);
             assert(fs != NULL);
             assert(fs->epsilon_branch == NULL);
             // NB: there is a case where fs can be empty: when reducing by lhs
