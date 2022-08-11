@@ -267,3 +267,32 @@ void h_allocator_stats(HArena *arena, HArenaStats *stats) {
   stats->arena_li_malloc_bytes = arena->arena_li_malloc_bytes;
 #endif
 }
+
+void* h_arena_realloc(HArena *arena, void* ptr, size_t n) {
+  struct arena_link *link;
+  void* ret;
+  size_t ncopy;
+
+  // XXX this is really wasteful, but maybe better than nothing?
+  //
+  // first, we walk the blocks to find our ptr. since we don't know how large
+  // the original allocation was, we must always make a new one and copy as
+  // much data from the old block as there could have been.
+
+  for (link = arena->head; link; link = link->next) {
+    if (ptr >= (void *)link->rest && ptr <= (void *)link->rest + link->used)
+      break;	/* found it */
+  }
+  assert(link != NULL);
+
+  ncopy = (void *)link->rest + link->used - ptr;
+  if (n < ncopy)
+    ncopy = n;
+
+  ret = h_arena_malloc_noinit(arena, n);
+  assert(ret != NULL);
+  memcpy(ret, ptr, ncopy);
+  h_arena_free(arena, ptr);
+
+  return ret;
+}
