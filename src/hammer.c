@@ -494,7 +494,7 @@ static HParser * build_hparser(void) {
   }
 }
 
-HParserBackendWithParams * get_backend_with_params_by_name_using_hammer_parser(const char *name_with_params) {
+HParserBackendWithParams * h_get_backend_with_params_by_name(const char *name_with_params) {
   HAllocator *mm__ = &system_allocator;
   HParserBackendWithParams *result = NULL;
 
@@ -553,14 +553,6 @@ HParserBackendWithParams * get_backend_with_params_by_name_using_hammer_parser(c
       }
     }
   }
-
-  return result;
-}
-
-HParserBackendWithParams * h_get_backend_with_params_by_name(const char *name_with_params) {
-  HParserBackendWithParams *result = NULL;
-
-  result = get_backend_with_params_by_name_using_hammer_parser(name_with_params);
 
   return result;
 }
