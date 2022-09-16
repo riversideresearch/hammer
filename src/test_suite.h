@@ -289,6 +289,97 @@
     }									\
   } while(0)
 
+#define g_check_parse_chunk_failed__m(mm__, parser, backend, chunk1, c1_len) do { \
+    int skip = h_compile__m(mm__, (HParser *)(parser), (HParserBackend)backend, NULL); \
+    if(skip) {								\
+      g_test_message("Compile failed");					\
+      g_test_fail();							\
+      break;								\
+    }									\
+    g_check_parse_chunk_failed___m(mm__, parser, chunk1, c1_len); \
+  } while(0)
+
+#define g_check_parse_chunk_failed___m(mm__, parser, chunk1, c1_len) do { \
+    HSuspendedParser *s = h_parse_start__m(mm__, (HParser *)(parser));		\
+    if(!s) {								\
+      g_test_message("Chunk-wise parsing not available");		\
+      g_test_fail();							\
+      break;								\
+    }									\
+    h_parse_chunk(s, (const uint8_t*)chunk1, c1_len);			\
+    HParseResult *res = h_parse_finish(s);				\
+    if (NULL != res) {							\
+      h_parse_result_free(res);						\
+      g_test_message("Check failed: shouldn't have succeeded, but did"); \
+      g_test_fail();							\
+    }									\
+  } while(0)
+
+#define g_check_parse_chunk_failed(p, be, c1, c1_len) \
+  g_check_parse_chunk_failed__m(&system_allocator, p, be, c1, c1_len)
+
+#define g_check_parse_chunk_failed_(p, c1, c1_len) \
+  g_check_parse_chunk_failed___m(&system_allocator, p, c1, c1_len)
+
+#define g_check_parse_chunk_ok(parser, backend, chunk1, c1_len) do {	\
+    int skip = h_compile((HParser *)(parser), (HParserBackend)backend, NULL); \
+    if(skip) {								\
+      g_test_message("Compile failed");					\
+      g_test_fail();							\
+      break;								\
+    }									\
+    g_check_parse_chunk_ok_(parser, chunk1, c1_len); \
+  } while(0)
+
+#define g_check_parse_chunk_ok_(parser, chunk1, c1_len) do {	\
+    HSuspendedParser *s = h_parse_start((HParser *)(parser));			\
+    if(!s) {								\
+      g_test_message("Chunk-wise parsing not available");		\
+      g_test_fail();							\
+      break;								\
+    }									\
+    h_parse_chunk(s, (const uint8_t*)chunk1, c1_len);			\
+    HParseResult *res = h_parse_finish(s);				\
+    if (!res) {								\
+      g_test_message("Parse failed on line %d", __LINE__);		\
+      g_test_fail();							\
+    } else {								\
+      print_arena_stats(res->arena);					\
+      h_parse_result_free(res);						\
+    }									\
+  } while(0)
+
+#define g_check_parse_chunk_match(parser, backend, chunk1, c1_len, result) do { \
+    int skip = h_compile((HParser *)(parser), (HParserBackend) backend, NULL); \
+    if(skip) {								\
+      g_test_message("Compile failed");					\
+      g_test_fail();							\
+      break;								\
+    }									\
+    g_check_parse_chunk_match_(parser, chunk1, c1_len, result); \
+  } while(0)
+
+#define g_check_parse_chunk_match_(parser, chunk1, c1_len, result) do { \
+    HSuspendedParser *s = h_parse_start((HParser *)(parser));			\
+    if(!s) {								\
+      g_test_message("Chunk-wise parsing not available");		\
+      g_test_fail();							\
+      break;								\
+    }									\
+    h_parse_chunk(s, (const uint8_t*)chunk1, c1_len);			\
+    HParseResult *res = h_parse_finish(s);				\
+    if (!res) {								\
+      g_test_message("Parse failed on line %d", __LINE__);		\
+      g_test_fail();							\
+    } else {								\
+      char* cres = h_write_result_unamb(res->ast);			\
+      g_check_string(cres, ==, result);					\
+      (&system_allocator)->free(&system_allocator, cres);		\
+      print_arena_stats(res->arena);					\
+      h_parse_result_free(res);						\
+    }									\
+  } while(0)
+
 #define g_check_hashtable_present(table, key) do {			\
     if(!h_hashtable_present(table, key)) {				\
       g_test_message("Check failed: key should have been in table, but wasn't"); \

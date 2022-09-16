@@ -334,8 +334,44 @@ HParseResult *h_packrat_parse(HAllocator* mm__, const HParser* parser, HInputStr
   return res;
 }
 
+// The following implementation of the iterative (chunked) parsing API is a
+// dummy that expects all input to be passed in one chunk. This allows API
+// conformity until a proper implementation is available. If the parser
+// attempts to read past the first chunk (an overrun occurs), the parse fails.
+//
+// NB: A more functional if only slightly less naive approach would be to
+// concatenate chunks and blindly re-run the full parse on every call to
+// h_packrat_parse_chunk.
+//
+// NB: A full implementation will still have to concatenate the chunks to
+// support arbitrary backtracking, but should be able save much, if not all, of
+// the HParseState between calls.
+
+void h_packrat_parse_start(HSuspendedParser *s)
+{
+  // nothing to do
+}
+
+bool h_packrat_parse_chunk(HSuspendedParser *s, HInputStream *input)
+{
+  assert(s->backend_state == NULL);
+  s->backend_state = h_packrat_parse(s->mm__, s->parser, input);
+  if (input->overrun)		// tried to read past the chunk?
+    s->backend_state = NULL;	//   fail the parse.
+  return true;			// don't call me again.
+}
+
+HParseResult *h_packrat_parse_finish(HSuspendedParser *s)
+{
+  return s->backend_state;
+}
+
 HParserBackendVTable h__packrat_backend_vtable = {
   .compile = h_packrat_compile,
   .parse = h_packrat_parse,
-  .free = h_packrat_free
+  .free = h_packrat_free,
+
+  .parse_start = h_packrat_parse_start,
+  .parse_chunk = h_packrat_parse_chunk,
+  .parse_finish = h_packrat_parse_finish
 };
