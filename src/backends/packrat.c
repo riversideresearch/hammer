@@ -34,37 +34,38 @@ HParserCacheValue *cached_lr(HParseState *state, HLeftRec *lr) {
   return ret;
 }
 
-// Really library-internal tool to perform an uncached parse, and handle any common error-handling.
-static inline HParseResult* perform_lowlevel_parse(HParseState *state, const HParser *parser) {
-  // TODO(thequux): these nested conditions are ugly. Factor this appropriately, so that it is clear which codes is executed when.
-  HParseResult *tmp_res;
-  if (parser) {
-    HInputStream bak = state->input_stream;
-    tmp_res = parser->vtable->parse(parser->env, state);
-    if (tmp_res) {
-      tmp_res->arena = state->arena;
-      if (!state->input_stream.overrun) {
-	size_t bit_length = h_input_stream_pos(&state->input_stream) - h_input_stream_pos(&bak);
-	if (tmp_res->bit_length == 0) { // Don't modify if forwarding.
-	  tmp_res->bit_length = bit_length;
-	}
-	if (tmp_res->ast && tmp_res->ast->bit_length != 0) {
-	  ((HParsedToken*)(tmp_res->ast))->bit_length = bit_length;
-	}
-      } else
-	tmp_res->bit_length = 0;
-    }
-  } else
-    tmp_res = NULL;
-  if (state->input_stream.overrun)
-    return NULL; // overrun is always failure.
-#ifdef CONSISTENCY_CHECK
-  if (!tmp_res) {
-    state->input_stream = INVALID;
-    state->input_stream.input = key->input_pos.input;
+// internal helper to perform an uncached parse and common error-handling
+static inline
+HParseResult *perform_lowlevel_parse(HParseState *state, const HParser *parser)
+{
+  HParseResult *res;
+  HInputStream bak;
+  size_t len;
+
+  if (!parser)
+    return NULL;
+
+  bak = state->input_stream;
+  res = parser->vtable->parse(parser->env, state);
+
+  if (!res)
+    return NULL;
+
+  // overrun is always failure.
+  if (state->input_stream.overrun) {
+    res->bit_length = 0;
+    return NULL;
   }
-#endif
-  return tmp_res;
+
+  // update result
+  res->arena = state->arena;
+  len = h_input_stream_pos(&state->input_stream) - h_input_stream_pos(&bak);
+  if (res->bit_length == 0)	// Don't modify if forwarding.
+    res->bit_length = len;
+  if (res->ast && res->ast->bit_length != 0)
+    ((HParsedToken *)(res->ast))->bit_length = len;
+
+  return res;
 }
 
 HParserCacheValue* recall(HParserCacheKey *k, HParseState *state, HHashValue keyhash) {
