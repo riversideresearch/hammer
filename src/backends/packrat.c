@@ -49,15 +49,16 @@ HParseResult *perform_lowlevel_parse(HParseState *state, const HParser *parser)
   res = parser->vtable->parse(parser->env, state);
 
   if (!res)
-    return NULL;
+    return NULL;	// NB: input stream is considered invalid on failure
 
-  // overrun is always failure.
+  // combinators' parse functions by design do not have to check for overrun.
+  // turn such bogus successes into parse failure.
   if (state->input_stream.overrun) {
     res->bit_length = 0;
     return NULL;
   }
 
-  // update result
+  // update result length
   res->arena = state->arena;
   len = h_input_stream_pos(&state->input_stream) - h_input_stream_pos(&bak);
   if (res->bit_length == 0)	// Don't modify if forwarding.
