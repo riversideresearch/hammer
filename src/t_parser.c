@@ -542,6 +542,34 @@ static void test_iterative_single(gconstpointer backend) {
   g_check_parse_chunk_failed(p, be, "fuo",3);
 }
 
+// this test applies to backends that support the iterative API, but not actual
+// chunked operation. in such cases, passing multiple chunks should fail the
+// parse rather than treating the end of the first chunk as the end of input.
+static void test_iterative_dummy(gconstpointer backend) {
+  HParserBackend be = (HParserBackend)GPOINTER_TO_INT(backend);
+  HParser *p;
+
+  HParser *x = h_ch('x');
+  HParser *y = h_ch('y');
+  HParser *e = h_epsilon_p();
+
+  p = h_many(x);
+  g_check_parse_chunks_failed(p, be, "xxx",3, "xxx",3);
+  g_check_parse_chunks_failed(p, be, "xxx",3, "",0);
+
+  p = h_optional(x);
+  g_check_parse_chunks_failed(p, be, "",0, "xxx",3);
+
+  p = h_choice(x, e, NULL);
+  g_check_parse_chunks_failed(p, be, "",0, "xxx",3);
+
+  // these are ok because the parse succeeds without overrun.
+  p = h_choice(e, x, NULL);
+  g_check_parse_chunks_match(p, be, "",0, "xxx",3, "NULL");
+  p = h_choice(y, x, NULL);
+  g_check_parse_chunks_match(p, be, "y",1, "xxx",3, "u0x79");
+}
+
 static void test_iterative_multi(gconstpointer backend) {
   HParserBackend be = (HParserBackend)GPOINTER_TO_INT(backend);
   HParser *p;
@@ -969,6 +997,7 @@ void register_parser_tests(void) {
   g_test_add_data_func("/core/parser/packrat/result_length", GINT_TO_POINTER(PB_PACKRAT), test_result_length);
   //g_test_add_data_func("/core/parser/packrat/token_position", GINT_TO_POINTER(PB_PACKRAT), test_token_position);
   g_test_add_data_func("/core/parser/packrat/iterative/single", GINT_TO_POINTER(PB_PACKRAT), test_iterative_single);
+  g_test_add_data_func("/core/parser/packrat/iterative/dummy", GINT_TO_POINTER(PB_PACKRAT), test_iterative_dummy);	// XXX remove when multi-chunk works
   //g_test_add_data_func("/core/parser/packrat/iterative/multi", GINT_TO_POINTER(PB_PACKRAT), test_iterative_multi);
   //g_test_add_data_func("/core/parser/packrat/iterative/lookahead", GINT_TO_POINTER(PB_PACKRAT), test_iterative_lookahead);
   //g_test_add_data_func("/core/parser/packrat/iterative/result_length", GINT_TO_POINTER(PB_PACKRAT), test_iterative_result_length);
