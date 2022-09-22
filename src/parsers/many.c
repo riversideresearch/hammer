@@ -45,7 +45,6 @@ static HParseResult *parse_many(void* env, HParseState *state) {
     state->input_stream = bak;
     goto succ;
   }
-  state->input_stream = bak;
   return NULL;
 }
 
