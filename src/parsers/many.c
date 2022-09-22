@@ -21,11 +21,11 @@ static HParseResult *parse_many(void* env, HParseState *state) {
     if (count > 0 && env_->sep != NULL) {
       HParseResult *sep = h_do_parse(env_->sep, state);
       if (!sep)
-	goto err0;
+	goto stop;
     }
     HParseResult *elem = h_do_parse(env_->p, state);
     if (!elem)
-      goto err0;
+      goto stop;
     if (elem->ast)
       h_carray_append(seq, (void*)elem->ast);
     count++;
@@ -40,7 +40,7 @@ static HParseResult *parse_many(void* env, HParseState *state) {
   res->bit_length = 0;
   res->bit_offset = 0;
   return make_result(state->arena, res);
- err0:
+ stop:
   if (count >= env_->count) {
     state->input_stream = bak;
     goto succ;
