@@ -29,6 +29,9 @@ static int parse_permutation_tail(const HSequence *s,
     if(set[i]) {
       match = h_do_parse(ps[i], state);
 
+      if (want_suspend(state))
+        return 0;		// bail out early, leaving overrun flag
+
       // save result
       if(match)
 	seq->elements[i] = (void *)match->ast;

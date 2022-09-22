@@ -32,6 +32,11 @@ static inline size_t token_length(HParseResult *pr) {
   }
 }
 
+// tell if we should suspend a parser, i.e. overrun occured before final input
+static inline bool want_suspend(HParseState *state) {
+  return state->input_stream.overrun && !state->input_stream.last_chunk;
+}
+
 /* Epsilon rules happen during desugaring. This handles them. */
 static inline void desugar_epsilon(HAllocator *mm__, HCFStack *stk__, void *env) {
   HCFS_BEGIN_CHOICE() {

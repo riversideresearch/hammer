@@ -49,7 +49,7 @@ HParseResult *perform_lowlevel_parse(HParseState *state, const HParser *parser)
   res = parser->vtable->parse(parser->env, state);
 
   if (!res)
-    return NULL;	// NB: input stream is considered invalid on failure
+    return NULL;	// NB: input position is considered invalid on failure
 
   // combinators' parse functions by design do not have to check for overrun.
   // turn such bogus successes into parse failure.

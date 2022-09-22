@@ -3,10 +3,10 @@
 static HParseResult *parse_and(void* env, HParseState* state) {
   HInputStream bak = state->input_stream;
   HParseResult *res = h_do_parse((HParser*)env, state);
+  if (!res)
+    return NULL;	// propagate failed input state, esp. overrun
   state->input_stream = bak;
-  if (res)
-    return make_result(state->arena, NULL);
-  return NULL;
+  return make_result(state->arena, NULL);
 }
 
 static const HParserVtable and_vt = {

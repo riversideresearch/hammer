@@ -8,6 +8,8 @@ static HParseResult* parse_whitespace(void* env, HParseState *state) {
   do {
     bak = state->input_stream;
     c = h_read_bits(&state->input_stream, 8, false);
+    if (want_suspend(state))
+      return NULL;		// bail out early, leaving overrun flag
     if (state->input_stream.overrun)
       break;
   } while (isspace((int)c));

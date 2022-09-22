@@ -41,6 +41,8 @@ static HParseResult *parse_many(void* env, HParseState *state) {
   res->bit_offset = 0;
   return make_result(state->arena, res);
  stop:
+  if (want_suspend(state))
+    return NULL;		// bail out early, leaving overrun flag
   if (count >= env_->count) {
     state->input_stream = bak;
     goto succ;

@@ -18,9 +18,12 @@ static HParseResult* parse_difference(void *env, HParseState *state) {
   HInputStream after_p1_state = state->input_stream;
   state->input_stream = start_state;
   HParseResult *r2 = h_do_parse(parsers->p2, state);
-  // TODO(mlp): I'm pretty sure the input stream state should be the post-p1 state in all cases
+  // don't touch the input state (overrun flag) if we must suspend
+  if (want_suspend(state)) {
+    return NULL;
+  }
+  // in all other cases, the input stream should be in the post-p1 state
   state->input_stream = after_p1_state;
-  // if p2 failed, restore post-p1 state and bail out early
   if (NULL == r2) {
     return r1;
   }
@@ -34,7 +37,7 @@ static HParseResult* parse_difference(void *env, HParseState *state) {
   }
 }
 
-static HParserVtable difference_vt = {
+static const HParserVtable difference_vt = {
   .parse = parse_difference,
   .isValidRegular = h_false,
   .isValidCF = h_false, // XXX should this be true if both p1 and p2 are CF?

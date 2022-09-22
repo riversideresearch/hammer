@@ -6,6 +6,8 @@ static HParseResult* parse_optional(void* env, HParseState* state) {
   HParseResult *res0 = h_do_parse((HParser*)env, state);
   if (res0)
     return res0;
+  if (want_suspend(state))
+    return NULL;		// bail out early, leaving overrun flag
   state->input_stream = bak;
   HParsedToken *ast = a_new(HParsedToken, 1);
   ast->token_type = TT_NONE;

@@ -11,10 +11,14 @@ static HParseResult* parse_xor(void *env, HParseState *state) {
   // cache the initial state of the input stream
   HInputStream start_state = state->input_stream;
   HParseResult *r1 = h_do_parse(parsers->p1, state);
+  if (want_suspend(state))
+    return NULL;		// bail out early, leaving overrun flag
   HInputStream after_p1_state = state->input_stream;
   // reset input stream, parse again
   state->input_stream = start_state;
   HParseResult *r2 = h_do_parse(parsers->p2, state);
+  if (want_suspend(state))
+    return NULL;		// bail out early, leaving overrun flag
   if (NULL == r1) {
     if (NULL != r2) {
       return r2;
