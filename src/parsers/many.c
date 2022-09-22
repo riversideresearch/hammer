@@ -30,8 +30,7 @@ static HParseResult *parse_many(void* env, HParseState *state) {
       h_carray_append(seq, (void*)elem->ast);
     count++;
   }
-  if (count < env_->count)
-    goto err;
+  assert(count == env_->count);
  succ:
   ; // necessary for the label to be here...
   HParsedToken *res = a_new(HParsedToken, 1);
@@ -46,7 +45,6 @@ static HParseResult *parse_many(void* env, HParseState *state) {
     state->input_stream = bak;
     goto succ;
   }
- err:
   state->input_stream = bak;
   return NULL;
 }
