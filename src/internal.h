@@ -69,6 +69,8 @@ extern HAllocator system_allocator;
 typedef struct HCFStack_ HCFStack;
 
 
+#define DEFAULT_ENDIANNESS (BIT_BIG_ENDIAN | BYTE_BIG_ENDIAN)
+
 typedef struct HInputStream_ {
   // This should be considered to be a really big value type.
   const uint8_t *input;

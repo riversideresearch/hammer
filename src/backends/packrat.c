@@ -326,6 +326,7 @@ HParseResult *h_packrat_parse(HAllocator* mm__, const HParser* parser, HInputStr
   parse_state->arena = arena;
   parse_state->symbol_table = NULL;
   HParseResult *res = h_do_parse(parser, parse_state);
+  *input_stream = parse_state->input_stream;
   h_slist_free(parse_state->lr_stack);
   h_hashtable_free(parse_state->recursion_heads);
   // tear down the parse state
@@ -336,31 +337,102 @@ HParseResult *h_packrat_parse(HAllocator* mm__, const HParser* parser, HInputStr
   return res;
 }
 
-// The following implementation of the iterative (chunked) parsing API is a
-// dummy that expects all input to be passed in one chunk. This allows API
-// conformity until a proper implementation is available. If the parser
-// attempts to read past the first chunk (an overrun occurs), the parse fails.
-//
-// NB: A more functional if only slightly less naive approach would be to
-// concatenate chunks and blindly re-run the full parse on every call to
+// The following naive implementation of the iterative (chunked) parsing API
+// concatenates chunks and blindly re-runs the full parse on every call to
 // h_packrat_parse_chunk.
 //
 // NB: A full implementation will still have to concatenate the chunks to
 // support arbitrary backtracking, but should be able save much, if not all, of
 // the HParseState between calls.
+// Cutting unneeded past input should also be possible but is complicated by
+// the fact that only higher-order combinators are saved to the packrat cache,
+// so former input to bare primitive combinators must remain available.
+//
+// Note: The iterative API expects us to always consume an entire input chunk
+// when we suspend, even if packrat later backtracks into it. We will produce
+// the correct parse result and accurately consume from a final chunk, but all
+// earlier chunks will be reported as fully consumed and as being part of the
+// HParseResult in terms of its bit_length field.
 
 void h_packrat_parse_start(HSuspendedParser *s)
 {
-  // nothing to do
+  // nothing to do here, we allocate lazily below
 }
 
 bool h_packrat_parse_chunk(HSuspendedParser *s, HInputStream *input)
 {
-  assert(s->backend_state == NULL);
-  s->backend_state = h_packrat_parse(s->mm__, s->parser, input);
-  if (input->overrun)		// tried to read past the chunk?
-    s->backend_state = NULL;	//   fail the parse.
-  return true;			// don't call me again.
+  HAllocator *mm__ = s->mm__;
+  HParseResult *res;
+  HInputStream *cat;
+  size_t newlen;
+
+  if (s->backend_state == NULL) {	// this is the first chunk
+    // attempt to finish the parse on just the given input.
+    res = h_packrat_parse(mm__, s->parser, input);
+    if (input->last_chunk || !input->overrun) {
+      s->backend_state = res;		// pass on the result
+      return true;			// and signal we're done
+    }
+
+    // we ran out of input and are expecting more
+    // allocate and initialize an input stream to concatenate the chunks
+    cat = h_new(HInputStream, 1);
+    *cat = *input;
+    cat->input = h_alloc(mm__, input->length);
+    memcpy((void *)cat->input, input->input, input->length);
+    s->backend_state = cat;
+
+    return false;			// come back with more input.
+  }
+
+  // we have received additional input - append it to the saved stream
+  cat = s->backend_state;
+  assert(input->pos == cat->length);
+  if (input->length > SIZE_MAX - cat->length)
+    h_platform_errx(1, "input length would overflow");
+  newlen = cat->length + input->length;
+  cat->input = h_realloc(mm__, (void *)cat->input, newlen);
+  memcpy((void *)cat->input + cat->length, input->input, input->length);
+  cat->length = newlen;
+  cat->last_chunk = input->last_chunk;
+
+  // reset our input stream and call the parser on it (again)
+  cat->index      = 0;
+  cat->bit_offset = 0;
+  cat->margin     = 0;
+  cat->endianness = DEFAULT_ENDIANNESS;
+  cat->overrun    = false;
+  res = h_packrat_parse(mm__, s->parser, cat);
+  assert(cat->index <= cat->length);
+  input->overrun    = cat->overrun;
+
+  // suspend if the parser still needs more input
+  if (input->overrun && !input->last_chunk) {
+    input->index = input->length;	// consume the entire chunk on suspend
+    input->margin = 0;
+    input->bit_offset = 0;
+    return false;
+  }
+  // otherwise the parse is finished...
+
+  // report final input position
+  if (cat->index < input->pos) {	// parser just needed some lookahead
+    input->index      = 0;		// don't consume this last chunk
+    input->bit_offset = 0;
+    input->margin     = 0;
+  } else {
+    input->index      = cat->index - input->pos;
+    input->bit_offset = cat->bit_offset;
+    input->margin     = cat->margin;
+    input->endianness = cat->endianness;
+  }
+
+  // clean up and return the result
+  h_free((void *)cat->input);
+  h_free(cat);
+  s->backend_state = res;
+
+  return true;				// don't call me again.
 }
 
 HParseResult *h_packrat_parse_finish(HSuspendedParser *s)

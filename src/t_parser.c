@@ -545,6 +545,7 @@ static void test_iterative_single(gconstpointer backend) {
 // this test applies to backends that support the iterative API, but not actual
 // chunked operation. in such cases, passing multiple chunks should fail the
 // parse rather than treating the end of the first chunk as the end of input.
+#if 0
 static void test_iterative_dummy(gconstpointer backend) {
   HParserBackend be = (HParserBackend)GPOINTER_TO_INT(backend);
   HParser *p;
@@ -569,6 +570,7 @@ static void test_iterative_dummy(gconstpointer backend) {
   p = h_choice(y, x, NULL);
   g_check_parse_chunks_match(p, be, "y",1, "xxx",3, "u0x79");
 }
+#endif
 
 static void test_iterative_multi(gconstpointer backend) {
   HParserBackend be = (HParserBackend)GPOINTER_TO_INT(backend);
@@ -997,10 +999,9 @@ void register_parser_tests(void) {
   g_test_add_data_func("/core/parser/packrat/result_length", GINT_TO_POINTER(PB_PACKRAT), test_result_length);
   //g_test_add_data_func("/core/parser/packrat/token_position", GINT_TO_POINTER(PB_PACKRAT), test_token_position);
   g_test_add_data_func("/core/parser/packrat/iterative/single", GINT_TO_POINTER(PB_PACKRAT), test_iterative_single);
-  g_test_add_data_func("/core/parser/packrat/iterative/dummy", GINT_TO_POINTER(PB_PACKRAT), test_iterative_dummy);	// XXX remove when multi-chunk works
-  //g_test_add_data_func("/core/parser/packrat/iterative/multi", GINT_TO_POINTER(PB_PACKRAT), test_iterative_multi);
-  //g_test_add_data_func("/core/parser/packrat/iterative/lookahead", GINT_TO_POINTER(PB_PACKRAT), test_iterative_lookahead);
-  //g_test_add_data_func("/core/parser/packrat/iterative/result_length", GINT_TO_POINTER(PB_PACKRAT), test_iterative_result_length);
+  g_test_add_data_func("/core/parser/packrat/iterative/multi", GINT_TO_POINTER(PB_PACKRAT), test_iterative_multi);
+  g_test_add_data_func("/core/parser/packrat/iterative/lookahead", GINT_TO_POINTER(PB_PACKRAT), test_iterative_lookahead);
+  g_test_add_data_func("/core/parser/packrat/iterative/result_length", GINT_TO_POINTER(PB_PACKRAT), test_iterative_result_length);
   g_test_add_data_func("/core/parser/packrat/skip", GINT_TO_POINTER(PB_PACKRAT), test_skip);
   g_test_add_data_func("/core/parser/packrat/seek", GINT_TO_POINTER(PB_PACKRAT), test_seek);
   g_test_add_data_func("/core/parser/packrat/tell", GINT_TO_POINTER(PB_PACKRAT), test_tell);
