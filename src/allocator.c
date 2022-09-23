@@ -65,6 +65,13 @@ void* h_alloc(HAllocator* mm__, size_t size) {
   return p;
 }
 
+void* h_realloc(HAllocator* mm__, void* ptr, size_t size) {
+  void *p = mm__->realloc(mm__, ptr, size);
+  if(!p)
+    h_platform_errx(1, "memory reallocation failed (%zuB requested)\n", size);
+  return p;
+}
+
 HArena *h_new_arena(HAllocator* mm__, size_t block_size) {
   if (block_size == 0)
     block_size = 4096;
