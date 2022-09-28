@@ -25,6 +25,10 @@ static HParseResult *parse_seek(void *env, HParseState *state)
     pos = 0;
     break;
   case SEEK_END:
+    if (!stream->last_chunk) {	/* the end is not yet known! */
+      stream->overrun = true;	/* we need more input */
+      return NULL;
+    }
     pos = h_input_stream_length(stream);
     break;
   case SEEK_CUR:

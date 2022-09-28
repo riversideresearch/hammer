@@ -1,13 +1,19 @@
 #include "parser_internal.h"
 
-static HParseResult* parse_end(void *env, HParseState *state) {
-  if (state->input_stream.index == state->input_stream.length) {
+static HParseResult* parse_end(void *env, HParseState *state)
+{
+  if (state->input_stream.index < state->input_stream.length)
+    return NULL;
+
+  assert(state->input_stream.index == state->input_stream.length);
+  if (state->input_stream.last_chunk) {
     HParseResult *ret = a_new(HParseResult, 1);
     ret->ast = NULL;
     ret->bit_length = 0;
     ret->arena = state->arena;
     return ret;
   } else {
+    state->input_stream.overrun = true;	// need more input
     return NULL;
   }
 }

@@ -632,6 +632,39 @@ static void test_iterative_lookahead(gconstpointer backend) {
   g_check_parse_chunks_failed_(p, "fo",2, "b",1);
 }
 
+static void test_iterative_seek(gconstpointer backend) {
+  HParserBackend be = (HParserBackend)GPOINTER_TO_INT(backend);
+  const HParser *p;
+
+  // seeking should work across chunk boundaries...
+
+  p = h_sequence(h_ch('a'), h_seek(40, SEEK_SET), h_ch('f'), NULL);
+  g_check_parse_chunks_match(p, be, "a",1, "bcdef",5, "(u0x61 u0x28 u0x66)");
+  g_check_parse_chunks_failed(p, be, "a",1, "bcdex",5);
+  g_check_parse_chunks_failed(p, be, "a",1, "bc",2);
+
+  p = h_sequence(h_ch('a'), h_seek(40, SEEK_SET), h_end_p(), NULL);
+  g_check_parse_chunks_match(p, be, "ab",2, "cde",3, "(u0x61 u0x28)");
+  g_check_parse_chunks_failed(p, be, "ab",2, "cdex",4);
+  g_check_parse_chunks_failed(p, be, "ab",2, "c",1);
+
+  p = h_sequence(h_ch('a'), h_seek(0, SEEK_END), h_end_p(), NULL);
+  g_check_parse_chunks_match(p, be, "abc",3, "de",2, "(u0x61 u0x28)");
+  g_check_parse_chunks_match(p, be, "abc",3, "",0, "(u0x61 u0x18)");
+
+  p = h_sequence(h_ch('a'), h_seek(-16, SEEK_END), h_ch('x'), NULL);
+  g_check_parse_chunks_match(p, be, "abcd",4, "xy",2, "(u0x61 u0x20 u0x78)");
+  g_check_parse_chunks_match(p, be, "abxy",4, "",0, "(u0x61 u0x10 u0x78)");
+  g_check_parse_chunks_failed(p, be, "a",1, "bc",2);
+  g_check_parse_chunks_failed(p, be, "",0, "x",1);
+
+  p = h_sequence(h_ch('a'), h_seek(32, SEEK_CUR), h_ch('f'), NULL);
+  g_check_parse_chunks_match(p, be, "abcde",5, "f",1, "(u0x61 u0x28 u0x66)");
+  g_check_parse_chunks_failed(p, be, "xbcde",5, "f",1);
+  g_check_parse_chunks_failed(p, be, "abcde",5, "x",1);
+  g_check_parse_chunks_failed(p, be, "abc",3, "",0);
+}
+
 static void test_iterative_result_length(gconstpointer backend) {
   HParserBackend be = (HParserBackend)GPOINTER_TO_INT(backend);
   HParser *p = h_token((uint8_t*)"foobar", 6);
@@ -1001,6 +1034,7 @@ void register_parser_tests(void) {
   g_test_add_data_func("/core/parser/packrat/iterative/single", GINT_TO_POINTER(PB_PACKRAT), test_iterative_single);
   g_test_add_data_func("/core/parser/packrat/iterative/multi", GINT_TO_POINTER(PB_PACKRAT), test_iterative_multi);
   g_test_add_data_func("/core/parser/packrat/iterative/lookahead", GINT_TO_POINTER(PB_PACKRAT), test_iterative_lookahead);
+  g_test_add_data_func("/core/parser/packrat/iterative/seek", GINT_TO_POINTER(PB_PACKRAT), test_iterative_seek);
   g_test_add_data_func("/core/parser/packrat/iterative/result_length", GINT_TO_POINTER(PB_PACKRAT), test_iterative_result_length);
   g_test_add_data_func("/core/parser/packrat/skip", GINT_TO_POINTER(PB_PACKRAT), test_skip);
   g_test_add_data_func("/core/parser/packrat/seek", GINT_TO_POINTER(PB_PACKRAT), test_seek);

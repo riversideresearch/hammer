@@ -332,12 +332,14 @@ int64_t h_read_bits(HInputStream* state, int count, char signed_p);
 void h_skip_bits(HInputStream* state, size_t count);
 void h_seek_bits(HInputStream* state, size_t pos);
 static inline size_t h_input_stream_pos(HInputStream* state) {
-  assert(state->index < SIZE_MAX / 8);
-  return state->index * 8 + state->bit_offset + state->margin;
+  assert(state->pos <= SIZE_MAX - state->index);
+  assert(state->pos + state->index < SIZE_MAX / 8);
+  return (state->pos + state->index) * 8 + state->bit_offset + state->margin;
 }
 static inline size_t h_input_stream_length(HInputStream *state) {
-  assert(state->length <= SIZE_MAX / 8);
-  return state->length * 8;
+  assert(state->pos <= SIZE_MAX - state->length);
+  assert(state->pos + state->length <= SIZE_MAX / 8);
+  return (state->pos + state->length) * 8;
 }
 // need to decide if we want to make this public. 
 HParseResult* h_do_parse(const HParser* parser, HParseState *state);

@@ -382,7 +382,7 @@ bool h_packrat_parse_chunk(HSuspendedParser *s, HInputStream *input)
     memcpy((void *)cat->input, input->input, input->length);
     s->backend_state = cat;
 
-    return false;			// come back with more input.
+    goto suspend;
   }
 
   // we have received additional input - append it to the saved stream
@@ -407,12 +407,8 @@ bool h_packrat_parse_chunk(HSuspendedParser *s, HInputStream *input)
   input->overrun    = cat->overrun;
 
   // suspend if the parser still needs more input
-  if (input->overrun && !input->last_chunk) {
-    input->index = input->length;	// consume the entire chunk on suspend
-    input->margin = 0;
-    input->bit_offset = 0;
-    return false;
-  }
+  if (input->overrun && !input->last_chunk)
+    goto suspend;
   // otherwise the parse is finished...
 
   // report final input position
@@ -433,6 +429,12 @@ bool h_packrat_parse_chunk(HSuspendedParser *s, HInputStream *input)
   s->backend_state = res;
 
   return true;				// don't call me again.
+
+suspend:
+  input->index = input->length;		// consume the entire chunk on suspend
+  input->margin = 0;
+  input->bit_offset = 0;
+  return false;				// come back with more input.
 }
 
 HParseResult *h_packrat_parse_finish(HSuspendedParser *s)
