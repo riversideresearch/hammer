@@ -1,10 +1,10 @@
 /*
  * NOTE: This is an internal header and installed for use by extensions. The
  * API is not guaranteed stable.
-*/
+ */
 
-#ifndef HAMMER_PARSE_INTERNAL__H
-#define HAMMER_PARSE_INTERNAL__H
+#ifndef HAMMER_PARSER_INTERNAL__H
+#define HAMMER_PARSER_INTERNAL__H
 #include "../hammer.h"
 #include "../internal.h"
 #include "../backends/regex.h"
@@ -32,6 +32,11 @@ static inline size_t token_length(HParseResult *pr) {
   }
 }
 
+// tell if we should suspend a parser, i.e. overrun occured before final input
+static inline bool want_suspend(HParseState *state) {
+  return state->input_stream.overrun && !state->input_stream.last_chunk;
+}
+
 /* Epsilon rules happen during desugaring. This handles them. */
 static inline void desugar_epsilon(HAllocator *mm__, HCFStack *stk__, void *env) {
   HCFS_BEGIN_CHOICE() {
@@ -41,4 +46,4 @@ static inline void desugar_epsilon(HAllocator *mm__, HCFStack *stk__, void *env)
   } HCFS_END_CHOICE();
 }
 
-#endif // HAMMER_PARSE_INTERNAL__H
+#endif // HAMMER_PARSER_INTERNAL__H

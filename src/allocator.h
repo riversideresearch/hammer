@@ -48,6 +48,7 @@ typedef struct HAllocator_ {
 } HAllocator;
 
 void* h_alloc(HAllocator* allocator, size_t size) ATTR_MALLOC(2);
+void* h_realloc(HAllocator* allocator, void* ptr, size_t size);
 
 typedef struct HArena_ HArena ; // hidden implementation
 

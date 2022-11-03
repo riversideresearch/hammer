@@ -30,6 +30,8 @@ static HParseResult* parse_choice(void *env, HParseState *state) {
     HParseResult *tmp = h_do_parse(s->p_array[i], state);
     if (NULL != tmp)
       return tmp;
+    if (want_suspend(state))
+      return NULL;		// bail out early, leaving overrun flag
   }
   // nothing succeeded, so fail
   return NULL;

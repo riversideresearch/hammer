@@ -5,7 +5,6 @@ typedef struct {
   const HParser *p2;
 } HTwoParsers;
 
-
 static HParseResult* parse_butnot(void *env, HParseState *state) {
   HTwoParsers *parsers = (HTwoParsers*)env;
   // cache the initial state of the input stream
@@ -19,15 +18,18 @@ static HParseResult* parse_butnot(void *env, HParseState *state) {
   HInputStream after_p1_state = state->input_stream;
   state->input_stream = start_state;
   HParseResult *r2 = h_do_parse(parsers->p2, state);
-  // TODO(mlp): I'm pretty sure the input stream state should be the post-p1 state in all cases
+  // don't touch the input state (overrun flag) if we must suspend
+  if (want_suspend(state)) {
+    return NULL;
+  }
+  // in all other cases, the input stream should be in the post-p1 state
   state->input_stream = after_p1_state;
-  // if p2 failed, restore post-p1 state and bail out early
   if (NULL == r2) {
     return r1;
   }
   size_t r1len = token_length(r1);
   size_t r2len = token_length(r2);
-  // if both match but p1's text is shorter than than p2's (or the same length), fail
+  // if both match but p1's text no longer than p2's, fail
   if (r1len <= r2len) {
     return NULL;
   } else {
