@@ -4,10 +4,11 @@ static HParseResult* parse_not(void* env, HParseState* state) {
   HInputStream bak = state->input_stream;
   if (h_do_parse((HParser*)env, state))
     return NULL;
-  else {
-    state->input_stream = bak;
-    return make_result(state->arena, NULL);
-  }
+  if (want_suspend(state))
+    return NULL;		// bail out early, leaving overrun flag
+  // regular parse failure -> success
+  state->input_stream = bak;
+  return make_result(state->arena, NULL);
 }
 
 static const HParserVtable not_vt = {

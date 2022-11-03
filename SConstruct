@@ -5,6 +5,7 @@ from __future__ import absolute_import, division, print_function
 import os
 import os.path
 import platform
+import subprocess
 import sys
 
 default_install_dir='/usr/local'
@@ -20,6 +21,17 @@ vars.Add('python', 'Python interpreter', 'python')
 tools = ['default', 'scanreplace']
 if 'dotnet' in ARGUMENTS.get('bindings', []):
 	tools.append('csharp/mono')
+
+# add the clang tool if necessary
+if os.getenv('CC') == 'clang' or platform.system() == 'Darwin':
+	tools.append('clang')
+else:
+	# try to detect if cc happens to be clang by inspecting --version
+	cc = os.getenv('CC') or 'cc'
+	ver = subprocess.run([cc, '--version'], capture_output=True).stdout
+	if b'clang' in ver.split():
+		tools.append('clang')
+		os.environ['CC'] = cc	# make sure we call it as we saw it
 
 envvars = {'PATH' : os.environ['PATH']}
 if 'PKG_CONFIG_PATH' in os.environ:
@@ -99,10 +111,7 @@ AddOption('--tests',
 
 env['CC'] = os.getenv('CC') or env['CC']
 env['CXX'] = os.getenv('CXX') or env['CXX']
-
-if os.getenv('CC') == 'clang' or env['PLATFORM'] == 'darwin':
-    env.Replace(CC='clang',
-                CXX='clang++')
+env['CFLAGS'] = os.getenv('CFLAGS') or env['CFLAGS']
 
 # Language standard and warnings
 if env['CC'] == 'cl':

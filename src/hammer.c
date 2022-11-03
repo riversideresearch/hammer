@@ -558,8 +558,6 @@ HParserBackendWithParams * h_get_backend_with_params_by_name(const char *name_wi
 }
 
 
-#define DEFAULT_ENDIANNESS (BIT_BIG_ENDIAN | BYTE_BIG_ENDIAN)
-
 HParseResult* h_parse(const HParser* parser, const uint8_t* input, size_t length) {
   return h_parse__m(&system_allocator, parser, input, length);
 }

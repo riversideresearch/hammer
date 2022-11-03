@@ -507,7 +507,72 @@ static void test_rightrec(gconstpointer backend) {
   g_check_parse_match(rr_, (HParserBackend)GPOINTER_TO_INT(backend), "aaa", 3, "(u0x61 (u0x61 (u0x61)))");
 }
 
-static void test_iterative(gconstpointer backend) {
+static void test_iterative_single(gconstpointer backend) {
+  HParserBackend be = (HParserBackend)GPOINTER_TO_INT(backend);
+  HParser *p;
+
+  p = h_token((uint8_t*)"foobar", 6);
+  g_check_parse_chunk_match(p, be, "foobar",6, "<66.6f.6f.62.61.72>");
+  g_check_parse_chunk_match(p, be, "foobarbaz",9, "<66.6f.6f.62.61.72>");
+  g_check_parse_chunk_failed(p, be, "foubar",6);
+  g_check_parse_chunk_failed(p, be, "foopar",6);
+  g_check_parse_chunk_failed(p, be, "foobaz",6);
+
+  p = h_sequence(h_ch('f'), h_token((uint8_t*)"ooba", 4), h_ch('r'), NULL);
+  g_check_parse_chunk_match(p, be, "foobar",6, "(u0x66 <6f.6f.62.61> u0x72)");
+  g_check_parse_chunk_match(p, be, "foobarbaz",9, "(u0x66 <6f.6f.62.61> u0x72)");
+  g_check_parse_chunk_failed(p, be, "foubar",6);
+  g_check_parse_chunk_failed(p, be, "foopar",6);
+  g_check_parse_chunk_failed(p, be, "foobaz",6);
+
+  p = h_choice(h_token((uint8_t*)"foobar", 6),
+               h_token((uint8_t*)"phupar", 6), NULL);
+  g_check_parse_chunk_match(p, be, "foobar",6, "<66.6f.6f.62.61.72>");
+  g_check_parse_chunk_match(p, be, "foobarbaz",9, "<66.6f.6f.62.61.72>");
+  g_check_parse_chunk_match(p, be, "phupar",6, "<70.68.75.70.61.72>");
+  g_check_parse_chunk_failed(p, be, "foubar",6);
+  g_check_parse_chunk_failed(p, be, "foobaz",6);
+
+  p = h_sequence(h_ch('f'), h_choice(h_token((uint8_t*)"oo", 2),
+                                     h_token((uint8_t*)"uu", 2), NULL), NULL);
+  g_check_parse_chunk_match(p, be, "foo",3, "(u0x66 <6f.6f>)");
+  g_check_parse_chunk_match(p, be, "fuu",3, "(u0x66 <75.75>)");
+  g_check_parse_chunk_failed(p, be, "goo",3);
+  g_check_parse_chunk_failed(p, be, "fou",3);
+  g_check_parse_chunk_failed(p, be, "fuo",3);
+}
+
+// this test applies to backends that support the iterative API, but not actual
+// chunked operation. in such cases, passing multiple chunks should fail the
+// parse rather than treating the end of the first chunk as the end of input.
+#if 0
+static void test_iterative_dummy(gconstpointer backend) {
+  HParserBackend be = (HParserBackend)GPOINTER_TO_INT(backend);
+  HParser *p;
+
+  HParser *x = h_ch('x');
+  HParser *y = h_ch('y');
+  HParser *e = h_epsilon_p();
+
+  p = h_many(x);
+  g_check_parse_chunks_failed(p, be, "xxx",3, "xxx",3);
+  g_check_parse_chunks_failed(p, be, "xxx",3, "",0);
+
+  p = h_optional(x);
+  g_check_parse_chunks_failed(p, be, "",0, "xxx",3);
+
+  p = h_choice(x, e, NULL);
+  g_check_parse_chunks_failed(p, be, "",0, "xxx",3);
+
+  // these are ok because the parse succeeds without overrun.
+  p = h_choice(e, x, NULL);
+  g_check_parse_chunks_match(p, be, "",0, "xxx",3, "NULL");
+  p = h_choice(y, x, NULL);
+  g_check_parse_chunks_match(p, be, "y",1, "xxx",3, "u0x79");
+}
+#endif
+
+static void test_iterative_multi(gconstpointer backend) {
   HParserBackend be = (HParserBackend)GPOINTER_TO_INT(backend);
   HParser *p;
 
@@ -565,6 +630,39 @@ static void test_iterative_lookahead(gconstpointer backend) {
   g_check_parse_chunks_failed_(p, "go",2, "o",1);
   g_check_parse_chunks_failed_(p, "fa",2, "u",1);
   g_check_parse_chunks_failed_(p, "fo",2, "b",1);
+}
+
+static void test_iterative_seek(gconstpointer backend) {
+  HParserBackend be = (HParserBackend)GPOINTER_TO_INT(backend);
+  const HParser *p;
+
+  // seeking should work across chunk boundaries...
+
+  p = h_sequence(h_ch('a'), h_seek(40, SEEK_SET), h_ch('f'), NULL);
+  g_check_parse_chunks_match(p, be, "a",1, "bcdef",5, "(u0x61 u0x28 u0x66)");
+  g_check_parse_chunks_failed(p, be, "a",1, "bcdex",5);
+  g_check_parse_chunks_failed(p, be, "a",1, "bc",2);
+
+  p = h_sequence(h_ch('a'), h_seek(40, SEEK_SET), h_end_p(), NULL);
+  g_check_parse_chunks_match(p, be, "ab",2, "cde",3, "(u0x61 u0x28)");
+  g_check_parse_chunks_failed(p, be, "ab",2, "cdex",4);
+  g_check_parse_chunks_failed(p, be, "ab",2, "c",1);
+
+  p = h_sequence(h_ch('a'), h_seek(0, SEEK_END), h_end_p(), NULL);
+  g_check_parse_chunks_match(p, be, "abc",3, "de",2, "(u0x61 u0x28)");
+  g_check_parse_chunks_match(p, be, "abc",3, "",0, "(u0x61 u0x18)");
+
+  p = h_sequence(h_ch('a'), h_seek(-16, SEEK_END), h_ch('x'), NULL);
+  g_check_parse_chunks_match(p, be, "abcd",4, "xy",2, "(u0x61 u0x20 u0x78)");
+  g_check_parse_chunks_match(p, be, "abxy",4, "",0, "(u0x61 u0x10 u0x78)");
+  g_check_parse_chunks_failed(p, be, "a",1, "bc",2);
+  g_check_parse_chunks_failed(p, be, "",0, "x",1);
+
+  p = h_sequence(h_ch('a'), h_seek(32, SEEK_CUR), h_ch('f'), NULL);
+  g_check_parse_chunks_match(p, be, "abcde",5, "f",1, "(u0x61 u0x28 u0x66)");
+  g_check_parse_chunks_failed(p, be, "xbcde",5, "f",1);
+  g_check_parse_chunks_failed(p, be, "abcde",5, "x",1);
+  g_check_parse_chunks_failed(p, be, "abc",3, "",0);
 }
 
 static void test_iterative_result_length(gconstpointer backend) {
@@ -933,6 +1031,11 @@ void register_parser_tests(void) {
   g_test_add_data_func("/core/parser/packrat/bind", GINT_TO_POINTER(PB_PACKRAT), test_bind);
   g_test_add_data_func("/core/parser/packrat/result_length", GINT_TO_POINTER(PB_PACKRAT), test_result_length);
   //g_test_add_data_func("/core/parser/packrat/token_position", GINT_TO_POINTER(PB_PACKRAT), test_token_position);
+  g_test_add_data_func("/core/parser/packrat/iterative/single", GINT_TO_POINTER(PB_PACKRAT), test_iterative_single);
+  g_test_add_data_func("/core/parser/packrat/iterative/multi", GINT_TO_POINTER(PB_PACKRAT), test_iterative_multi);
+  g_test_add_data_func("/core/parser/packrat/iterative/lookahead", GINT_TO_POINTER(PB_PACKRAT), test_iterative_lookahead);
+  g_test_add_data_func("/core/parser/packrat/iterative/seek", GINT_TO_POINTER(PB_PACKRAT), test_iterative_seek);
+  g_test_add_data_func("/core/parser/packrat/iterative/result_length", GINT_TO_POINTER(PB_PACKRAT), test_iterative_result_length);
   g_test_add_data_func("/core/parser/packrat/skip", GINT_TO_POINTER(PB_PACKRAT), test_skip);
   g_test_add_data_func("/core/parser/packrat/seek", GINT_TO_POINTER(PB_PACKRAT), test_seek);
   g_test_add_data_func("/core/parser/packrat/tell", GINT_TO_POINTER(PB_PACKRAT), test_tell);
@@ -978,7 +1081,8 @@ void register_parser_tests(void) {
   g_test_add_data_func("/core/parser/llk/rightrec", GINT_TO_POINTER(PB_LLk), test_rightrec);
  g_test_add_data_func("/core/parser/llk/result_length", GINT_TO_POINTER(PB_LLk), test_result_length);
   //g_test_add_data_func("/core/parser/llk/token_position", GINT_TO_POINTER(PB_LLk), test_token_position);
-  g_test_add_data_func("/core/parser/llk/iterative", GINT_TO_POINTER(PB_LLk), test_iterative);
+  g_test_add_data_func("/core/parser/llk/iterative/single", GINT_TO_POINTER(PB_LLk), test_iterative_single);
+  g_test_add_data_func("/core/parser/llk/iterative/multi", GINT_TO_POINTER(PB_LLk), test_iterative_multi);
   g_test_add_data_func("/core/parser/llk/iterative/lookahead", GINT_TO_POINTER(PB_LLk), test_iterative_lookahead);
   g_test_add_data_func("/core/parser/llk/iterative/result_length", GINT_TO_POINTER(PB_LLk), test_iterative_result_length);
   g_test_add_data_func("/core/parser/llk/drop_from", GINT_TO_POINTER(PB_LLk), test_drop_from);
@@ -1064,7 +1168,8 @@ void register_parser_tests(void) {
   g_test_add_data_func("/core/parser/lalr/rightrec", GINT_TO_POINTER(PB_LALR), test_rightrec);
   g_test_add_data_func("/core/parser/lalr/result_length", GINT_TO_POINTER(PB_LALR), test_result_length);
   g_test_add_data_func("/core/parser/lalr/token_position", GINT_TO_POINTER(PB_LALR), test_token_position);
-  g_test_add_data_func("/core/parser/lalr/iterative", GINT_TO_POINTER(PB_LALR), test_iterative);
+  g_test_add_data_func("/core/parser/lalr/iterative/single", GINT_TO_POINTER(PB_LALR), test_iterative_single);
+  g_test_add_data_func("/core/parser/lalr/iterative/multi", GINT_TO_POINTER(PB_LALR), test_iterative_multi);
   g_test_add_data_func("/core/parser/lalr/iterative/lookahead", GINT_TO_POINTER(PB_LALR), test_iterative_lookahead);
   g_test_add_data_func("/core/parser/lalr/iterative/result_length", GINT_TO_POINTER(PB_LALR), test_iterative_result_length);
   g_test_add_data_func("/core/parser/lalr/drop_from", GINT_TO_POINTER(PB_LALR), test_drop_from);
