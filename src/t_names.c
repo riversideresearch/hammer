@@ -115,6 +115,44 @@ static void test_tt_get_backend_with_params_by_name(void) {
 
 }
 
+static void test_tt_h_get_descriptive_text_for_backend_with_params(void){
+  HAllocator *mm__ = &system_allocator;
+  HParserBackendWithParams *be_with_params = h_get_backend_with_params_by_name("llk(1)");
+  char * descr = h_get_descriptive_text_for_backend_with_params(be_with_params);
+  g_check_maybe_string_eq(descr, "LL(1) parser backend");
+  h_free(descr);
+  h_free_backend_with_params(be_with_params);
+  be_with_params = h_get_backend_with_params_by_name("lalr(1)");
+  descr = h_get_descriptive_text_for_backend_with_params(be_with_params);
+  g_check_maybe_string_eq(descr, "LALR(1) parser backend");
+  h_free(descr);
+  h_free_backend_with_params(be_with_params);
+  be_with_params = h_get_backend_with_params_by_name("glr(2)");
+  descr = h_get_descriptive_text_for_backend_with_params(be_with_params);
+  g_check_maybe_string_eq(descr, "GLR(2) parser backend");
+  h_free(descr);
+  h_free_backend_with_params(be_with_params);
+}
+
+static void test_tt_h_get_name_for_backend_with_params(void){
+  HAllocator *mm__ = &system_allocator;
+  HParserBackendWithParams *be_with_params = h_get_backend_with_params_by_name("llk(1)");
+  char * descr = h_get_name_for_backend_with_params(be_with_params);
+  g_check_maybe_string_eq(descr, "LL(1)");
+  h_free(descr);
+  h_free_backend_with_params(be_with_params);
+  be_with_params = h_get_backend_with_params_by_name("lalr(2)");
+  descr = h_get_name_for_backend_with_params(be_with_params);
+  g_check_maybe_string_eq(descr, "LALR(2)");
+  h_free(descr);
+  h_free_backend_with_params(be_with_params);
+  be_with_params = h_get_backend_with_params_by_name("glr(1)");
+  descr = h_get_name_for_backend_with_params(be_with_params);
+  g_check_maybe_string_eq(descr, "GLR(1)");
+  h_free(descr);
+  h_free_backend_with_params(be_with_params);
+}
+
 /* test that we can request a backend with params from character
  * and compile a parser using it */
 static void test_tt_h_compile_for_backend_with_params(void) {
@@ -141,5 +179,9 @@ void register_names_tests(void) {
   g_test_add_func("/core/names/tt_backend_description", test_tt_backend_description);
   g_test_add_func("/core/names/tt_query_backend_by_name", test_tt_query_backend_by_name);
   g_test_add_func("/core/names/tt_get_backend_with_params_by_name", test_tt_get_backend_with_params_by_name);
+  g_test_add_func("/core/names/tt_test_tt_h_get_descriptive_text_for_backend_with_params",
+                  test_tt_h_get_descriptive_text_for_backend_with_params);
+  g_test_add_func("/core/names/test_tt_h_get_name_for_backend_with_params",
+                  test_tt_h_get_name_for_backend_with_params);
   g_test_add_func("/core/names/tt_h_compile_for_backend_with_params", test_tt_h_compile_for_backend_with_params);
  }

@@ -265,7 +265,17 @@ static char * h_get_string_for_backend_with_params__m(HAllocator *mm__,
  done:
   return text;
 }
+/* Allocate and return an identifying name for this backend
+ * with parameters.  The caller is responsible for freeing the result.
+ */
+char * h_get_name_for_backend_with_params__m(HAllocator *mm__,
+    HParserBackendWithParams *be_with_params) {
+  return h_get_string_for_backend_with_params__m(mm__, be_with_params, 0);
+}
 
+char * h_get_name_for_backend_with_params(HParserBackendWithParams *be_with_params) {
+  return h_get_name_for_backend_with_params__m(&system_allocator, be_with_params);
+}
 /*
  * Allocate and return some human-readable descriptive text for this backend
  * with parameters.  The caller is responsible for freeing the result.

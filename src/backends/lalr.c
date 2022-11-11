@@ -1,8 +1,8 @@
 #include <assert.h>
 #include "contextfree.h"
 #include "lr.h"
+#include "params.h"
 
-static const size_t DEFAULT_K = 1;
 
 /* LALR-via-SLR grammar transformation */
 
@@ -275,7 +275,7 @@ HCFChoice *h_desugar_augmented(HAllocator *mm__, HParser *parser)
 
 int h_lalr_compile(HAllocator* mm__, HParser* parser, const void* params)
 {
-  size_t k = params? (uintptr_t)params : DEFAULT_K;
+  size_t k = params? (uintptr_t)params : DEFAULT_KMAX;
   // generate (augmented) CFG from parser
   // construct LR(0) DFA
   // build LR(0) table
@@ -377,35 +377,15 @@ void h_lalr_free(HParser *parser)
 char * h_lalr_get_description(HAllocator *mm__,
                               HParserBackend be, void *param) {
   const char *format_str = "LALR(%zu) parser backend";
-  /* TODO fix the backend */
+
   const char *generic_descr_format_str =
-    "LALR(k) parser backend (actually using the param is broken)";
-  uintptr_t params_int;
-  size_t k, len;
+    "LALR(k) parser backend  (default k is %zu)";
+  size_t k;
   char *descr = NULL;
 
-  params_int = (uintptr_t)param;
-  if (params_int > 0) {
-    /* A specific k was given */
-    k = (size_t)params_int;
-    /* Measure how big a buffer we need */
-    len = snprintf(NULL, 0, format_str, k);
-    /* Allocate it and do the real snprintf */
-    descr = h_new(char, len + 1);
-    if (descr) {
-      snprintf(descr, len + 1, format_str, k);
-    }
-  } else {
-    /*
-     * No specific k; TODO actually have a default and fix the backend
-     */
-    len = strlen(generic_descr_format_str);
-    /* Allocate and do the real snprintf */
-    descr = h_new(char, len + 1);
-    if (descr) {
-      strncpy(descr, generic_descr_format_str, len + 1);
-    }
-  }
+  k = h_get_param_k(param);
+
+  descr = h_format_description_with_param_k(mm__, format_str, generic_descr_format_str, k);
 
   return descr;
 }
@@ -413,56 +393,21 @@ char * h_lalr_get_description(HAllocator *mm__,
 char * h_lalr_get_short_name(HAllocator *mm__,
                             HParserBackend be, void *param) {
   const char *format_str = "LALR(%zu)", *generic_name = "LALR(k)";
-  uintptr_t params_int;
-  size_t k, len;
+
+  size_t k;
   char *name = NULL;
 
-  params_int = (uintptr_t)param;
-  if (params_int > 0) {
-    /* A specific k was given */
-    k = (size_t)params_int;
-    /* Measure how big a buffer we need */
-    len = snprintf(NULL, 0, format_str, k);
-    /* Allocate it and do the real snprintf */
-    name = h_new(char, len + 1);
-    if (name) {
-      snprintf(name, len + 1, format_str, k);
-    }
-  } else {
-    /* No specific k */
-    len = strlen(generic_name);
-    name = h_new(char, len + 1);
-    strncpy(name, generic_name, len + 1);
-  }
+  k = h_get_param_k(param);
+
+  name = h_format_name_with_param_k(mm__, format_str, generic_name, k);
 
   return name;
 }
 
-/*TODO better error handling*/
+
 int h_lalr_extract_params(HParserBackendWithParams * be_with_params, backend_with_params_t * be_with_params_t) {
 
-  be_with_params->params = NULL;
-
-  int param_0 = -1;
-  int success = 0;
-  uintptr_t param;
-
-  size_t expected_params_len = 1;
-  backend_params_t params_t = be_with_params_t->params;
-  size_t actual_params_len = params_t.len;
-
-  if(actual_params_len >= expected_params_len) {
-    backend_param_with_name_t param_t = params_t.params[0];
-    uint8_t * param = param_t.param.param;
-    success = sscanf((char*)param, "%d", &param_0);
-  }
-
-  if(success) {
-    param = (uintptr_t) param_0;
-    be_with_params->params = (void *)param;
-  }
-
-  return success;
+  return h_extract_param_k(be_with_params, be_with_params_t);
 
 }
 
