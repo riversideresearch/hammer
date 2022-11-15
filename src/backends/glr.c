@@ -244,31 +244,27 @@ HParseResult *h_glr_parse(HAllocator* mm__, const HParser* parser, HInputStream*
 
 char * h_glr_get_description(HAllocator *mm__,
                              HParserBackend be, void *param) {
-  const char *format_str = "GLR(%zu) parser backend";
-
-  const char *generic_descr_format_str =
-    "GLR(k) parser backend (default k is %zu)";
-
+  const char *backend_name = "GLR";
   size_t k;
   char *descr = NULL;
 
   k = h_get_param_k(param);
 
-  descr = h_format_description_with_param_k(mm__, format_str, generic_descr_format_str, k);
+  descr = h_format_description_with_param_k(mm__, backend_name, k);
 
   return descr;
 }
 
 char * h_glr_get_short_name(HAllocator *mm__,
                             HParserBackend be, void *param) {
-  const char *format_str = "GLR(%zu)", *generic_name = "GLR(k)";
+  const char *backend_name = "GLR";
 
   size_t k;
   char *name = NULL;
 
   k = h_get_param_k(param);
 
-  name = h_format_name_with_param_k(mm__, format_str, generic_name, k);
+  name = h_format_name_with_param_k(mm__, backend_name, k);
 
   return name;
 }

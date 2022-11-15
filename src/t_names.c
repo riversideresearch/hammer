@@ -132,6 +132,11 @@ static void test_tt_h_get_descriptive_text_for_backend_with_params(void){
   g_check_maybe_string_eq(descr, "GLR(2) parser backend");
   h_free(descr);
   h_free_backend_with_params(be_with_params);
+  be_with_params = h_get_backend_with_params_by_name("glr()");
+  descr = h_get_descriptive_text_for_backend_with_params(be_with_params);
+  g_check_maybe_string_eq(descr, "GLR(k) parser backend (default k is 1)");
+  h_free(descr);
+  h_free_backend_with_params(be_with_params);
 }
 
 static void test_tt_h_get_name_for_backend_with_params(void){
@@ -149,6 +154,11 @@ static void test_tt_h_get_name_for_backend_with_params(void){
   be_with_params = h_get_backend_with_params_by_name("glr(1)");
   descr = h_get_name_for_backend_with_params(be_with_params);
   g_check_maybe_string_eq(descr, "GLR(1)");
+  h_free(descr);
+  h_free_backend_with_params(be_with_params);
+  be_with_params = h_get_backend_with_params_by_name("glr");
+  descr = h_get_name_for_backend_with_params(be_with_params);
+  g_check_maybe_string_eq(descr, "GLR(k)");
   h_free(descr);
   h_free_backend_with_params(be_with_params);
 }
