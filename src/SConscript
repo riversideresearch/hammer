@@ -35,6 +35,7 @@ parsers = ['parsers/%s.c'%s for s in
             'attr_bool',
             'bind',
             'bits',
+            'bytes',
             'butnot',
             'ch',
             'charset',

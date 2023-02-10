@@ -488,6 +488,14 @@ HAMMER_FN_DECL(HParser*, h_int_range, const HParser *p, const int64_t lower, con
 HAMMER_FN_DECL(HParser*, h_bits, size_t len, bool sign);
 
 /**
+ * Returns a parser that parses the specified number of octets.
+ * The input does not have to be aligned to a byte boundary.
+ *
+ * Result token type: TT_BYTES
+ */
+HAMMER_FN_DECL(HParser*, h_bytes, size_t len);
+
+/**
  * Returns a parser that parses a signed 8-byte integer value. 
  *
  * Result token type: TT_SINT

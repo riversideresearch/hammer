@@ -65,6 +65,29 @@ static void test_bits(gconstpointer backend) {
   g_check_parse_failed(bits_, (HParserBackend)GPOINTER_TO_INT(backend), "a", 1);
 }
 
+static void test_bytes(gconstpointer backend) {
+  HParserBackend be = (HParserBackend)GPOINTER_TO_INT(backend);
+  const HParser *p;
+
+  p = h_bytes(0);
+  g_check_parse_match(p, be, "", 0, "<>");
+  g_check_parse_match(p, be, "abc", 3, "<>");
+
+  p = h_bytes(1);
+  g_check_parse_failed(p, be, "", 0);
+  g_check_parse_match(p, be, " ", 1, "<20>");
+  g_check_parse_match(p, be, "abc", 3, "<61>");
+
+  p = h_bytes(5);
+  g_check_parse_failed(p, be, "", 0);
+  g_check_parse_failed(p, be, "1", 1);
+  g_check_parse_failed(p, be, "12", 2);
+  g_check_parse_failed(p, be, "123", 3);
+  g_check_parse_failed(p, be, "1234", 4);
+  g_check_parse_match(p, be, "12345", 5, "<31.32.33.34.35>");
+  g_check_parse_match(p, be, "12345abc", 8, "<31.32.33.34.35>");
+}
+
 //@MARK_START
 static void test_int64(gconstpointer backend) {
   const HParser *int64_ = h_int64();
@@ -985,6 +1008,7 @@ void register_parser_tests(void) {
   g_test_add_data_func("/core/parser/packrat/ch_range", GINT_TO_POINTER(PB_PACKRAT), test_ch_range);
   g_test_add_data_func("/core/parser/packrat/bits0", GINT_TO_POINTER(PB_PACKRAT), test_bits0);
   g_test_add_data_func("/core/parser/packrat/bits", GINT_TO_POINTER(PB_PACKRAT), test_bits);
+  g_test_add_data_func("/core/parser/packrat/bytes", GINT_TO_POINTER(PB_PACKRAT), test_bytes);
   g_test_add_data_func("/core/parser/packrat/int64", GINT_TO_POINTER(PB_PACKRAT), test_int64);
   g_test_add_data_func("/core/parser/packrat/int32", GINT_TO_POINTER(PB_PACKRAT), test_int32);
   g_test_add_data_func("/core/parser/packrat/int16", GINT_TO_POINTER(PB_PACKRAT), test_int16);
