@@ -265,13 +265,15 @@ HParseResult* h_do_parse(const HParser* parser, HParseState *state) {
 }
 
 int h_packrat_compile(HAllocator* mm__, HParser* parser, const void* params) {
+  parser->backend_vtable = &h__packrat_backend_vtable;
   parser->backend = PB_PACKRAT;
   return 0; // No compilation necessary, and everything should work
 	    // out of the box.
 }
 
 void h_packrat_free(HParser *parser) {
-  parser->backend = PB_PACKRAT; // revert to default, oh that's us
+  parser->backend_vtable = h_get_default_backend_vtable();
+  parser->backend = h_get_default_backend();
 }
 
 static uint32_t cache_key_hash(const void* key) {
@@ -446,8 +448,12 @@ HParserBackendVTable h__packrat_backend_vtable = {
   .compile = h_packrat_compile,
   .parse = h_packrat_parse,
   .free = h_packrat_free,
-
   .parse_start = h_packrat_parse_start,
   .parse_chunk = h_packrat_parse_chunk,
-  .parse_finish = h_packrat_parse_finish
+  .parse_finish = h_packrat_parse_finish,
+  /* Name/param resolution functions */
+  .backend_short_name = "packrat",
+  .backend_description = "Packrat parser with Warth's recursion",
+  .get_description_with_params = h_get_description_with_no_params,
+  .get_short_name_with_params = h_get_short_name_with_no_params
 };

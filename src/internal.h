@@ -240,6 +240,33 @@ typedef struct HParserBackendVTable_ {
   HParseResult *(*parse_finish)(HSuspendedParser *s);
     // parse_finish must free s->backend_state.
     // parse_finish will not be called before parse_chunk reports done.
+
+  /* The backend knows how to free its params */
+  void (*free_params)(HAllocator *mm__, void *p);
+  /*
+   * ..and how to copy them
+   *
+   * Since the backend params need not actually be an allocated object,
+   * (and in fact no current backends use this, although it is permissible),
+   * but might (as in PB_GLR) be some numeric constant cast to void * which
+   * copy_params() should just pass through, we can't use returning NULL
+   * to signal allocation failure.  Hence, passing the result out in a
+   * void ** and returning a status code (0 indicates success).
+   */
+  int (*copy_params)(HAllocator *mm__, void **out, void *in);
+
+  /* Description/name handling */
+  const char *backend_short_name;
+  const char *backend_description;
+  char * (*get_description_with_params)(HAllocator *mm__,
+                                        HParserBackend be,
+                                        void *params);
+  char * (*get_short_name_with_params)(HAllocator *mm__,
+                                       HParserBackend be,
+                                       void *params);
+
+  /* extract params from the input string */
+  int (*extract_params)(HParserBackendWithParams * be_with_params, backend_with_params_t *be_with_params_t);
 } HParserBackendVTable;
 
 
@@ -320,6 +347,7 @@ struct HBitWriter_ {
 
 
 // Backends {{{
+extern HParserBackendVTable h__missing_backend_vtable;
 extern HParserBackendVTable h__packrat_backend_vtable;
 extern HParserBackendVTable h__llk_backend_vtable;
 extern HParserBackendVTable h__lalr_backend_vtable;
@@ -327,6 +355,16 @@ extern HParserBackendVTable h__glr_backend_vtable;
 // }}}
 
 // TODO(thequux): Set symbol visibility for these functions so that they aren't exported.
+
+/*
+ * Helper functions for backend with params names and descriptions for
+ * backends which take no params.
+ */
+
+char * h_get_description_with_no_params(HAllocator *mm__,
+                                        HParserBackend be, void *params);
+char * h_get_short_name_with_no_params(HAllocator *mm__,
+                                       HParserBackend be, void *params);
 
 int64_t h_read_bits(HInputStream* state, int count, char signed_p);
 void h_skip_bits(HInputStream* state, size_t count);
@@ -345,12 +383,38 @@ static inline size_t h_input_stream_length(HInputStream *state) {
 HParseResult* h_do_parse(const HParser* parser, HParseState *state);
 void put_cached(HParseState *ps, const HParser *p, HParseResult *cached);
 
+/*
+ * Inline this for benefit of h_new_parser() below, then make
+ * the API h_get_default_backend() call it.
+ */
+static inline HParserBackend h_get_default_backend__int(void) {
+  return PB_PACKRAT;
+}
+
+static inline HParserBackendVTable * h_get_default_backend_vtable__int(void) {
+  return &h__packrat_backend_vtable;
+}
+
+static inline HParserBackendVTable * h_get_missing_backend_vtable__int(void) {
+  return &h__missing_backend_vtable;
+}
+
+/* copy_params for backends where the parameter is not actually a pointer */
+
+int h_copy_numeric_param(HAllocator *mm__, void **out, void *in);
+
 static inline
 HParser *h_new_parser(HAllocator *mm__, const HParserVtable *vt, void *env) {
   HParser *p = h_new(HParser, 1);
   memset(p, 0, sizeof(HParser));
   p->vtable = vt;
   p->env = env;
+  /*
+   * Current limitation: if we specify backends solely by HParserBackend, we
+   * can't set a default backend that requires any parameters to h_compile()
+   */
+  p->backend = h_get_default_backend__int();
+  p->backend_vtable = h_get_default_backend_vtable__int();
   return p;
 }
 

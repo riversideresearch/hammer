@@ -417,7 +417,8 @@ static void h_regex_free(HParser *parser) {
   h_free(prog->actions);
   h_free(prog);
   parser->backend_data = NULL;
-  parser->backend = PB_PACKRAT;
+  parser->backend_vtable = h_get_default_backend_vtable();
+  parser->backend = h_get_default_backend();
 }
 
 static int h_regex_compile(HAllocator *mm__, HParser* parser, const void* params) {
@@ -452,7 +453,12 @@ static HParseResult *h_regex_parse(HAllocator* mm__, const HParser* parser, HInp
 HParserBackendVTable h__regex_backend_vtable = {
   .compile = h_regex_compile,
   .parse = h_regex_parse,
-  .free = h_regex_free
+  .free = h_regex_free,
+  /* Name/param resolution functions */
+  .backend_short_name = "regex",
+  .backend_description = "Regular expression matcher (broken)",
+  .get_description_with_params = h_get_description_with_no_params,
+  .get_short_name_with_params = h_get_short_name_with_no_params
 };
 
 #ifndef NDEBUG

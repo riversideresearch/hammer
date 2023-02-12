@@ -181,7 +181,8 @@ HParser* h_permutation__ma(HAllocator* mm__, void *args[]) {
   HParser *ret = h_new(HParser, 1);
   ret->vtable = &permutation_vt; 
   ret->env = (void*)s;
-  ret->backend = PB_MIN;
+  ret->backend = h_get_default_backend();
+  ret->backend_vtable = h_get_default_backend_vtable();
   ret->desugared = NULL;
   return ret;
 }

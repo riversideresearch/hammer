@@ -41,13 +41,38 @@ typedef struct HParseState_ HParseState;
 
 typedef enum HParserBackend_ {
   PB_MIN = 0,
-  PB_PACKRAT = PB_MIN, // PB_MIN is always the default.
+  /*
+   * Have a backend that always fails to pass around "no such backend"
+   * indications
+   */
+  PB_INVALID = PB_MIN,
+  PB_PACKRAT,
   PB_REGULAR,
   PB_LLk,
   PB_LALR,
   PB_GLR,
   PB_MAX = PB_GLR
 } HParserBackend;
+
+typedef struct HParserBackendVTable_ HParserBackendVTable;
+
+typedef struct HParserBackendWithParams_ {
+  /* Name of backend extracted from a string if the choice of backend was specified in a call using a string  */
+  char *requested_name;
+  /* The backend (if backend is to be loaded from an external module set to invalid (?))*/
+  HParserBackend backend;
+  /* Backend vtable (TODO: use this instead of the enum so we can get rid of that) */
+  HParserBackendVTable * backend_vtable;
+  /*
+   * Backend-specific parameters - if this needs to be freed, the backend
+   * should provide a free_params method in its vtable; currently no backends
+   * do this - PB_PACKRAT and PB_REGULAR take no params, and PB_LLk, PB_LALR
+   * and PB_GLR take an integer cast to void *
+   */
+  void *params;
+  /* Allocator to use to free this (and the params if necessary) */
+  HAllocator *mm__;
+} HParserBackendWithParams;
 
 typedef enum HTokenType_ {
   // Before you change the explicit values of these, think of the poor bindings ;_;
@@ -137,6 +162,7 @@ typedef struct HParserVtable_ HParserVtable;
 typedef struct HParser_ {
   const HParserVtable *vtable;
   HParserBackend backend;
+  HParserBackendVTable * backend_vtable;
   void* backend_data;
   void *env;
   HCFChoice *desugared; /* if the parser can be desugared, its desugared form */
@@ -174,6 +200,53 @@ typedef bool (*HPredicate)(HParseResult *p, void* user_data);
  * Anything allocated thus will be freed by 'h_bind'.
  */
 typedef HParser* (*HContinuation)(HAllocator *mm__, const HParsedToken *x, void *env);
+
+/*
+ * For parser used when extracting name and params for backend by name
+ * TODO: possibly move to its own file?
+ */
+
+enum BackendTokenType_ {
+  TT_backend_with_params_t = TT_USER,
+  TT_backend_name_t,
+  TT_backend_param_t,
+  TT_backend_param_name_t,
+  TT_backend_param_with_name_t,
+  TT_backend_params_t
+};
+
+typedef struct backend_param {
+  size_t len;
+  uint8_t *param;
+  uint8_t *param_name;
+} backend_param_t;
+
+typedef struct backend_param_name {
+  size_t len;
+  uint8_t *param_name;
+  size_t param_id;
+} backend_param_name_t;
+
+typedef struct backend_param_with_name {
+  backend_param_name_t param_name;
+  backend_param_t param;
+} backend_param_with_name_t;
+
+typedef struct {
+  uint8_t *name;
+  size_t len;
+} backend_name_t;
+
+typedef struct backend_params {
+  backend_param_with_name_t *params;
+  size_t len;
+} backend_params_t;
+
+typedef struct backend_with_params {
+  backend_name_t name;
+  backend_params_t params;
+} backend_with_params_t;
+
 
 // {{{ Stuff for benchmarking
 typedef struct HParserTestcase_ {
@@ -262,6 +335,89 @@ typedef struct HBenchmarkResults_ {
 #endif // SWIG
 // }}}
 
+/**
+ * Ask if this backend is available
+ */
+
+int h_is_backend_available(HParserBackend backend);
+
+/**
+ * Ask what the default backend is (currently always PB_PACKRAT)
+ */
+
+HParserBackend h_get_default_backend(void);
+
+HParserBackendVTable * h_get_default_backend_vtable(void);
+
+/**
+ * Copy a backend+params, using the backend-supplied copy method; the
+ * allocator used is the one passed in, or call the __m version with
+ * a NULL allocator to use the one from the source HParserBackendWithParams
+ */
+
+HAMMER_FN_DECL(HParserBackendWithParams *, h_copy_backend_with_params,
+               HParserBackendWithParams *be_with_params);
+
+/**
+ * Free a backend+params
+ */
+
+void h_free_backend_with_params(HParserBackendWithParams *be_with_params);
+
+/**
+ * Get a name string for a backend; this is constant per backend and so
+ * need not be freed; it will resolve to the backend under
+ * h_get_backend_by_name().
+ */
+
+const char * h_get_name_for_backend(HParserBackend be);
+
+/**
+ * Get a name string for a backend with parameters; it is the caller's
+ * responsibility to free it later.  This will resolve to the same
+ * backend and parameters under h_get_backend_with_params_by_name().
+ */
+
+HAMMER_FN_DECL(char *, h_get_name_for_backend_with_params,
+               HParserBackendWithParams *be_with_params);
+
+/**
+ * Get a human-readable descriptive string for a backend; this is constant
+ * per backend and so need not be freed.
+ */
+
+const char * h_get_descriptive_text_for_backend(HParserBackend be);
+
+/**
+ * Get a human-readable descriptive string for a backend with params; it is
+ * the caller's responsibility to free it later.  Sorry, but it's allowed
+ * to depend on the params and putting keeping the buffer elsewhere and
+ * replacing it on the next call wouldn't be thread-safe.
+ */
+
+HAMMER_FN_DECL(char *, h_get_descriptive_text_for_backend_with_params,
+               HParserBackendWithParams *be_with_params);
+
+/**
+ * Look up an HParserBackend by name; this should round-trip with
+ * h_get_name_for_backend().
+ */
+
+HParserBackend h_query_backend_by_name(const char *name);
+
+/**
+ * Get a Hammer Backend with params from a string of the form
+ * backend_name(params) for example "lalr(1)".
+ *
+ * If the backend is one of the existing backends in the HBackend enum,
+ * HBackend will be populated in the result.
+ *
+ * Otherwise the result will save the name for use in attempts later at
+ * loading the named module.
+ *
+ */
+
+HAMMER_FN_DECL(HParserBackendWithParams *, h_get_backend_with_params_by_name, const char *name_with_params);
 
 /**
  * Top-level function to call a parser that has been built over some
@@ -795,6 +951,8 @@ void h_pprintln(FILE* stream, const HParsedToken* tok);
  *
  * Consult each backend for details.
  */
+HAMMER_FN_DECL(int, h_compile_for_backend_with_params, HParser* parser, HParserBackendWithParams *be_with_params);
+
 HAMMER_FN_DECL(int, h_compile, HParser* parser, HParserBackend backend, const void* params);
 
 /**

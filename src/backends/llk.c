@@ -2,8 +2,7 @@
 #include "../internal.h"
 #include "../cfgrammar.h"
 #include "../parsers/parser_internal.h"
-
-static const size_t DEFAULT_KMAX = 1;
+#include "params.h"
 
 
 /* Generating the LL(k) parse table */
@@ -254,7 +253,8 @@ void h_llk_free(HParser *parser)
   HLLkTable *table = parser->backend_data;
   h_llktable_free(table);
   parser->backend_data = NULL;
-  parser->backend = PB_PACKRAT;
+  parser->backend_vtable = h_get_default_backend_vtable();
+  parser->backend = h_get_default_backend();
 }
 
 
@@ -606,6 +606,38 @@ HParseResult *h_llk_parse_finish(HSuspendedParser *s)
   return llk_parse_finish_(s->mm__, s->backend_state);
 }
 
+char * h_llk_get_description(HAllocator *mm__,
+                             HParserBackend be, void *param) {
+  const char *backend_name = "LL";
+  size_t k, len;
+  char *descr = NULL;
+
+  k = h_get_param_k(param);
+
+  descr = h_format_description_with_param_k(mm__, backend_name, k);
+
+  return descr;
+}
+
+char * h_llk_get_short_name(HAllocator *mm__,
+                            HParserBackend be, void *param) {
+  const char *backend_name = "LL";
+
+  size_t k;
+  char *name = NULL;
+
+  k = h_get_param_k(param);
+
+  name = h_format_name_with_param_k(mm__, backend_name, k);
+
+  return name;
+}
+
+int h_llk_extract_params(HParserBackendWithParams * be_with_params, backend_with_params_t *be_with_params_t) {
+
+  return h_extract_param_k(be_with_params, be_with_params_t);
+}
+
 
 HParserBackendVTable h__llk_backend_vtable = {
   .compile = h_llk_compile,
@@ -614,7 +646,19 @@ HParserBackendVTable h__llk_backend_vtable = {
 
   .parse_start = h_llk_parse_start,
   .parse_chunk = h_llk_parse_chunk,
-  .parse_finish = h_llk_parse_finish
+  .parse_finish = h_llk_parse_finish,
+
+  .copy_params = h_copy_numeric_param,
+  /* No free_param needed, since it's not actually allocated */
+
+  /* Name/param resolution functions */
+  .backend_short_name = "llk",
+  .backend_description = "LL(k) parser backend",
+  .get_description_with_params = h_llk_get_description,
+  .get_short_name_with_params = h_llk_get_short_name,
+
+  /*extraction of params from string*/
+  .extract_params = h_llk_extract_params
 };
 
 

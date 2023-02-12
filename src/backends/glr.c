@@ -1,5 +1,6 @@
 #include <assert.h>
 #include "lr.h"
+#include "params.h"
 
 static bool glr_step(HParseResult **result, HSlist *engines,
                      HLREngine *engine, const HLRAction *action);
@@ -241,12 +242,54 @@ HParseResult *h_glr_parse(HAllocator* mm__, const HParser* parser, HInputStream*
   return result;
 }
 
+char * h_glr_get_description(HAllocator *mm__,
+                             HParserBackend be, void *param) {
+  const char *backend_name = "GLR";
+  size_t k;
+  char *descr = NULL;
 
+  k = h_get_param_k(param);
+
+  descr = h_format_description_with_param_k(mm__, backend_name, k);
+
+  return descr;
+}
+
+char * h_glr_get_short_name(HAllocator *mm__,
+                            HParserBackend be, void *param) {
+  const char *backend_name = "GLR";
+
+  size_t k;
+  char *name = NULL;
+
+  k = h_get_param_k(param);
+
+  name = h_format_name_with_param_k(mm__, backend_name, k);
+
+  return name;
+}
+
+
+int h_glr_extract_params(HParserBackendWithParams * be_with_params, backend_with_params_t * be_with_params_t) {
+
+  return h_extract_param_k(be_with_params, be_with_params_t);
+}
 
 HParserBackendVTable h__glr_backend_vtable = {
   .compile = h_glr_compile,
   .parse = h_glr_parse,
-  .free = h_glr_free
+  .free = h_glr_free,
+
+  .copy_params = h_copy_numeric_param,
+  /* No free_param needed, since it's not actually allocated */
+
+  /* Name/param resolution functions */
+  .backend_short_name = "glr",
+  .backend_description = "GLR(k) parser backend",
+  .get_description_with_params = h_glr_get_description,
+  .get_short_name_with_params = h_glr_get_short_name,
+
+  .extract_params = h_glr_extract_params
 };
 
 

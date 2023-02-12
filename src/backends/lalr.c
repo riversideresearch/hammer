@@ -1,8 +1,8 @@
 #include <assert.h>
 #include "contextfree.h"
 #include "lr.h"
+#include "params.h"
 
-static const size_t DEFAULT_K = 1;
 
 /* LALR-via-SLR grammar transformation */
 
@@ -275,7 +275,7 @@ HCFChoice *h_desugar_augmented(HAllocator *mm__, HParser *parser)
 
 int h_lalr_compile(HAllocator* mm__, HParser* parser, const void* params)
 {
-  size_t k = params? (uintptr_t)params : DEFAULT_K;
+  size_t k = params? (uintptr_t)params : DEFAULT_KMAX;
   // generate (augmented) CFG from parser
   // construct LR(0) DFA
   // build LR(0) table
@@ -370,10 +370,43 @@ void h_lalr_free(HParser *parser)
   HLRTable *table = parser->backend_data;
   h_lrtable_free(table);
   parser->backend_data = NULL;
-  parser->backend = PB_PACKRAT;
+  parser->backend_vtable = h_get_default_backend_vtable();
+  parser->backend = h_get_default_backend();
+}
+
+char * h_lalr_get_description(HAllocator *mm__,
+                              HParserBackend be, void *param) {
+  const char *backend_name = "LALR";
+  size_t k;
+  char *descr = NULL;
+
+  k = h_get_param_k(param);
+
+  descr = h_format_description_with_param_k(mm__, backend_name, k);
+
+  return descr;
+}
+
+char * h_lalr_get_short_name(HAllocator *mm__,
+                            HParserBackend be, void *param) {
+  const char *backend_name = "LALR";
+
+  size_t k;
+  char *name = NULL;
+
+  k = h_get_param_k(param);
+
+  name = h_format_name_with_param_k(mm__, backend_name, k);
+
+  return name;
 }
 
 
+int h_lalr_extract_params(HParserBackendWithParams * be_with_params, backend_with_params_t * be_with_params_t) {
+
+  return h_extract_param_k(be_with_params, be_with_params_t);
+
+}
 
 HParserBackendVTable h__lalr_backend_vtable = {
   .compile = h_lalr_compile,
@@ -381,11 +414,18 @@ HParserBackendVTable h__lalr_backend_vtable = {
   .free = h_lalr_free,
   .parse_start = h_lr_parse_start,
   .parse_chunk = h_lr_parse_chunk,
-  .parse_finish = h_lr_parse_finish
+  .parse_finish = h_lr_parse_finish,
+  .copy_params = h_copy_numeric_param,
+  /* No free_param needed, since it's not actually allocated */
+
+  /* Name/param resolution functions */
+  .backend_short_name = "lalr",
+  .backend_description = "LALR(k) parser backend",
+  .get_description_with_params = h_lalr_get_description,
+  .get_short_name_with_params = h_lalr_get_short_name,
+
+  .extract_params = h_lalr_extract_params
 };
-
-
-
 
 // dummy!
 int test_lalr(void)
