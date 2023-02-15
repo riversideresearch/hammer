@@ -257,8 +257,9 @@ static char * h_get_string_for_backend_with_params__m(HAllocator *mm__,
     /* fall back to the generic descriptive text */
     generic_text = h_get_string_for_backend(be, description);
     if (generic_text) {
-      text = h_new(char, strlen(generic_text) + 1);
-      strncpy(text, generic_text, strlen(generic_text) + 1);
+      size_t size = strlen(generic_text) + 1;
+      text = h_new(char, size);
+      strncpy(text, generic_text, size);
     }
   }
 
