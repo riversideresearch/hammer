@@ -44,7 +44,10 @@ Installing
 * mono-devel and mono-mcs (>= 3.0.6) (for .NET bindings)
 * [nunit](http://www.nunit.org/) (for testing .NET bindings)
 
-To build, type `scons`. To run the built-in test suite, type `scons test`. For a debug build, add `--variant=debug`.
+To build, type `scons`.
+To run the built-in test suite, type `scons test`.
+To avoid the test dependencies, add `--no-tests`.
+For a debug build, add `--variant=debug`.
 
 To build bindings, pass a "bindings" argument to scons, e.g. `scons bindings=python`. `scons bindings=python test` will build Python bindings and run tests for both C and Python. `--variant=debug` is valid here too. You can build more than one set of bindings at a time; just separate them with commas, e.g. `scons bindings=python,perl`.
 
