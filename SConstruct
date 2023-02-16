@@ -103,11 +103,11 @@ AddOption('--in-place',
           action='store_true',
           help='Build in-place, rather than in the build/<variant> tree')
 
-AddOption('--tests',
+AddOption('--no-tests',
           dest='with_tests',
           default=env['PLATFORM'] != 'win32',
-          action='store_true',
-          help='Build tests')
+          action='store_false',
+          help='Do not build tests')
 
 env['CC'] = os.getenv('CC') or env['CC']
 env['CXX'] = os.getenv('CXX') or env['CXX']
