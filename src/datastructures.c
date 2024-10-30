@@ -482,7 +482,7 @@ void h_symbol_put(HParseState *state, const char* key, void *value) {
 						      h_hash_ptr));
   }
   HHashTable *head = h_slist_top(state->symbol_table);
-  assert(!h_hashtable_present(head, key));
+  // assert(!h_hashtable_present(head, key));
   h_hashtable_put(head, key, value);
 }
 

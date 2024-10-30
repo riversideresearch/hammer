@@ -10,7 +10,7 @@ typedef struct {
 
 static HParseResult* parse_put(void *env, HParseState* state) {
   HStoredValue *s = (HStoredValue*)env;
-  if (s->p && s->key && !h_symbol_get(state, s->key)) {
+  if (s->p && s->key /*&& !h_symbol_get(state, s->key)*/) {
     HParseResult *tmp = h_do_parse(s->p, state);
     if (tmp) {
       h_symbol_put(state, s->key, tmp);
