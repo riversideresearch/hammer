@@ -860,12 +860,12 @@ HAMMER_FN_DECL(HParser*, h_with_endianness, char endianness, const HParser* p);
  * The 'h_put_value' combinator stashes the result of the parser
  * it wraps in a symbol table in the parse state, so that non-
  * local actions and predicates can access this value. 
- *
- * Try not to use this combinator if you can avoid it. 
+ * 
+ * To attempt to put with a name that was already in the symbol 
+ * table will return NULL (and parse failure)
  *
  * Result token type: p's token type if name was not already in
- * the symbol table. It is an error, and thus a NULL result (and
- * parse failure), to attempt to rename a symbol.
+ * the symbol table. 
  */
 HAMMER_FN_DECL(HParser*, h_put_value, const HParser *p, const char* name);
 
@@ -873,12 +873,20 @@ HAMMER_FN_DECL(HParser*, h_put_value, const HParser *p, const char* name);
  * The 'h_get_value' combinator retrieves a named HParseResult that
  * was previously stashed in the parse state. 
  * 
- * Try not to use this combinator if you can avoid it.
- * 
  * Result token type: whatever the stashed HParseResult is, if
  * present. If absent, NULL (and thus parse failure).
  */
 HAMMER_FN_DECL(HParser*, h_get_value, const char* name);
+
+/**
+ * The 'h_free_value' combinator retrieves a named HParseResult that
+ * was previously stashed in the parse state and deletes it from the
+ * symbol table 
+ * 
+ * Result token type: whatever the stashed HParseResult is, if
+ * present. If absent, NULL (and thus parse failure).
+ */
+HAMMER_FN_DECL(HParser*, h_free_value, const char* name);
 
 /**
  * Monadic bind for HParsers, i.e.:

@@ -468,6 +468,7 @@ uint32_t h_djbhash(const uint8_t *buf, size_t len);
 
 void h_symbol_put(HParseState *state, const char* key, void *value);
 void* h_symbol_get(HParseState *state, const char* key);
+void* h_symbol_free(HParseState *state, const char* key);
 
 typedef struct HCFSequence_ HCFSequence;
 
