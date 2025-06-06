@@ -482,7 +482,7 @@ void h_symbol_put(HParseState *state, const char* key, void *value) {
 						      h_hash_ptr));
   }
   HHashTable *head = h_slist_top(state->symbol_table);
-  // assert(!h_hashtable_present(head, key));
+  assert(!h_hashtable_present(head, key));
   h_hashtable_put(head, key, value);
 }
 
@@ -491,6 +491,18 @@ void* h_symbol_get(HParseState *state, const char* key) {
     HHashTable *head = h_slist_top(state->symbol_table);
     if (head) {
       return h_hashtable_get(head, key);
+    }
+  }
+  return NULL;
+}
+
+void* h_symbol_free(HParseState *state, const char* key) {
+  if (state->symbol_table) {
+    HHashTable *head = h_slist_top(state->symbol_table);
+    if (head) {
+      void* store = h_hashtable_get(head, key);
+      h_hashtable_del(head, key);
+      return store;
     }
   }
   return NULL;
