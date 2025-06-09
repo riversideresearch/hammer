@@ -1,3 +1,17 @@
+```
+ .----------------.  .----------------.  .----------------.  .----------------.  .----------------.  .----------------. 
+| .--------------. || .--------------. || .--------------. || .--------------. || .--------------. || .--------------. |
+| |  ____  ____  | || |      __      | || | ____    ____ | || | ____    ____ | || |  _________   | || |  _______     | |
+| | |_   ||   _| | || |     /  \     | || ||_   \  /   _|| || ||_   \  /   _|| || | |_   ___  |  | || | |_   __ \    | |
+| |   | |__| |   | || |    / /\ \    | || |  |   \/   |  | || |  |   \/   |  | || |   | |_  \_|  | || |   | |__) |   | |
+| |   |  __  |   | || |   / ____ \   | || |  | |\  /| |  | || |  | |\  /| |  | || |   |  _|  _   | || |   |  __ /    | |
+| |  _| |  | |_  | || | _/ /    \ \_ | || | _| |_\/_| |_ | || | _| |_\/_| |_ | || |  _| |___/ |  | || |  _| |  \ \_  | |
+| | |____||____| | || ||____|  |____|| || ||_____||_____|| || ||_____||_____|| || | |_________|  | || | |____| |___| | |
+| |              | || |              | || |              | || |              | || |              | || |              | |
+| '--------------' || '--------------' || '--------------' || '--------------' || '--------------' || '--------------' |
+ '----------------'  '----------------'  '----------------'  '----------------'  '----------------'  '----------------' 
+```
+
 Hammer is a parsing library. Like many modern parsing libraries, it provides a parser combinator interface for writing grammars as inline domain-specific languages, but Hammer also provides a variety of parsing backends. It's also bit-oriented rather than character-oriented, making it ideal for parsing binary data such as images, network packets, audio, and executables.
 
 Hammer is written in C, but provides bindings for other languages. If you don't see a language you're interested in on the list, just ask.
@@ -24,7 +38,6 @@ Features
   * [Go](https://github.com/prevoty/hammer)
   * PHP
   * .NET
-  * Lua (landing soon!)
 
 Installing
 ==========
@@ -87,10 +100,6 @@ The .NET bindings are for Mono 3.0.6 and greater. If you're on a Debian-based di
 
 The regular expression backend is potentially not thread-safe (thanks to Martin Murray for pointing this out). A full rewrite of this backend is on the roadmap already due to some unexpected nondeterminism in the current implementation; we plan to fix this problem in that rewrite.
 
-Community
-=========
-Mailing list, IRC, and potentially other channels to come.
-
 Contact
 =======
-Also to be updated soon.
+Send an email to parsing@riversideresearch.org

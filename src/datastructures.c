@@ -1,3 +1,8 @@
+/*
+ * Edits made to add new data structure
+ * Copyright (c) 2025 Riverside Research
+*/
+
 #include "internal.h"
 #include "hammer.h"
 #include "allocator.h"

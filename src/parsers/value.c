@@ -1,3 +1,8 @@
+/*
+ * Edits made to add new combinator
+ * Copyright (c) 2025 Riverside Research
+*/
+
 #include "parser_internal.h"
 
 typedef struct {
@@ -70,14 +75,17 @@ HParser* h_get_value__m(HAllocator* mm__, const char* name) {
   return h_new_parser(mm__, &get_vt, env);
 }
 
-/* Remove a stashed result from the symbol table. */
+/* 
+  Retrieve a stashed symbol result from the symbol table
+  Remove the retrieved result from the symbol table
+*/
 
 static HParseResult* parse_free(void *env, HParseState* state) {
   HStoredValue *s = (HStoredValue*)env;
   if (!s->p && s->key) {
-    HParseResult* store = h_symbol_get(state, s->key);
+    HParseResult* storedResult = h_symbol_get(state, s->key);
     h_symbol_free(state, s->key);
-    return store;
+    return storedResult;
   } else { // either there's no key, or there was a parser here
     return NULL;
   }

@@ -1,4 +1,8 @@
 /* Parser combinators for binary formats.
+ *  *
+ * Edits made to add new combinator and update documentation
+ * Copyright (c) 2025 Riverside Research
+ * 
  * Copyright (C) 2012  Meredith L. Patterson, Dan "TQ" Hirsch
  *
  * This program is free software; you can redistribute it and/or
@@ -861,8 +865,8 @@ HAMMER_FN_DECL(HParser*, h_with_endianness, char endianness, const HParser* p);
  * it wraps in a symbol table in the parse state, so that non-
  * local actions and predicates can access this value. 
  * 
- * To attempt to put with a name that was already in the symbol 
- * table will return NULL (and parse failure)
+ * Attempting to use h_put with a name that was already in the 
+ * symbol table will return NULL (and parse failure)
  *
  * Result token type: p's token type if name was not already in
  * the symbol table. 
