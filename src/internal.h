@@ -1,8 +1,5 @@
 /* Internals for Hammer.
- *
- * Edits made to add new combinator
  * Copyright (c) 2025 Riverside Research
- * 
  * Copyright (C) 2012  Meredith L. Patterson, Dan "TQ" Hirsch
  *
  * This program is free software; you can redistribute it and/or
