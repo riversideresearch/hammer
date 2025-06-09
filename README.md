@@ -103,3 +103,11 @@ The regular expression backend is potentially not thread-safe (thanks to Martin 
 Contact
 =======
 Send an email to parsing@riversideresearch.org
+
+ACKNOWLEDGMENT
+=====
+This material is based upon work supported by the Defense Advanced Research Projects Agency (DARPA) under Prime Contract No. HR001119C0077. Any opinions, findings, and conclusions or recommendations expressed in this material are those of the author(s) and do not necessarily reflect the views of the Defense Advanced Research Projects Agency (DARPA).
+ 
+This work is a fork of the repository found at: https://gitlab.special-circumstanc.es/hammer/hammer
+ 
+Distribution A: Approved for Public Release
