@@ -37,6 +37,7 @@ void h_platform_errx(int err, const char* format, ...) {
   va_list ap;
   va_start(ap, format);
   verrx(err, format, ap);
+  va_end(ap);
 }
 
 // TODO: replace this with a posix timer-based benchmark. (cf. timerfd_create, timer_create, setitimer)

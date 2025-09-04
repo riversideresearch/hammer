@@ -59,6 +59,10 @@ struct HArena_ {
 static void * h_arena_malloc_raw(HArena *arena, size_t size, bool need_zero);
 
 void* h_alloc(HAllocator* mm__, size_t size) {
+  if (!mm__) {
+    h_platform_errx(1, "memory manager doesn't exist\n");
+    return NULL;
+  }
   void *p = mm__->alloc(mm__, size);
   if(!p)
     h_platform_errx(1, "memory allocation failed (%zuB requested)\n", size);

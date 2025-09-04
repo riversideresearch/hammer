@@ -49,8 +49,14 @@ int main (int argc, char** argv) {
 		int delta = 1;
 		while (delta != 0) {
 			delta = read (fd[1], cbuf2, 4096);
-			while ((cbuf_len + delta) >= cbuf_cap)
-				cbuf = realloc(cbuf, cbuf_cap *= 2);
+			while ((cbuf_len + delta) >= cbuf_cap) {
+				char* tmp = realloc(cbuf, cbuf_cap *= 2);
+				if (!tmp) {
+					free(cbuf);
+					return -1;
+				}
+				cbuf = tmp;
+			}
 			memcpy(cbuf + cbuf_len, cbuf2, delta);
 			cbuf_len += delta;
 		}

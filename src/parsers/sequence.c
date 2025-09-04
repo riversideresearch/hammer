@@ -190,6 +190,7 @@ HParser* h_drop_from_(HParser* p, ...) {
 }
 
 HParser* h_drop_from___m(HAllocator* mm__, HParser* p, ...) {
+  if (!p) return NULL;
   assert_message(p->vtable == &sequence_vt, "drop_from requires a sequence parser");
   va_list ap;
   va_start(ap, p);
@@ -210,6 +211,7 @@ HParser* h_drop_from___mv(HAllocator* mm__, HParser *p, va_list ap) {
    * equivalent to `h_sequence(h_ignore(a), b, c, d, h_ignore(e), NULL)`. Thus, this
    * term rewrites itself, becoming an h_sequence where some parsers are ignored.
    */
+  if (!p) return NULL;
   HSequence *s = (HSequence*)(p->env);
   size_t indices[s->len];
   size_t count = 0;

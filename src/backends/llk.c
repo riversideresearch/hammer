@@ -512,7 +512,7 @@ static HCountedArray *llk_parse_chunk_(HLLkState *s, const HParser* parser,
     // perform token reshape if indicated
     if(x->reshape) {
       HParsedToken *t = x->reshape(make_result(arena, tok), x->user_data);
-      if(t) {
+      if(t && tok) {
         t->index = tok->index;
         t->bit_offset = tok->bit_offset;
       } else {

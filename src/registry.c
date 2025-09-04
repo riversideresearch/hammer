@@ -73,9 +73,14 @@ HTokenType h_allocate_token_new(
     probe->value = tt_next++;
     if ((probe->value - TT_START) >= tt_by_id_sz) {
       if (tt_by_id_sz == 0) {
-	tt_by_id = malloc(sizeof(*tt_by_id) * ((tt_by_id_sz = (tt_next - TT_START) * 16)));
+	      tt_by_id = malloc(sizeof(*tt_by_id) * ((tt_by_id_sz = (tt_next - TT_START) * 16)));
       } else {
-	tt_by_id = realloc(tt_by_id, sizeof(*tt_by_id) * ((tt_by_id_sz *= 2)));
+        HTTEntry **temp = realloc(tt_by_id, sizeof(*tt_by_id) * ((tt_by_id_sz *= 2)));
+        if (!temp) {
+          free(tt_by_id);
+          return TT_INVALID;
+        }
+	      tt_by_id = temp;
       }
       if (!tt_by_id) {
 	return TT_INVALID;

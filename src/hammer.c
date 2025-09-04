@@ -634,6 +634,9 @@ int h_compile(HParser* parser, HParserBackend backend, const void* params) {
 }
 
 int h_compile__m(HAllocator* mm__, HParser* parser, HParserBackend backend, const void* params) {
+  if (!parser) {
+    return -1;
+  }
   if (parser->backend >= PB_MIN && parser->backend <= PB_MAX &&
       backends[parser->backend]->free != NULL) {
     backends[parser->backend]->free(parser);

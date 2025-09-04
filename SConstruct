@@ -109,6 +109,12 @@ AddOption('--no-tests',
           action='store_false',
           help='Do not build tests')
 
+AddOption('--fPIC',
+          dest='fpic',
+          default=False,
+          action='store_true',
+          help='compile with the fPIC flag for use with shared objects')
+
 env['CC'] = os.getenv('CC') or env['CC']
 env['CXX'] = os.getenv('CXX') or env['CXX']
 env['CFLAGS'] = os.getenv('CFLAGS') or env['CFLAGS']
@@ -172,7 +178,13 @@ if GetOption('gprof'):
     else:
         print("Can only use gprof with gcc")
         Exit(1)
-        
+
+if GetOption('fpic'):
+    if env['CC'] == 'gcc':
+        env.Append(CCFLAGS=['-fPIC'])
+    else:
+        print("Can only use fPIC with gcc")
+        Exit(1) 
 
 dbg = env.Clone(VARIANT='debug')
 if env['CC'] == 'cl':
