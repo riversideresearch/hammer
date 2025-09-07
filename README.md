@@ -90,6 +90,36 @@ The `examples/` directory contains some simple examples, currently including:
 * [base64](https://en.wikipedia.org/wiki/Base64)
 * [DNS](https://en.wikipedia.org/wiki/Domain_Name_System)
 
+Contributor Setup
+==========
+To contribute to Hammer, please make sure you have the following tools installed:
+
+- **clang-format** (v18+) → automatic code formatting based on the `.clang-format` file  
+- **Doxygen** → generate API documentation from comments  
+- **pre-commit** (optional but recommended) → auto-run `clang-format` before commits  
+
+### Formatting code
+Run clang-format before committing to keep code style consistent:
+
+```bash
+clang-format -i src/**/*.c include/**/*.h
+```
+
+### Generating documentation
+Build developer docs locally with:
+
+```bash
+doxygen Doxyfile
+```
+This will create HTML output in html/index.html.
+
+### Contribution guidelines
+All new or modified code should be formatted with clang-format.
+
+Public functions, types, and macros should include Doxygen comments (@brief, @param, @return).
+
+Code should compile cleanly with `-Wall -Wextra -pedantic`.
+
 Known Issues
 ============
 The Python bindings work with Python 2.7, and Python 3.5+.
