@@ -101,8 +101,14 @@ To contribute to Hammer, please make sure you have the following tools installed
 ### Formatting code
 Run clang-format before committing to keep code style consistent:
 
+All code files:
 ```bash
-clang-format -i src/**/*.c include/**/*.h
+clang-format -i **/*.c **/*.h
+```
+
+Apply clang-format to a single file:
+```bash
+clang-format -i path/to/file.c
 ```
 
 ### Generating documentation
@@ -111,14 +117,7 @@ Build developer docs locally with:
 ```bash
 doxygen Doxyfile
 ```
-This will create HTML output in html/index.html.
-
-### Contribution guidelines
-All new or modified code should be formatted with clang-format.
-
-Public functions, types, and macros should include Doxygen comments (@brief, @param, @return).
-
-Code should compile cleanly with `-Wall -Wextra -pedantic`.
+This will create HTML output in docs/html/index.html.
 
 Known Issues
 ============
