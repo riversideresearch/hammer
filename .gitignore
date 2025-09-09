@@ -34,3 +34,6 @@ docs/milestone2.dot.pdf
 Session.vim
 cscope.out
 .sconsign.dblite
+docs/html
+docs/latex
+docs/man
