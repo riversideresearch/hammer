@@ -26,9 +26,9 @@
 #ifndef HAMMER_GLUE__H
 #define HAMMER_GLUE__H
 
-#include <assert.h>
 #include "hammer.h"
 
+#include <assert.h>
 
 /**
  * Grammar specification
@@ -61,23 +61,19 @@
  * action are used, the same userdata pointer is given to both.
  */
 
-#define H_RULE(rule, def)  HParser *rule = def
-#define H_ARULE(rule, def) HParser *rule = h_action(def, act_ ## rule, NULL)
-#define H_VRULE(rule, def) HParser *rule = \
-    h_attr_bool(def, validate_ ## rule, NULL)
-#define H_VARULE(rule, def) HParser *rule = \
-    h_attr_bool(h_action(def, act_ ## rule, NULL), validate_ ## rule, NULL)
-#define H_AVRULE(rule, def) HParser *rule = \
-    h_action(h_attr_bool(def, validate_ ## rule, NULL), act_ ## rule, NULL)
-#define H_ADRULE(rule, def, data) HParser *rule =       \
-    h_action(def, act_ ## rule, data)
-#define H_VDRULE(rule, def, data) HParser *rule =       \
-    h_attr_bool(def, validate_ ## rule, data)
-#define H_VADRULE(rule, def, data) HParser *rule =              \
-    h_attr_bool(h_action(def, act_ ## rule, data), validate_ ## rule, data)
-#define H_AVDRULE(rule, def, data) HParser *rule =              \
-    h_action(h_attr_bool(def, validate_ ## rule, data), act_ ## rule, data)
-
+#define H_RULE(rule, def) HParser *rule = def
+#define H_ARULE(rule, def) HParser *rule = h_action(def, act_##rule, NULL)
+#define H_VRULE(rule, def) HParser *rule = h_attr_bool(def, validate_##rule, NULL)
+#define H_VARULE(rule, def)                                                                        \
+    HParser *rule = h_attr_bool(h_action(def, act_##rule, NULL), validate_##rule, NULL)
+#define H_AVRULE(rule, def)                                                                        \
+    HParser *rule = h_action(h_attr_bool(def, validate_##rule, NULL), act_##rule, NULL)
+#define H_ADRULE(rule, def, data) HParser *rule = h_action(def, act_##rule, data)
+#define H_VDRULE(rule, def, data) HParser *rule = h_attr_bool(def, validate_##rule, data)
+#define H_VADRULE(rule, def, data)                                                                 \
+    HParser *rule = h_attr_bool(h_action(def, act_##rule, data), validate_##rule, data)
+#define H_AVDRULE(rule, def, data)                                                                 \
+    HParser *rule = h_action(h_attr_bool(def, validate_##rule, data), act_##rule, data)
 
 /**
  * Pre-fab semantic actions
@@ -102,30 +98,29 @@
  * action such as h_act_index.
  */
 
-HParsedToken *h_act_index(int i, const HParseResult *p, void* user_data);
-HParsedToken *h_act_first(const HParseResult *p, void* user_data);
-HParsedToken *h_act_second(const HParseResult *p, void* user_data);
-HParsedToken *h_act_last(const HParseResult *p, void* user_data);
-HParsedToken *h_act_flatten(const HParseResult *p, void* user_data);
-HParsedToken *h_act_ignore(const HParseResult *p, void* user_data);
+HParsedToken *h_act_index(int i, const HParseResult *p, void *user_data);
+HParsedToken *h_act_first(const HParseResult *p, void *user_data);
+HParsedToken *h_act_second(const HParseResult *p, void *user_data);
+HParsedToken *h_act_last(const HParseResult *p, void *user_data);
+HParsedToken *h_act_flatten(const HParseResult *p, void *user_data);
+HParsedToken *h_act_ignore(const HParseResult *p, void *user_data);
 
 /**
  * Define 'myaction' as a specialization of 'paction' by supplying the leading
  * parameters.
  */
-#define H_ACT_APPLY(myaction, paction, ...) \
-  HParsedToken *myaction(const HParseResult *p, void* user_data) {      \
-    return paction(__VA_ARGS__, p, user_data);                          \
-  }
+#define H_ACT_APPLY(myaction, paction, ...)                                                        \
+    HParsedToken *myaction(const HParseResult *p, void *user_data) {                               \
+        return paction(__VA_ARGS__, p, user_data);                                                 \
+    }
 
 /**
  * Similar, but for validations.
  */
-#define H_VALIDATE_APPLY(myvalidation, pvalidation, ...)  \
-  bool myvalidation(HParseResult* p, void* user_data) {   \
-    return pvalidation(__VA_ARGS__, p, user_data);        \
-  }
-
+#define H_VALIDATE_APPLY(myvalidation, pvalidation, ...)                                           \
+    bool myvalidation(HParseResult *p, void *user_data) {                                          \
+        return pvalidation(__VA_ARGS__, p, user_data);                                             \
+    }
 
 /**
  * Working with HParsedTokens
@@ -194,8 +189,7 @@ HParsedToken *h_act_ignore(const HParseResult *p, void* user_data);
  */
 
 /** Standard short-hand for arena-allocating a variable in a semantic action. */
-#define H_ALLOC(TYP)  ((TYP *) h_arena_malloc(p->arena, sizeof(TYP)))
-
+#define H_ALLOC(TYP) ((TYP *)h_arena_malloc(p->arena, sizeof(TYP)))
 
 /** Token constructors... */
 
@@ -213,41 +207,38 @@ HParsedToken *h_make_uint(HArena *arena, uint64_t val);
 HParsedToken *h_make_double(HArena *arena, double val);
 HParsedToken *h_make_float(HArena *arena, float val);
 
-
 /** Standard short-hands to make tokens in an action. */
-#define H_MAKE(TYP, VAL)  h_make(p->arena, (HTokenType)TT_ ## TYP, VAL)
-#define H_MAKE_SEQ()      h_make_seq(p->arena)
-#define H_MAKE_SEQN(N)    h_make_seqn(p->arena, N)
+#define H_MAKE(TYP, VAL) h_make(p->arena, (HTokenType)TT_##TYP, VAL)
+#define H_MAKE_SEQ() h_make_seq(p->arena)
+#define H_MAKE_SEQN(N) h_make_seqn(p->arena, N)
 #define H_MAKE_BYTES(VAL, LEN) h_make_bytes(p->arena, VAL, LEN)
-#define H_MAKE_SINT(VAL)  h_make_sint(p->arena, VAL)
-#define H_MAKE_UINT(VAL)  h_make_uint(p->arena, VAL)
+#define H_MAKE_SINT(VAL) h_make_sint(p->arena, VAL)
+#define H_MAKE_UINT(VAL) h_make_uint(p->arena, VAL)
 #define H_MAKE_DOUBLE(VAL) h_make_double(p->arena, VAL)
 #define H_MAKE_FLOAT(VAL) h_make_float(p->arena, VAL)
-
 
 /** Extract (cast) type-specific value back from HParsedTokens... */
 
 /** Pass-through assertion that a given token has the expected type. */
-#define h_assert_type(T,P)  (assert(P->token_type == (HTokenType)T), P)
+#define h_assert_type(T, P) (assert(P->token_type == (HTokenType)T), P)
 
 /** Convenience short-hand forms of h_assert_type. */
-#define H_ASSERT(TYP, TOK)   h_assert_type(TT_ ## TYP, TOK)
-#define H_ASSERT_SEQ(TOK)    h_assert_type(TT_SEQUENCE, TOK)
-#define H_ASSERT_BYTES(TOK)  h_assert_type(TT_BYTES, TOK)
-#define H_ASSERT_SINT(TOK)   h_assert_type(TT_SINT, TOK)
-#define H_ASSERT_UINT(TOK)   h_assert_type(TT_UINT, TOK)
+#define H_ASSERT(TYP, TOK) h_assert_type(TT_##TYP, TOK)
+#define H_ASSERT_SEQ(TOK) h_assert_type(TT_SEQUENCE, TOK)
+#define H_ASSERT_BYTES(TOK) h_assert_type(TT_BYTES, TOK)
+#define H_ASSERT_SINT(TOK) h_assert_type(TT_SINT, TOK)
+#define H_ASSERT_UINT(TOK) h_assert_type(TT_UINT, TOK)
 #define H_ASSERT_DOUBLE(TOK) h_assert_type(TT_DOUBLE, TOK)
-#define H_ASSERT_FLOAT(TOK)  h_assert_type(TT_FLOAT, TOK)
+#define H_ASSERT_FLOAT(TOK) h_assert_type(TT_FLOAT, TOK)
 
 /** Assert expected type and return contained value. */
-#define H_CAST(TYP, TOK)   ((TYP *) H_ASSERT(TYP, TOK)->user)
-#define H_CAST_SEQ(TOK)    (H_ASSERT_SEQ(TOK)->seq)
-#define H_CAST_BYTES(TOK)  (H_ASSERT_BYTES(TOK)->bytes)
-#define H_CAST_SINT(TOK)   (H_ASSERT_SINT(TOK)->sint)
-#define H_CAST_UINT(TOK)   (H_ASSERT_UINT(TOK)->uint)
+#define H_CAST(TYP, TOK) ((TYP *)H_ASSERT(TYP, TOK)->user)
+#define H_CAST_SEQ(TOK) (H_ASSERT_SEQ(TOK)->seq)
+#define H_CAST_BYTES(TOK) (H_ASSERT_BYTES(TOK)->bytes)
+#define H_CAST_SINT(TOK) (H_ASSERT_SINT(TOK)->sint)
+#define H_CAST_UINT(TOK) (H_ASSERT_UINT(TOK)->uint)
 #define H_CAST_DOUBLE(TOK) (H_ASSERT_DOUBLE(TOK)->dbl)
-#define H_CAST_FLOAT(TOK)  (H_ASSERT_FLOAT(TOK)->flt)
-
+#define H_CAST_FLOAT(TOK) (H_ASSERT_FLOAT(TOK)->flt)
 
 /** Sequence access... */
 
@@ -265,21 +256,21 @@ HParsedToken *h_seq_index_path(const HParsedToken *p, size_t i, ...);
 HParsedToken *h_seq_index_vpath(const HParsedToken *p, size_t i, va_list va);
 
 /** Convenience macros combining (nested) index access and h_cast. */
-#define H_INDEX(TYP, SEQ, ...)   H_CAST(TYP, H_INDEX_TOKEN(SEQ, __VA_ARGS__))
-#define H_INDEX_SEQ(SEQ, ...)    H_CAST_SEQ(H_INDEX_TOKEN(SEQ, __VA_ARGS__))
-#define H_INDEX_BYTES(SEQ, ...)  H_CAST_BYTES(H_INDEX_TOKEN(SEQ, __VA_ARGS__))
-#define H_INDEX_SINT(SEQ, ...)   H_CAST_SINT(H_INDEX_TOKEN(SEQ, __VA_ARGS__))
-#define H_INDEX_UINT(SEQ, ...)   H_CAST_UINT(H_INDEX_TOKEN(SEQ, __VA_ARGS__))
+#define H_INDEX(TYP, SEQ, ...) H_CAST(TYP, H_INDEX_TOKEN(SEQ, __VA_ARGS__))
+#define H_INDEX_SEQ(SEQ, ...) H_CAST_SEQ(H_INDEX_TOKEN(SEQ, __VA_ARGS__))
+#define H_INDEX_BYTES(SEQ, ...) H_CAST_BYTES(H_INDEX_TOKEN(SEQ, __VA_ARGS__))
+#define H_INDEX_SINT(SEQ, ...) H_CAST_SINT(H_INDEX_TOKEN(SEQ, __VA_ARGS__))
+#define H_INDEX_UINT(SEQ, ...) H_CAST_UINT(H_INDEX_TOKEN(SEQ, __VA_ARGS__))
 #define H_INDEX_DOUBLE(SEQ, ...) H_CAST_DOUBLE(H_INDEX_TOKEN(SEQ, __VA_ARGS__))
-#define H_INDEX_FLOAT(SEQ, ...)  H_CAST_FLOAT(H_INDEX_TOKEN(SEQ, __VA_ARGS__))
-#define H_INDEX_TOKEN(SEQ, ...)  h_seq_index_path(H_ASSERT_SEQ(SEQ), __VA_ARGS__, -1)
+#define H_INDEX_FLOAT(SEQ, ...) H_CAST_FLOAT(H_INDEX_TOKEN(SEQ, __VA_ARGS__))
+#define H_INDEX_TOKEN(SEQ, ...) h_seq_index_path(H_ASSERT_SEQ(SEQ), __VA_ARGS__, -1)
 
 /** Standard short-hand to access and cast elements on a sequence token. */
-#define H_FIELD(TYP, ...)  H_INDEX(TYP, p->ast, __VA_ARGS__)
-#define H_FIELD_SEQ(...)   H_INDEX_SEQ(p->ast, __VA_ARGS__)
+#define H_FIELD(TYP, ...) H_INDEX(TYP, p->ast, __VA_ARGS__)
+#define H_FIELD_SEQ(...) H_INDEX_SEQ(p->ast, __VA_ARGS__)
 #define H_FIELD_BYTES(...) H_INDEX_BYTES(p->ast, __VA_ARGS__)
-#define H_FIELD_SINT(...)  H_INDEX_SINT(p->ast, __VA_ARGS__)
-#define H_FIELD_UINT(...)  H_INDEX_UINT(p->ast, __VA_ARGS__)
+#define H_FIELD_SINT(...) H_INDEX_SINT(p->ast, __VA_ARGS__)
+#define H_FIELD_UINT(...) H_INDEX_UINT(p->ast, __VA_ARGS__)
 #define H_FIELD_DOUBLE(...) H_INDEX_DOUBLE(p->ast, __VA_ARGS__)
 #define H_FIELD_FLOAT(...) H_INDEX_FLOAT(p->ast, __VA_ARGS__)
 #define H_FIELD_TOKEN(...) H_INDEX_TOKEN(p->ast, __VA_ARGS__)
@@ -287,17 +278,15 @@ HParsedToken *h_seq_index_vpath(const HParsedToken *p, size_t i, va_list va);
 /** Lower-level helper for h_seq_index. */
 HParsedToken *h_carray_index(const HCountedArray *a, size_t i); /**< XXX -> internal */
 
-
 /** Sequence modification... */
 
 /** Add elements to a sequence. */
-void h_seq_snoc(HParsedToken *xs, const HParsedToken *x);     /**< append one */
-void h_seq_append(HParsedToken *xs, const HParsedToken *ys);  /**< append many */
+void h_seq_snoc(HParsedToken *xs, const HParsedToken *x);    /**< append one */
+void h_seq_append(HParsedToken *xs, const HParsedToken *ys); /**< append many */
 
 /** XXX TODO: Remove elements from a sequence. */
 
 /** Flatten nested sequences into one. */
 const HParsedToken *h_seq_flatten(HArena *arena, const HParsedToken *p);
-
 
 #endif
