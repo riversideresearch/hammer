@@ -1,7 +1,5 @@
 /**
- *
  * API additions for writing grammar and semantic actions more concisely
- *
  *
  * Quick Overview:
  *

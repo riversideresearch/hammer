@@ -41,6 +41,10 @@ extern "C" {
 
 typedef struct HParseState_ HParseState;
 
+/**
+ * @enum HParserBackend
+ * @brief Available parser backend implementations
+ */
 typedef enum HParserBackend_ {
     PB_MIN = 0,
     PB_INVALID = PB_MIN, /**< Have a backend that always fails to pass around "no such backend"
@@ -55,6 +59,10 @@ typedef enum HParserBackend_ {
 
 typedef struct HParserBackendVTable_ HParserBackendVTable;
 
+/**
+ * @struct HParserBackendWithParams
+ * @brief Backend configuration with parameters
+ */
 typedef struct HParserBackendWithParams_ {
     /**< Name of backend extracted from a string if the choice of backend was specified in a call
      * using a string */
@@ -67,10 +75,9 @@ typedef struct HParserBackendWithParams_ {
     HParserBackendVTable *backend_vtable;
 
     /*
-     * Backend-specific parameters - if this needs to be freed, the backend
-     * should provide a free_params method in its vtable; currently no backends
-     * do this - PB_PACKRAT and PB_REGULAR take no params, and PB_LLk, PB_LALR
-     * and PB_GLR take an integer cast to void *
+     * Backend-specific parameters - if this needs to be freed, the backend should provide a
+     * free_params method in its vtable; currently no backends do this - PB_PACKRAT and PB_REGULAR
+     * take no params, and PB_LLk, PB_LALR and PB_GLR take an integer cast to void*
      */
     void *params;
 
@@ -78,8 +85,11 @@ typedef struct HParserBackendWithParams_ {
     HAllocator *mm__;
 } HParserBackendWithParams;
 
+/**
+ * @enum HTokenType
+ * @brief Token types for parsed results
+ */
 typedef enum HTokenType_ {
-    // Before you change the explicit values of these, think of the poor bindings ;_;
     TT_INVALID = 0,
     TT_NONE = 1,
     TT_BYTES = 2,
@@ -94,6 +104,10 @@ typedef enum HTokenType_ {
     TT_MAX
 } HTokenType;
 
+/**
+ * @struct HCountedArray
+ * @brief Dynamic array of parsed tokens
+ */
 typedef struct HCountedArray_ {
     size_t capacity;
     size_t used;
@@ -101,6 +115,10 @@ typedef struct HCountedArray_ {
     struct HParsedToken_ **elements;
 } HCountedArray;
 
+/**
+ * @struct HBytes
+ * @brief Byte array representation
+ */
 typedef struct HBytes_ {
     const uint8_t *token;
     size_t len;
@@ -118,6 +136,10 @@ typedef union {
 } HTokenData;
 #endif
 
+/**
+ * @struct HParsedToken
+ * @brief Parsed token with type and value
+ */
 typedef struct HParsedToken_ {
     HTokenType token_type;
 #ifndef SWIG
@@ -139,17 +161,15 @@ typedef struct HParsedToken_ {
 } HParsedToken;
 
 /**
- * The result of a successful parse. Note that this may reference the
- * input string.
- *
- * If a parse fails, the parse result will be NULL.
- * If a parse is successful but there's nothing there (i.e., if end_p
- * succeeds) then there's a parse result but its ast is NULL.
+ * @struct HParseResult
+ * @brief The result of a successful parse. Note that this may reference the input string. If a
+ * parse fails, the parse result will be NULL. If a parse is successful but there's nothing there
+ * (i.e., if end_p succeeds) then there's a parse result but its ast is NULL.
  */
 typedef struct HParseResult_ {
-    const HParsedToken *ast;
+    const HParsedToken *ast; /**< Abstract syntax tree */
     int64_t bit_length;
-    HArena *arena;
+    HArena *arena; /**< Memory arena for the parse result */
 } HParseResult;
 
 /**
@@ -176,40 +196,38 @@ typedef struct HParser_ {
 typedef struct HSuspendedParser_ HSuspendedParser;
 
 /**
- * Type of an action to apply to an AST, used in the action() parser.
- * It can be any (user-defined) function that takes a HParseResult*
- * and returns a HParsedToken*. (This is so that the user doesn't
- * have to worry about memory allocation; action() does that for you.)
- * Note that the tagged union in HParsedToken* supports user-defined
- * types, so you can create your own token types (corresponding to,
- * say, structs) and stuff values for them into the void* in the
- * tagged union in HParsedToken.
+ * @typedef HAction
+ * @brief Type of an action to apply to an AST, used in the action() parser. It can be any
+ * (user-defined) function that takes a HParseResult* and returns a HParsedToken*. (This is so that
+ * the user doesn't have to worry about memory allocation; action() does that for you.) Note that
+ * the tagged union in HParsedToken* supports user-defined types, so you can create your own token
+ * types (corresponding to, say, structs) and stuff values for them into the void* in the tagged
+ * union in HParsedToken.
+ *
+ * @param p The parse result to apply the action to.
+ * @param user_data Arbitrary user data pointer passed through from the action() parser.
  */
 typedef HParsedToken *(*HAction)(const HParseResult *p, void *user_data);
 
 /**
- * Type of a boolean attribute-checking function, used in the
- * attr_bool() parser. It can be any (user-defined) function that takes
- * a HParseResult* and returns true or false.
+ * @typedef HPredicate
+ * @brief Type of a boolean attribute-checking function, used in the attr_bool() parser. It can be
+ * any (user-defined) function that takes a HParseResult* and returns true or false.
  */
 typedef bool (*HPredicate)(HParseResult *p, void *user_data);
 
 /**
- * Type of a parser that depends on the result of a previous parser,
- * used in h_bind(). The void* argument is passed through from h_bind() and can
- * be used to arbitrarily parameterize the function further.
+ * @typedef HContinuation
+ * @brief Type of a parser that depends on the result of a previous parser,used in h_bind(). The
+ * void* argument is passed through from h_bind() and can be used to arbitrarily parameterize the
+ * function further. The HAllocator* argument gives access to temporary memory and is to be used for
+ * any allocations inside the function. Specifically, construction of any HParsers should use the
+ * '__m' combinator variants with the given allocator. Anything allocated thus will be freed by
+ * 'h_bind'.
  *
- * The HAllocator* argument gives access to temporary memory and is to be used
- * for any allocations inside the function. Specifically, construction of any
- * HParsers should use the '__m' combinator variants with the given allocator.
- * Anything allocated thus will be freed by 'h_bind'.
+ * @param mm__ Allocator to use for any allocations needed to construct the returned parser.
  */
 typedef HParser *(*HContinuation)(HAllocator *mm__, const HParsedToken *x, void *env);
-
-/*
- * For parser used when extracting name and params for backend by name
- * TODO: possibly move to its own file?
- */
 
 enum BackendTokenType_ {
     TT_backend_with_params_t = TT_USER,
@@ -252,7 +270,11 @@ typedef struct backend_with_params {
     backend_params_t params;
 } backend_with_params_t;
 
-// {{{ Stuff for benchmarking
+/**
+ * @defgroup benchmarking Benchmarking and Test Case Management
+ * @{
+ */
+
 typedef struct HParserTestcase_ {
     unsigned char *input;
     size_t length;
@@ -292,9 +314,13 @@ typedef struct HBenchmarkResults_ {
     size_t len;
     HBackendResults *results;
 } HBenchmarkResults;
-// }}}
 
-// {{{ Preprocessor definitions
+/** @} */
+
+/**
+ * @defgroup hammer_function_declarations Function Declaration Macros
+ */
+
 #define HAMMER_FN_DECL_NOARG(rtype_t, name)                                                        \
     rtype_t name(void);                                                                            \
     rtype_t name##__m(HAllocator *mm__)
@@ -338,625 +364,705 @@ typedef struct HBenchmarkResults_ {
     rtype_t name##__a(void *args[]);                                                               \
     rtype_t name##__ma(HAllocator *mm__, void *args[])
 #endif // SWIG
-// }}}
+
+/** @} */
 
 /**
- * Ask if this backend is available
+ * @defgroup backend_functions Backend Management
+ * @{
+ */
+
+/**
+ * @brief Check if backend is available
+ * @param backend Backend to check
+ * @return 1 if available, 0 otherwise
  */
 int h_is_backend_available(HParserBackend backend);
 
 /**
- * Ask what the default backend is (currently always PB_PACKRAT)
+ * @brief Get default backend (currently PB_PACKRAT)
+ * @return Default backend
  */
 HParserBackend h_get_default_backend(void);
 
+/**
+ * @brief Get default backend vtable
+ * @return Backend function table
+ */
 HParserBackendVTable *h_get_default_backend_vtable(void);
 
 /**
- * Copy a backend+params, using the backend-supplied copy method; the
- * allocator used is the one passed in, or call the __m version with
- * a NULL allocator to use the one from the source HParserBackendWithParams
+ * @brief Copy backend configuration with parameters
+ * @param be_with_params Backend configuration to copy
+ * @return New backend configuration
  */
 HAMMER_FN_DECL(HParserBackendWithParams *, h_copy_backend_with_params,
                HParserBackendWithParams *be_with_params);
 
 /**
- * Free a backend+params
+ * @brief Free backend configuration
+ * @param be_with_params Backend configuration to free
  */
 void h_free_backend_with_params(HParserBackendWithParams *be_with_params);
 
 /**
- * Get a name string for a backend; this is constant per backend and so
- * need not be freed; it will resolve to the backend under
- * h_get_backend_by_name().
+ * @brief Get backend name string
+ * @param be Backend type
+ * @return Constant name string (do not free)
  */
 const char *h_get_name_for_backend(HParserBackend be);
 
 /**
- * Get a name string for a backend with parameters; it is the caller's
- * responsibility to free it later.  This will resolve to the same
- * backend and parameters under h_get_backend_with_params_by_name().
+ * @brief Get backend configuration name string
+ * @param be_with_params Backend configuration
+ * @return Allocated name string (caller must free)
  */
 HAMMER_FN_DECL(char *, h_get_name_for_backend_with_params,
                HParserBackendWithParams *be_with_params);
 
 /**
- * Get a human-readable descriptive string for a backend; this is constant
- * per backend and so need not be freed.
+ * @brief Get backend descriptive text
+ * @param be Backend type
+ * @return const char* (do not free)
  */
 const char *h_get_descriptive_text_for_backend(HParserBackend be);
 
 /**
- * Get a human-readable descriptive string for a backend with params; it is
- * the caller's responsibility to free it later.  Sorry, but it's allowed
- * to depend on the params and putting keeping the buffer elsewhere and
- * replacing it on the next call wouldn't be thread-safe.
+ * @brief Get backend configuration descriptive text
+ * @param be_with_params Backend configuration
+ * @return Allocated descriptive text (caller must free)
  */
 HAMMER_FN_DECL(char *, h_get_descriptive_text_for_backend_with_params,
                HParserBackendWithParams *be_with_params);
 
 /**
- * Look up an HParserBackend by name; this should round-trip with
- * h_get_name_for_backend().
+ * @brief Look up backend by name
+ * @param name Backend name
+ * @return Backend type or PB_INVALID
  */
 HParserBackend h_query_backend_by_name(const char *name);
 
 /**
- * Get a Hammer Backend with params from a string of the form
- * backend_name(params) for example "lalr(1)".
- *
- * If the backend is one of the existing backends in the HBackend enum,
- * HBackend will be populated in the result.
- *
- * Otherwise the result will save the name for use in attempts later at
- * loading the named module.
- *
+ * @brief Parse backend specification string
+ * @param name_with_params String like "lalr(1)"
+ * @return Backend configuration
  */
 HAMMER_FN_DECL(HParserBackendWithParams *, h_get_backend_with_params_by_name,
                const char *name_with_params);
 
+/** @} */
+
 /**
- * Top-level function to call a parser that has been built over some
- * piece of input (of known size).
+ * @defgroup parsing Parsing Functions
+ * @{
+ */
+
+/**
+ * @brief Top-level function to call a parser that has been built over some piece of input (of known
+ * size).
+ *
+ * @param parser Parser to use
+ * @param input Input data
+ * @param length Length of input data
+ * @return Parse result, or NULL on failure
  */
 HAMMER_FN_DECL(HParseResult *, h_parse, const HParser *parser, const uint8_t *input, size_t length);
 
 /**
- * Initialize a parser for iteratively consuming an input stream in chunks.
- * This is only supported by some backends.
+ * @brief Initialize a parser for iteratively consuming an input stream in chunks. This is only
+ * supported by some backends.
  *
- * Result is NULL if not supported by the backend.
+ * @param parser Parser to use
+ * @return Result is NULL if not supported by the backend.
  */
 HAMMER_FN_DECL(HSuspendedParser *, h_parse_start, const HParser *parser);
 
 /**
- * Run a suspended parser (as returned by h_parse_start) on a chunk of input.
- *
- * Returns true if the parser is done (needs no more input).
+ * @brief Run a suspended parser (as returned by h_parse_start) on a chunk of input.
+ * @param s Suspended parser state
+ * @param input Input data chunk
+ * @param length Length of input data chunk
+ * @return Returns true if the parser is done (needs no more input).
  */
 bool h_parse_chunk(HSuspendedParser *s, const uint8_t *input, size_t length);
 
 /**
- * Finish an iterative parse. Signals the end of input to the backend and
- * returns the parse result.
+ * @brief Finish an iterative parse. Signals the end of input to the backend and returns the parse
+ * result.
+ *
+ * @param s Suspended parser state
+ * @return Parse result, or NULL on failure
  */
 HParseResult *h_parse_finish(HSuspendedParser *s);
 
+/** @} */
+
 /**
- * Given a string, returns a parser that parses that string value.
- *
- * Result token type: TT_BYTES
+ * @defgroup basic_parsers Basic Parser Combinators
+ * @{
+ */
+
+/**
+ * @brief Given a string, returns a parser that parses that string value.
+ * @param str String to parse
+ * @param len Length of string to parse
+ * @return Result token type: TT_BYTES
  */
 HAMMER_FN_DECL(HParser *, h_token, const uint8_t *str, const size_t len);
 
+/**
+ * @brief Parse literal string (macro convenience)
+ * @param s String literal
+ */
 #define h_literal(s) h_token(((const uint8_t *)(s)), sizeof(s) - 1)
 
 /**
- * Given a single character, returns a parser that parses that
- * character.
- *
- * Result token type: TT_UINT
+ * @brief Given a single character, returns a parser that parses that character.
+ * @param c Character to parse
+ * @return Result token type: TT_UINT
  */
 HAMMER_FN_DECL(HParser *, h_ch, const uint8_t c);
 
 /**
- * Given two single-character bounds, lower and upper, returns a parser
- * that parses a single character within the range [lower, upper]
- * (inclusive).
- *
- * Result token type: TT_UINT
+ * @brief Parse character in range
+ * @param lower Lower bound (inclusive)
+ * @param upper Upper bound (inclusive)
+ * @return Result token type: TT_UINT
  */
 HAMMER_FN_DECL(HParser *, h_ch_range, const uint8_t lower, const uint8_t upper);
 
 /**
- * Given an integer parser, p, and two integer bounds, lower and upper,
- * returns a parser that parses an integral value within the range
- * [lower, upper] (inclusive).
+ * @brief Parse integer in range
+ * @param p Integer parser (e.g., h_int8(), h_uint32(), etc.)
+ * @param lower Lower bound (inclusive)
+ * @param upper Upper bound (inclusive)
+ * @return Result token type: Same as p's result type
  */
 HAMMER_FN_DECL(HParser *, h_int_range, const HParser *p, const int64_t lower, const int64_t upper);
 
 /**
- * Returns a parser that parses the specified number of bits. sign ==
- * true if signed, false if unsigned.
- *
- * Result token type: TT_SINT if sign == true, TT_UINT if sign == false
+ * @brief Parse fixed number of bits
+ * @param len Number of bits
+ * @param sign true for signed, false for unsigned
+ * @return Result token type: TT_SINT if sign == true, TT_UINT if sign == false
  */
 HAMMER_FN_DECL(HParser *, h_bits, size_t len, bool sign);
 
 /**
- * Returns a parser that parses the specified number of octets.
- * The input does not have to be aligned to a byte boundary.
- *
- * Result token type: TT_BYTES
+ * @brief Parse fixed number of bytes
+ * @param len Number of bytes
+ * @return Result token type: TT_BYTES
  */
 HAMMER_FN_DECL(HParser *, h_bytes, size_t len);
 
+/** @} */
+
 /**
- * Returns a parser that parses a signed 8-byte integer value.
- *
- * Result token type: TT_SINT
+ * @defgroup integer_parsers Integer Parsers
+ * @{
+ */
+
+/**
+ * @brief Parse signed 64-bit integer
+ * @return Result token type: TT_SINT
  */
 HAMMER_FN_DECL_NOARG(HParser *, h_int64);
 
 /**
- * Returns a parser that parses a signed 4-byte integer value.
- *
- * Result token type: TT_SINT
+ * @brief Parse signed 32-bit integer
+ * @return Result token type: TT_SINT
  */
 HAMMER_FN_DECL_NOARG(HParser *, h_int32);
 
 /**
- * Returns a parser that parses a signed 2-byte integer value.
- *
- * Result token type: TT_SINT
+ * @brief Parse signed 16-bit integer
+ * @return Result token type: TT_SINT
  */
 HAMMER_FN_DECL_NOARG(HParser *, h_int16);
 
 /**
- * Returns a parser that parses a signed 1-byte integer value.
- *
- * Result token type: TT_SINT
+ * @brief Parse signed 8-bit integer
+ * @return Result token type: TT_SINT
  */
 HAMMER_FN_DECL_NOARG(HParser *, h_int8);
 
 /**
- * Returns a parser that parses an unsigned 8-byte integer value.
- *
- * Result token type: TT_UINT
+ * @brief Parse unsigned 64-bit integer
+ * @return Result token type: TT_UINT
  */
 HAMMER_FN_DECL_NOARG(HParser *, h_uint64);
 
 /**
- * Returns a parser that parses an unsigned 4-byte integer value.
- *
- * Result token type: TT_UINT
+ * @brief Parse unsigned 32-bit integer
+ * @return Result token type: TT_UINT
  */
 HAMMER_FN_DECL_NOARG(HParser *, h_uint32);
 
 /**
- * Returns a parser that parses an unsigned 2-byte integer value.
- *
- * Result token type: TT_UINT
+ * @brief Parse unsigned 16-bit integer
+ * @return Result token type: TT_UINT
  */
 HAMMER_FN_DECL_NOARG(HParser *, h_uint16);
 
 /**
- * Returns a parser that parses an unsigned 1-byte integer value.
- *
- * Result token type: TT_UINT
+ * @brief Parse unsigned 8-bit integer
+ * @return Result token type: TT_UINT
  */
 HAMMER_FN_DECL_NOARG(HParser *, h_uint8);
 
+/** @} */
+
+/** @defgroup combinators Parser Combinators
+ * @{
+ */
+
 /**
- * Given another parser, p, returns a parser that skips any whitespace
- * and then applies p.
- *
- * Result token type: p's result type
+ * @brief Given another parser, p, returns a parser that skips any whitespace and then applies p.
+ * @param p Parser to apply after whitespace
+ * @return Result token type: p's result type
  */
 HAMMER_FN_DECL(HParser *, h_whitespace, const HParser *p);
 
 /**
- * Given two parsers, p and q, returns a parser that parses them in
- * sequence but only returns p's result.
+ * @brief Given two parsers, p and q, returns a parser that parses them in sequence but only returns
+ * p's result.
  *
- * Result token type: p's result type
+ * @param p First parser
+ * @param q Second parser
+ * @return Result token type: p's result type
  */
 HAMMER_FN_DECL(HParser *, h_left, const HParser *p, const HParser *q);
 
 /**
- * Given two parsers, p and q, returns a parser that parses them in
- * sequence but only returns q's result.
+ * @brief Given two parsers, p and q, returns a parser that parses them in sequence but only returns
+ * q's result.
  *
- * Result token type: q's result type
+ * @param p First parser
+ * @param q Second parser
+ * @return Result token type: q's result type
  */
 HAMMER_FN_DECL(HParser *, h_right, const HParser *p, const HParser *q);
 
 /**
- * Given three parsers, p, x, and q, returns a parser that parses them in
- * sequence but only returns x's result.
- *
- * Result token type: x's result type
+ * @brief Given three parsers, p, x, and q, returns a parser that parses them in sequence but only
+ * returns x's result
+ * @param p First parser
+ * @param x Middle parser
+ * @param q Last parser
+ * @return Result token type: x's result type
  */
 HAMMER_FN_DECL(HParser *, h_middle, const HParser *p, const HParser *x, const HParser *q);
 
 /**
- * Given another parser, p, and a function f, returns a parser that
- * applies p, then applies f to everything in the AST of p's result.
- *
- * Result token type: any
+ * @brief Given another parser, p, and a function f, returns a parser that applies p, then applies f
+ * to everything in the AST of p's result
+ * @param p Parser to wrap
+ * @param a Action function
+ * @param user_data Context for action
+ * @return Result token type: any
  */
 HAMMER_FN_DECL(HParser *, h_action, const HParser *p, const HAction a, void *user_data);
 
 /**
- * Parse a single character in the given charset.
- *
- * Result token type: TT_UINT
+ * @brief Parse a single character in the given charset
+ * @param charset Character set
+ * @param length Charset length
+ * @return Result token type: TT_UINT
  */
 HAMMER_FN_DECL(HParser *, h_in, const uint8_t *charset, size_t length);
 
 /**
- * Parse a single character *NOT* in the given charset.
- *
- * Result token type: TT_UINT
+ * @brief Parse a single character *NOT* in the given charset
+ * @param charset Character set to exclude
+ * @param length Charset length
+ * @return Result token type: TT_UINT
  */
 HAMMER_FN_DECL(HParser *, h_not_in, const uint8_t *charset, size_t length);
 
 /**
- * A no-argument parser that succeeds if there is no more input to
- * parse.
- *
- * Result token type: None. The HParseResult exists but its AST is NULL.
+ * @brief A no-argument parser that succeeds if there is no more input to parse.
+ * @return Result token type: None. The HParseResult exists but its AST is NULL.
  */
 HAMMER_FN_DECL_NOARG(HParser *, h_end_p);
 
 /**
- * This parser always fails.
- *
- * Result token type: NULL. Always.
+ * @brief This parser always fails.
+ * @return Result token type: NULL. Always.
  */
 HAMMER_FN_DECL_NOARG(HParser *, h_nothing_p);
 
 /**
- * Given a null-terminated list of parsers, apply each parser in order.
- * The parse succeeds only if all parsers succeed.
+ * @brief Given a null-terminated list of parsers, apply each parser in order. The parse succeeds
+ * only if all parsers succeed.
  *
- * Result token type: TT_SEQUENCE
+ * @result Result token type: TT_SEQUENCE
  */
 HAMMER_FN_DECL_VARARGS_ATTR(H_GCC_ATTRIBUTE((sentinel)), HParser *, h_sequence, HParser *p);
 
 /**
- * Given an `h_sequence` and a list of indices, returns a parser that parses the sequence
- * but returns it without the results at the dropped indices. If a negative integer appears
- * in the middle of the list, this combinator will silently ignore the rest of the list.
- *
- * Result token type: TT_SEQUENCE
+ * @brief Given an `h_sequence` and a list of indices, returns a parser that parses the sequence but
+ * returns it without the results at the dropped indices. If a negative integer appears in the
+ * middle of the list, this combinator will silently ignore the rest of the list.
+ * @param p Sequence parser
+ * @param ... Indices of elements to drop
+ * @return Result token type: TT_SEQUENCE
  */
 #define h_drop_from(p, ...) h_drop_from_(p, __VA_ARGS__, -1)
 HAMMER_FN_DECL_VARARGS(HParser *, h_drop_from_, HParser *p);
 
 /**
- * Given an array of parsers, p_array, apply each parser in order. The
- * first parser to succeed is the result; if no parsers succeed, the
- * parse fails.
- *
- * Result token type: The type of the first successful parser's result.
+ * @brief Given an array of parsers, p_array, apply each parser in order. The first parser to
+ * succeed is the result; if no parsers succeed, the parse fails.
+ * @param p_array Array of parsers
+ * @return Result token type: The type of the first successful parser's result.
  */
 HAMMER_FN_DECL_VARARGS_ATTR(H_GCC_ATTRIBUTE((sentinel)), HParser *, h_choice, HParser *p);
 
 /**
- * Given a null-terminated list of parsers, match a permutation phrase of these
- * parsers, i.e. match all parsers exactly once in any order.
+ * @brief Given a null-terminated list of parsers, match a permutation phrase of these parsers, i.e.
+ * match all parsers exactly once in any order.
  *
- * If multiple orders would match, the lexically smallest permutation is used;
- * in other words, at any step the remaining available parsers are tried in
- * the order in which they appear in the arguments.
+ * If multiple orders would match, the lexically smallest permutation is used; in other words, at
+ * any step the remaining available parsers are tried in the order in which they appear in the
+ * arguments.
  *
- * As an exception, 'h_optional' parsers (actually those that return a result
- * of token type TT_NONE) are detected and the algorithm will try to match them
- * with a non-empty result. Specifically, a result of TT_NONE is treated as a
- * non-match as long as any other argument matches.
+ * As an exception, 'h_optional' parsers (actually those that return a result of token type
+ * TT_NONE) are detected and the algorithm will try to match them with a non-empty result.
+ * Specifically, a result of TT_NONE is treated as a non-match as long as any other argument
+ * matches.
  *
- * Other parsers that succeed on any input (e.g. h_many), that match the same
- * input as others, or that match input which is a prefix of another match can
- * lead to unexpected results and should probably not be used as arguments.
+ * Other parsers that succeed on any input (e.g. h_many), that match the same input as others, or
+ * that match input which is a prefix of another match can lead to unexpected results and should
+ * probably not be used as arguments.
  *
- * The result is a sequence of the same length as the argument list.
- * Each parser's result is placed at that parser's index in the arguments.
- * The permutation itself (the order in which the arguments were matched) is
- * not returned.
+ * The result is a sequence of the same length as the argument list. Each parser's result is placed
+ * at that parser's index in the arguments. The permutation itself (the order in which the
+ * arguments were matched) is not returned.
  *
- * Result token type: TT_SEQUENCE
+ * @param p Null-terminated list of parsers
+ * @return Result token type: TT_SEQUENCE
  */
 HAMMER_FN_DECL_VARARGS_ATTR(H_GCC_ATTRIBUTE((sentinel)), HParser *, h_permutation, HParser *p);
 
 /**
- * Given two parsers, p1 and p2, this parser succeeds in the following
- * cases:
+ * @brief Given two parsers, p1 and p2, this parser succeeds in the following cases:
  * - if p1 succeeds and p2 fails
  * - if both succeed but p1's result is as long as or longer than p2's
  *
- * Result token type: p1's result type.
+ * @param p1 First parser
+ * @param p2 Second parser
+ * @return Result token type: p1's result type.
  */
 HAMMER_FN_DECL(HParser *, h_butnot, const HParser *p1, const HParser *p2);
 
 /**
- * Given two parsers, p1 and p2, this parser succeeds in the following
- * cases:
+ * @brief Given two parsers, p1 and p2, this parser succeeds in the following cases:
  * - if p1 succeeds and p2 fails
  * - if both succeed but p2's result is shorter than p1's
  *
- * Result token type: p1's result type.
+ * @param p1 First parser
+ * @param p2 Second parser
+ * @return Result token type: p1's result type.
  */
 HAMMER_FN_DECL(HParser *, h_difference, const HParser *p1, const HParser *p2);
 
 /**
- * Given two parsers, p1 and p2, this parser succeeds if *either* p1 or
- * p2 succeed, but not if they both do.
+ * @brief Given two parsers, p1 and p2, this parser succeeds if *either* p1 or p2 succeed, but not
+ * if they both do.
  *
- * Result token type: The type of the result of whichever parser succeeded.
+ * @param p1 First parser
+ * @param p2 Second parser
+ * @return Result token type: The type of the result of whichever parser succeeded.
  */
 HAMMER_FN_DECL(HParser *, h_xor, const HParser *p1, const HParser *p2);
 
 /**
- * Given a parser, p, this parser succeeds for zero or more repetitions
- * of p.
- *
- * Result token type: TT_SEQUENCE
+ * @brief Given a parser, p, this parser succeeds for zero or more repetitions of p.
+ * @param p Parser to repeat
+ * @return Result token type: TT_SEQUENCE
  */
 HAMMER_FN_DECL(HParser *, h_many, const HParser *p);
 
 /**
- * Given a parser, p, this parser succeeds for one or more repetitions
- * of p.
- *
- * Result token type: TT_SEQUENCE
+ * @brief Given a parser, p, this parser succeeds for one or more repetitions of p.
+ * @param p Parser to repeat
+ * @return Result token type: TT_SEQUENCE
  */
 HAMMER_FN_DECL(HParser *, h_many1, const HParser *p);
 
 /**
- * Given a parser, p, this parser succeeds for exactly N repetitions
- * of p.
- *
- * Result token type: TT_SEQUENCE
+ * @brief Given a parser, p, this parser succeeds for exactly N repetitions of p.
+ * @param p Parser to repeat
+ * @param n Number of repetitions
+ * @return Result token type: TT_SEQUENCE
  */
 HAMMER_FN_DECL(HParser *, h_repeat_n, const HParser *p, const size_t n);
 
 /**
- * Given a parser, p, this parser succeeds with the value p parsed or
- * with an empty result.
- *
- * Result token type: If p succeeded, the type of its result; if not, TT_NONE.
+ * @brief Given a parser, p, this parser succeeds with the value p parsed or with an empty result.
+ * @param p Parser to apply optionally
+ * @return Result token type: If p succeeded, the type of its result; if not, TT_NONE.
  */
 HAMMER_FN_DECL(HParser *, h_optional, const HParser *p);
 
 /**
- * Given a parser, p, this parser succeeds if p succeeds, but doesn't
- * include p's result in the result.
+ * @brief Given a parser, p, this parser succeeds if p succeeds, but doesn't include p's result in
+ * the result.
  *
- * Result token type: None. The HParseResult exists but its AST is NULL.
+ * @param p Parser to ignore
+ * @return Result token type: None. The HParseResult exists but its AST is NULL.
  */
 HAMMER_FN_DECL(HParser *, h_ignore, const HParser *p);
 
 /**
- * Given a parser, p, and a parser for a separator, sep, this parser
- * matches a (possibly empty) list of things that p can parse,
- * separated by sep.
- * For example, if p is repeat1(range('0','9')) and sep is ch(','),
- * sepBy(p, sep) will match a comma-separated list of integers.
+ * @brief Given a parser, p, and a parser for a separator, sep, this parser matches a (possibly
+ * empty) list of things that p can parse, separated by sep. For example, if p is
+ * repeat1(range('0','9')) and sep is ch(','), sepBy(p, sep) will match a comma-separated list of
+ * integers.
  *
- * Result token type: TT_SEQUENCE
+ * @param p Parser for list elements
+ * @param sep Parser for separator
+ * @return Result token type: TT_SEQUENCE
  */
 HAMMER_FN_DECL(HParser *, h_sepBy, const HParser *p, const HParser *sep);
 
 /**
- * Given a parser, p, and a parser for a separator, sep, this parser matches a list of things that p
- * can parse, separated by sep. Unlike sepBy, this ensures that the result has at least one element.
- * For example, if p is repeat1(range('0','9')) and sep is ch(','), sepBy1(p, sep) will match a
- * comma-separated list of integers.
+ * @brief Given a parser, p, and a parser for a separator, sep, this parser matches a list of things
+ * that p can parse, separated by sep. Unlike sepBy, this ensures that the result has at least one
+ * element. For example, if p is repeat1(range('0','9')) and sep is ch(','), sepBy1(p, sep) will
+ * match a comma-separated list of integers.
  *
- * Result token type: TT_SEQUENCE
+ * @param p Parser for list elements
+ * @param sep Parser for separator
+ * @return Result token type: TT_SEQUENCE
  */
 HAMMER_FN_DECL(HParser *, h_sepBy1, const HParser *p, const HParser *sep);
 
 /**
- * This parser always returns a zero length match, i.e., empty string.
- *
- * Result token type: None. The HParseResult exists but its AST is NULL.
+ * @brief This parser always returns a zero length match, i.e., empty string.
+ * @return Result token type: None. The HParseResult exists but its AST is NULL.
  */
 HAMMER_FN_DECL_NOARG(HParser *, h_epsilon_p);
 
 /**
- * This parser applies its first argument to read an unsigned integer
- * value, then applies its second argument that many times. length
- * should parse an unsigned integer value; this is checked at runtime.
- * Specifically, the token_type of the returned token must be TT_UINT.
- * In future we might relax this to include TT_USER but don't count on it.
+ * @brief This parser applies its first argument to read an unsigned integer value, then applies its
+ * second argument that many times. length should parse an unsigned integer value; this is checked
+ * at runtime. Specifically, the token_type of the returned token must be TT_UINT. In future we
+ * might relax this to include TT_USER but don't count on it.
  *
- * Result token type: TT_SEQUENCE
+ * @param length Parser to read length
+ * @param value Parser to apply length times
+ * @return Result token type: TT_SEQUENCE
  */
 HAMMER_FN_DECL(HParser *, h_length_value, const HParser *length, const HParser *value);
 
 /**
- * This parser attaches a predicate function, which returns true or
- * false, to a parser. The function is evaluated over the parser's
- * result.
+ * @brief This parser attaches a predicate function, which returns true or false, to a parser. The
+ * function is evaluated over the parser's result.
  *
  * The parse only succeeds if the attribute function returns true.
  *
- * attr_bool will check whether p's result exists and whether p's
- * result AST exists; you do not need to check for this in your
- * predicate function.
+ * attr_bool will check whether p's result exists and whether p's result AST exists; you do not need
+ * to check for this in your predicate function.
  *
- * Result token type: p's result type if pred succeeded, NULL otherwise.
+ * @param p Parser to wrap
+ * @param pred Predicate function
+ * @param user_data Context for predicate
+ * @return Result token type: p's result type if pred succeeded, NULL otherwise.
  */
 HAMMER_FN_DECL(HParser *, h_attr_bool, const HParser *p, HPredicate pred, void *user_data);
 
 /**
- * The 'and' parser asserts that a conditional syntax is satisfied,
- * but doesn't consume that conditional syntax.
- * This is useful for lookahead. As an example:
+ * @brief The 'and' parser asserts that a conditional syntax is satisfied, but doesn't consume that
+ * conditional syntax. This is useful for lookahead. As an example:
  *
- * Suppose you already have a parser, hex_p, that parses numbers in
- * hexadecimal format (including the leading '0x'). Then
- *   sequence(and(token((const uint8_t*)"0x", 2)), hex_p)
- * checks to see whether there is a leading "0x", *does not* consume
- * the "0x", and then applies hex_p to parse the hex-formatted number.
+ * Suppose you already have a parser, hex_p, that parses numbers in hexadecimal format (including
+ * the leading '0x'). Then `sequence(and(token((const uint8_t*)"0x", 2)), hex_p)` checks to see
+ * whether there is a leading "0x", *does not* consume the "0x", and then applies hex_p to parse the
+ * hex-formatted number.
  *
  * 'and' succeeds if p succeeds, and fails if p fails.
  *
- * Result token type: None. The HParseResult exists but its AST is NULL.
+ * @param p Parser to apply
+ * @return Result token type: None. The HParseResult exists but its AST is NULL.
  */
 HAMMER_FN_DECL(HParser *, h_and, const HParser *p);
 
 /**
- * The 'not' parser asserts that a conditional syntax is *not*
- * satisfied, but doesn't consume that conditional syntax.
- * As a somewhat contrived example:
+ * @brief The 'not' parser asserts that a conditional syntax is *not* satisfied, but doesn't consume
+ * that conditional syntax. As a somewhat contrived example:
  *
- * Since 'choice' applies its arguments in order, the following parser:
- *   sequence(ch('a'), choice(ch('+'), token((const uint8_t*)"++"), NULL), ch('b'), NULL)
- * will not parse "a++b", because once choice() has succeeded, it will
- * not backtrack and try other alternatives if a later parser in the
- * sequence fails.
- * Instead, you can force the use of the second alternative by turning
+ * Since 'choice' applies its arguments in order, the following parser: `sequence(ch('a'),
+ * choice(ch('+'), token((const uint8_t*)"++"), NULL), ch('b'), NULL)` will not parse "a++b",
+ * because once choice() has succeeded, it will not backtrack and try other alternatives if a later
+ * parser in the sequence fails. Instead, you can force the use of the second alternative by turning
  * the ch('+') alternative into a sequence with not:
- *   sequence(ch('a'), choice(sequence(ch('+'), not(ch('+')), NULL), token((const uint8_t*)"++")),
- * ch('b'), NULL) If the input string is "a+b", the first alternative is applied; if the input
+ *   `sequence(ch('a'), choice(sequence(ch('+'), not(ch('+')), NULL), token((const uint8_t*)"++")),
+ * ch('b'), NULL)` If the input string is "a+b", the first alternative is applied; if the input
  * string is "a++b", the second alternative is applied.
  *
- * Result token type: None. The HParseResult exists but its AST is NULL.
+ * @param p Parser to apply
+ * @return Result token type: None. The HParseResult exists but its AST is NULL.
  */
 HAMMER_FN_DECL(HParser *, h_not, const HParser *p);
 
 /**
- * Create a parser that just calls out to another, as yet unknown,
- * parser.
- * Note that the inner parser gets bound later, with bind_indirect.
- * This can be used to create recursive parsers.
+ * @brief Create a parser that just calls out to another, as yet unknown, parser.
+ * Note that the inner parser gets bound later, with bind_indirect. This can be used to create
+ * recursive parsers.
  *
- * Result token type: the type of whatever parser is bound to it with
- * bind_indirect().
+ * @return Result token type: the type of whatever parser is bound to it with bind_indirect().
  */
 HAMMER_FN_DECL_NOARG(HParser *, h_indirect);
 
 /**
- * Set the inner parser of an indirect. See comments on indirect for
- * details.
+ * @brief Set the inner parser of an indirect. See comments on indirect for details.
+ * @param indirect Parser created with h_indirect()
+ * @param inner Parser to bind to indirect
  */
 HAMMER_FN_DECL(void, h_bind_indirect, HParser *indirect, const HParser *inner);
 
 /**
- * This parser runs its argument parser with the given endianness setting.
+ * @brief This parser runs its argument parser with the given endianness setting.
  *
  * The value of 'endianness' should be a bit-wise or of the constants
  * BYTE_BIG_ENDIAN/BYTE_LITTLE_ENDIAN and BIT_BIG_ENDIAN/BIT_LITTLE_ENDIAN.
  *
- * Result token type: p's result type.
+ * @param endianness Endianness setting
+ * @param p Parser to run with given endianness
+ * @return Result token type: p's result type.
  */
 HAMMER_FN_DECL(HParser *, h_with_endianness, char endianness, const HParser *p);
 
 /**
- * The 'h_put_value' combinator stashes the result of the parser
- * it wraps in a symbol table in the parse state, so that non-
- * local actions and predicates can access this value.
+ * @brief The 'h_put_value' combinator stashes the result of the parser it wraps in a symbol table
+ * in the parse state, so that non- local actions and predicates can access this value.
  *
- * Attempting to use h_put with a name that was already in the
- * symbol table will return NULL (and parse failure)
+ * Attempting to use h_put with a name that was already in the symbol table will return NULL (and
+ * parse failure)
  *
- * Result token type: p's token type if name was not already in
- * the symbol table.
+ * @param p Parser whose result to stash
+ * @param name Name to stash the result under (must be unique)
+ * @return Result token type: p's token type if name was not already in the symbol table.
  */
 HAMMER_FN_DECL(HParser *, h_put_value, const HParser *p, const char *name);
 
 /**
- * The 'h_get_value' combinator retrieves a named HParseResult that
- * was previously stashed in the parse state.
+ * @brief The 'h_get_value' combinator retrieves a named HParseResult that was previously stashed in
+ * the parse state.
  *
- * Result token type: whatever the stashed HParseResult is, if
- * present. If absent, NULL (and thus parse failure).
+ * @param name Name to retrieve
+ * @return Result token type: whatever the stashed HParseResult is, if present. If absent, NULL (and
+ * thus parse failure).
  */
 HAMMER_FN_DECL(HParser *, h_get_value, const char *name);
 
 /**
- * The 'h_free_value' combinator retrieves a named HParseResult that
- * was previously stashed in the parse state and deletes it from the
- * symbol table
+ * @brief The 'h_free_value' combinator retrieves a named HParseResult that was previously stashed
+ * in the parse state and deletes it from the symbol table
  *
- * Result token type: whatever the stashed HParseResult is, if
- * present. If absent, NULL (and thus parse failure).
+ * @param name Name to retrieve and delete
+ * @return Result token type: whatever the stashed HParseResult is, if present. If absent, NULL (and
+ * thus parse failure).
  */
 HAMMER_FN_DECL(HParser *, h_free_value, const char *name);
 
 /**
- * Monadic bind for HParsers, i.e.:
+ * @brief Monadic bind for HParsers, i.e.:
  * Sequencing where later parsers may depend on the result(s) of earlier ones.
  *
- * Run p and call the result x. Then run k(env,x).  Fail if p fails or if
- * k(env,x) fails or if k(env,x) is NULL.
+ * Run p and call the result x. Then run k(env,x).  Fail if p fails or if k(env,x) fails or if
+ * k(env,x) is NULL.
  *
- * Result: the result of k(x,env).
+ * @param p Parser to run first
+ * @param k Continuation function
+ * @param env Context to pass to k
+ * @return Result: the result of k(x,env).
  */
 HAMMER_FN_DECL(HParser *, h_bind, const HParser *p, HContinuation k, void *env);
 
 /**
- * This parser skips 'n' bits of input.
- *
- * Result: None. The HParseResult exists but its AST is NULL.
+ * @brief This parser skips 'n' bits of input.
+ * @param n Number of bits to skip
+ * @return Result: None. The HParseResult exists but its AST is NULL.
  */
 HAMMER_FN_DECL(HParser *, h_skip, size_t n);
 
 /**
- * The HParser equivalent of fseek(), 'h_seek' modifies the parser's input
- * position.  Note that contrary to 'fseek', offsets are in bits, not bytes.
- * The 'whence' argument uses the same values and semantics: SEEK_SET,
- * SEEK_CUR, SEEK_END.
+ * @brief The HParser equivalent of fseek(), 'h_seek' modifies the parser's input position.  Note
+ * that contrary to 'fseek', offsets are in bits, not bytes. The 'whence' argument uses the same
+ * values and semantics: SEEK_SET, SEEK_CUR, SEEK_END.
  *
  * Fails if the new input position would be negative or past the end of input.
  *
- * Result: TT_UINT. The new input position.
+ * @param offset Offset in bits
+ * @param whence SEEK_SET, SEEK_CUR, or SEEK_END
+ * @return Result: TT_UINT. The new input position.
  */
 HAMMER_FN_DECL(HParser *, h_seek, ssize_t offset, int whence);
 
 /**
- * Report the current position in bits. Consumes no input.
- *
- * Result: TT_UINT. The current input position.
+ * @brief Report the current position in bits. Consumes no input.
+ * @return Result: TT_UINT. The current input position.
  */
 HAMMER_FN_DECL_NOARG(HParser *, h_tell);
 
 /**
- * Free the memory allocated to an HParseResult when it is no longer needed.
+ * @brief Free the memory allocated to an HParseResult when it is no longer needed.
+ * @param result Result to free
  */
 HAMMER_FN_DECL(void, h_parse_result_free, HParseResult *result);
 
-// Some debugging aids
+/** @} */
+
+/** @defgroup debugging_aids Debugging Aids
+ * @{
+ */
+
 /**
- * Format token into a compact unambiguous form. Useful for parser test cases.
- * Caller is responsible for freeing the result.
+ * @brief Format token into a compact unambiguous form. Useful for parser test cases.
+ * @param tok Token to format
+ * @return Allocated string (caller must free)
  */
 char *h_write_result_unamb(const HParsedToken *tok);
+
 /**
- * Format token to the given output stream. Indent starting at [indent] spaces,
- * with [delta] spaces between levels.
+ * @brief Format token to the given output stream. Indent starting at [indent] spaces, with [delta]
+ * spaces between levels.
  *
- * Note: This function does not print a trailing newline. It also does not
- * print any spaces to indent the initial line of output. This makes it
- * suitable for recursive use in the condensed output of larger structures.
+ * Note: This function does not print a trailing newline. It also does not print any spaces to
+ * indent the initial line of output. This makes it suitable for recursive use in the condensed
+ * output of larger structures.
+ *
+ * @param stream Output stream
+ * @param tok Token to format
+ * @param indent Initial indentation level (in spaces)
+ * @param delta Number of spaces between indentation levels
  */
 void h_pprint(FILE *stream, const HParsedToken *tok, int indent, int delta);
+
 /**
- * Format token to the given output. Print a trailing newline.
+ * @brief Format token to the given output. Print a trailing newline.
  *
- * This function assumes an initial indentation of 0 and uses 2 spaces between
- * indentation levels. It is equivalent to 'h_pprint(stream, tok, 0, 2)'
- * followed by 'fputc('\n', stream)' and is provided for convenience.
+ * This function assumes an initial indentation of 0 and uses 2 spaces between indentation levels.
+ * It is equivalent to 'h_pprint(stream, tok, 0, 2)' followed by 'fputc('\n', stream)' and is
+ * provided for convenience.
+ *
+ * @param stream Output stream
+ * @param tok Token to format
  */
 void h_pprintln(FILE *stream, const HParsedToken *tok);
 
+/** @} */
+
+/** @defgroup compilation Parser Compilation
+ * @{
+ */
+
 /**
- * Build parse tables for the given parser backend. See the
- * documentation for the parser backend in question for information
- * about the [params] parameter, or just pass in NULL for the defaults.
+ * @brief Build parse tables for the given parser backend. See the documentation for the parser
+ * backend in question for information about the [params] parameter, or just pass in NULL for the
+ * defaults.
  *
  * Returns a nonzero value on error; 0 otherwise. Common return codes include:
  *
@@ -965,31 +1071,93 @@ void h_pprintln(FILE *stream, const HParsedToken *tok);
  *  >0: unexpected internal errors.
  *
  * Consult each backend for details.
+ *
+ * @param parser Parser to compile
+ * @param be_with_params Backend configuration
+ * @return 0 on success, error code otherwise
  */
 HAMMER_FN_DECL(int, h_compile_for_backend_with_params, HParser *parser,
                HParserBackendWithParams *be_with_params);
 
+/**
+ * @brief Build parse tables for the given parser backend.
+ *
+ * Returns a nonzero value on error; 0 otherwise. Common return codes include:
+ *
+ *  -1: parser uses a combinator that is incompatible with the chosen backend.
+ *  -2: parser could not be compiled with the chosen parameters.
+ *  >0: unexpected internal errors.
+ *
+ * @param parser Parser to compile
+ * @param backend Backend to use
+ * @param params Parameters for the backend, or NULL for defaults
+ * @return 0 on success, error code otherwise
+ */
 HAMMER_FN_DECL(int, h_compile, HParser *parser, HParserBackend backend, const void *params);
 
+/** @} */
+
 /**
- * TODO: Document me
+ * @defgroup bitwriter Bit Writer Functions
+ * @{
+ */
+
+/**
+ * @brief Create a new bit writer.
+ *
+ * Allocates and initializes an `HBitWriter` that accumulates bits into an internal growable buffer.
+ * The writer starts empty, with both byte and bit endianness set to big-endian. Use with
+ * `h_bit_writer_put` to append bits and `h_bit_writer_get_buffer` to access the resulting byte
+ * buffer.
+ *
+ * @param mm__ Allocator to use, or NULL for default
+ * @return New bit writer, or NULL on allocation failure
  */
 HBitWriter *h_bit_writer_new(HAllocator *mm__);
 
 /**
- * TODO: Document me
+ * @brief Append bits to the writer.
+ *
+ * Appends the lowest `nbits` bits from `data` to the internal buffer, growing it as needed. The
+ * order in which bits are taken from `data` and packed into bytes is determined by the writer's
+ * endianness flags.
+ *
+ * - Byte order: if byte-endian is big, bits are taken from most-significant to least-significant;
+ * if little, bits are taken from least-significant upward.
+ * - Bit order within a byte: if bit-endian is big, bits are appended toward the most-significant
+ * positions; if little, toward the least-significant.
+ *
+ * Preconditions: `w` is non-NULL and `nbits > 0` (up to 64).
+ *
+ * @param w Bit writer
+ * @param data Bits to append (in the lowest `nbits` bits)
+ * @param nbits Number of bits to append (1 to 64)
  */
 void h_bit_writer_put(HBitWriter *w, uint64_t data, size_t nbits);
 
 /**
- * TODO: Document me
- * Must not free [w] until you're done with the result.
- * [len] is in bytes.
+ * @brief Get a pointer to the internal byte buffer.
+ *
+ * Returns a pointer to the writer's internal buffer and stores its current length in bytes in
+ * `len`. The buffer is owned by `w` and remains valid until more data is written or
+ * `h_bit_writer_free` is called. The writer must be at a whole-byte boundary (i.e., no partial byte
+ * pending).
+ *
+ * Must not free `w` until you're done with the result. `len` is in bytes.
+ *
+ * @param w Bit writer
+ * @param len Output parameter for buffer length in bytes
+ * @return Pointer to internal buffer, or NULL if `w` is NULL or not at a whole-byte boundary
  */
 const uint8_t *h_bit_writer_get_buffer(HBitWriter *w, size_t *len);
 
 /**
- * TODO: Document me
+ * @brief Free the bit writer and its buffer.
+ *
+ * Releases all memory associated with `w`. Any buffer pointer obtained via
+ * `h_bit_writer_get_buffer` becomes invalid after this call.
+ *
+ * @param w Bit writer to free
  */
 void h_bit_writer_free(HBitWriter *w);
 
@@ -1001,13 +1169,19 @@ HParsedToken *h_act_last(const HParseResult *p, void *userdata);
 HParsedToken *h_act_flatten(const HParseResult *p, void *userdata);
 HParsedToken *h_act_ignore(const HParseResult *p, void *userdata);
 
-// {{{ Benchmark functions
+/** @defgroup benchmark_functions Benchmark functions
+ * @{
+ */
+
 HAMMER_FN_DECL(HBenchmarkResults *, h_benchmark, HParser *parser, HParserTestcase *testcases);
 void h_benchmark_report(FILE *stream, HBenchmarkResults *results);
 // void h_benchmark_dump_optimized_code(FILE* stream, HBenchmarkResults* results);
-//  }}}
 
-// {{{ result_buf printers (used by token type registry)
+/** @} */
+
+/** @defgroup result_buf_printers Result Buffer Printers
+ * @{
+ */
 
 struct result_buf;
 
@@ -1015,26 +1189,29 @@ bool h_append_buf(struct result_buf *buf, const char *input, int len);
 bool h_append_buf_c(struct result_buf *buf, char v);
 bool h_append_buf_formatted(struct result_buf *buf, char *format, ...);
 
-// }}}
+/** @} */
 
-// {{{ Token type registry
-/// Allocate a new, unused (as far as this function knows) token type.
+/** @defgroup token_type_registry Token Type Registry
+ * @{
+ */
+
+/* Allocate a new, unused (as far as this function knows) token type. */
 HTokenType h_allocate_token_type(const char *name);
 
-/// Allocate a new token type with an unambiguous print function.
+/* Allocate a new token type with an unambiguous print function. */
 HTokenType h_allocate_token_new(const char *name,
                                 void (*unamb_sub)(const HParsedToken *tok, struct result_buf *buf),
                                 void (*pprint)(FILE *stream, const HParsedToken *tok, int indent,
                                                int delta));
 
-/// Get the token type associated with name. Returns -1 if name is unkown
+/* Get the token type associated with name. Returns -1 if name is unknown */
 HTokenType h_get_token_type_number(const char *name);
 
-/// Get the name associated with token_type. Returns NULL if the token type is unkown
+/* Get the name associated with token_type. Returns NULL if the token type is unknown */
 const char *h_get_token_type_name(HTokenType token_type);
-// }}}
+/** @} */
 
-/// Make an allocator that draws from the given memory area.
+/** Make an allocator that draws from the given memory area. */
 HAllocator *h_sloballoc(void *mem, size_t size);
 
 #ifdef __cplusplus
