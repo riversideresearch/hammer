@@ -478,43 +478,56 @@ HParser *h_token__m(HAllocator *mm__, const uint8_t *str, const size_t len);
  * @brief Given a single character, returns a parser that parses that character.
  * @param c Character to parse
  * @return Result token type: TT_UINT
+ * @note Consumes 8 bits from the input stream
  */
 HParser *h_ch(const uint8_t c);
 HParser *h_ch__m(HAllocator *mm__, const uint8_t c);
 
 /**
- * @brief Parse character in range
+ * @brief Given two single-character bounds, lower and upper, returns a parser that parses a single
+ * character within the range
+ *
  * @param lower Lower bound (inclusive)
  * @param upper Upper bound (inclusive)
  * @return Result token type: TT_UINT
+ * @note Consumes 8 bits from the input stream
  */
 HParser *h_ch_range(const uint8_t lower, const uint8_t upper);
 HParser *h_ch_range__m(HAllocator *mm__, const uint8_t lower, const uint8_t upper);
 
 /**
- * @brief Parse integer in range
+ * @brief Given an integer parser, p, and two integer bounds, lower and upper, returns a parser that
+ * parses an integral value within the range
+ *
  * @param p Integer parser (e.g., h_int8(), h_uint32(), etc.)
  * @param lower Lower bound (inclusive)
  * @param upper Upper bound (inclusive)
  * @return Result token type: Same as p's result type
+ * @note Consumes the same number of bits as p
  */
 HParser *h_int_range(const HParser *p, const int64_t lower, const int64_t upper);
 HParser *h_int_range__m(HAllocator *mm__, const HParser *p, const int64_t lower,
                         const int64_t upper);
 
 /**
- * @brief Parse fixed number of bits
+ * @brief Returns a parser that parses the specified number of bits. sign == true if signed, false
+ * if unsigned.
+ *
  * @param len Number of bits
  * @param sign true for signed, false for unsigned
  * @return Result token type: TT_SINT if sign == true, TT_UINT if sign == false
+ * @note Consumes 'len' bits from the input stream
  */
 HParser *h_bits(size_t len, _Bool sign);
 HParser *h_bits__m(HAllocator *mm__, size_t len, _Bool sign);
 
 /**
- * @brief Parse fixed number of bytes
+ * @brief Returns a parser that parses the specified number of octets. The input does not have to be
+ * aligned to a byte boundary.
+ *
  * @param len Number of bytes
  * @return Result token type: TT_BYTES
+ * @note Consumes 'len * 8' bits from the input stream
  */
 HParser *h_bytes(size_t len);
 HParser *h_bytes__m(HAllocator *mm__, size_t len);
@@ -529,6 +542,7 @@ HParser *h_bytes__m(HAllocator *mm__, size_t len);
 /**
  * @brief Parse signed 64-bit integer
  * @return Result token type: TT_SINT
+ * @note Consumes 64 bits from the input stream
  */
 HParser *h_int64(void);
 HParser *h_int64__m(HAllocator *mm__);
@@ -536,6 +550,7 @@ HParser *h_int64__m(HAllocator *mm__);
 /**
  * @brief Parse signed 32-bit integer
  * @return Result token type: TT_SINT
+ * @note Consumes 32 bits from the input stream
  */
 HParser *h_int32(void);
 HParser *h_int32__m(HAllocator *mm__);
@@ -543,6 +558,7 @@ HParser *h_int32__m(HAllocator *mm__);
 /**
  * @brief Parse signed 16-bit integer
  * @return Result token type: TT_SINT
+ * @note Consumes 16 bits from the input stream
  */
 HParser *h_int16(void);
 HParser *h_int16__m(HAllocator *mm__);
@@ -550,6 +566,7 @@ HParser *h_int16__m(HAllocator *mm__);
 /**
  * @brief Parse signed 8-bit integer
  * @return Result token type: TT_SINT
+ * @note Consumes 8 bits from the input stream
  */
 HParser *h_int8(void);
 HParser *h_int8__m(HAllocator *mm__);
@@ -557,6 +574,7 @@ HParser *h_int8__m(HAllocator *mm__);
 /**
  * @brief Parse unsigned 64-bit integer
  * @return Result token type: TT_UINT
+ * @note Consumes 64 bits from the input stream
  */
 HParser *h_uint64(void);
 HParser *h_uint64__m(HAllocator *mm__);
@@ -564,6 +582,7 @@ HParser *h_uint64__m(HAllocator *mm__);
 /**
  * @brief Parse unsigned 32-bit integer
  * @return Result token type: TT_UINT
+ * @note Consumes 32 bits from the input stream
  */
 HParser *h_uint32(void);
 HParser *h_uint32__m(HAllocator *mm__);
@@ -571,6 +590,7 @@ HParser *h_uint32__m(HAllocator *mm__);
 /**
  * @brief Parse unsigned 16-bit integer
  * @return Result token type: TT_UINT
+ * @note Consumes 16 bits from the input stream
  */
 HParser *h_uint16(void);
 HParser *h_uint16__m(HAllocator *mm__);
@@ -578,6 +598,7 @@ HParser *h_uint16__m(HAllocator *mm__);
 /**
  * @brief Parse unsigned 8-bit integer
  * @return Result token type: TT_UINT
+ * @note Consumes 8 bits from the input stream
  */
 HParser *h_uint8(void);
 HParser *h_uint8__m(HAllocator *mm__);
