@@ -318,56 +318,6 @@ typedef struct HBenchmarkResults_ {
 /** @} */
 
 /**
- * @defgroup hammer_function_declarations Function Declaration Macros
- */
-
-#define HAMMER_FN_DECL_NOARG(rtype_t, name)                                                        \
-    rtype_t name(void);                                                                            \
-    rtype_t name##__m(HAllocator *mm__)
-
-#define HAMMER_FN_DECL(rtype_t, name, ...)                                                         \
-    rtype_t name(__VA_ARGS__);                                                                     \
-    rtype_t name##__m(HAllocator *mm__, __VA_ARGS__)
-
-#define HAMMER_FN_DECL_ATTR(attr, rtype_t, name, ...)                                              \
-    rtype_t name(__VA_ARGS__) attr;                                                                \
-    rtype_t name##__m(HAllocator *mm__, __VA_ARGS__) attr
-
-#ifndef SWIG
-#define HAMMER_FN_DECL_VARARGS(rtype_t, name, ...)                                                 \
-    rtype_t name(__VA_ARGS__, ...);                                                                \
-    rtype_t name##__m(HAllocator *mm__, __VA_ARGS__, ...);                                         \
-    rtype_t name##__mv(HAllocator *mm__, __VA_ARGS__, va_list ap);                                 \
-    rtype_t name##__v(__VA_ARGS__, va_list ap);                                                    \
-    rtype_t name##__a(void *args[]);                                                               \
-    rtype_t name##__ma(HAllocator *mm__, void *args[])
-
-// Note: this drops the attributes on the floor for the __v versions
-#define HAMMER_FN_DECL_VARARGS_ATTR(attr, rtype_t, name, ...)                                      \
-    rtype_t name(__VA_ARGS__, ...) attr;                                                           \
-    rtype_t name##__m(HAllocator *mm__, __VA_ARGS__, ...) attr;                                    \
-    rtype_t name##__mv(HAllocator *mm__, __VA_ARGS__, va_list ap);                                 \
-    rtype_t name##__v(__VA_ARGS__, va_list ap);                                                    \
-    rtype_t name##__a(void *args[]);                                                               \
-    rtype_t name##__ma(HAllocator *mm__, void *args[])
-#else
-#define HAMMER_FN_DECL_VARARGS(rtype_t, name, params...)                                           \
-    rtype_t name(params, ...);                                                                     \
-    rtype_t name##__m(HAllocator *mm__, params, ...);                                              \
-    rtype_t name##__a(void *args[]);                                                               \
-    rtype_t name##__ma(HAllocator *mm__, void *args[])
-
-// Note: this drops the attributes on the floor for the __v versions
-#define HAMMER_FN_DECL_VARARGS_ATTR(attr, rtype_t, name, params...)                                \
-    rtype_t name(params, ...);                                                                     \
-    rtype_t name##__m(HAllocator *mm__, params, ...);                                              \
-    rtype_t name##__a(void *args[]);                                                               \
-    rtype_t name##__ma(HAllocator *mm__, void *args[])
-#endif // SWIG
-
-/** @} */
-
-/**
  * @defgroup backend_functions Backend Management
  * @{
  */
@@ -396,8 +346,9 @@ HParserBackendVTable *h_get_default_backend_vtable(void);
  * @param be_with_params Backend configuration to copy
  * @return New backend configuration
  */
-HAMMER_FN_DECL(HParserBackendWithParams *, h_copy_backend_with_params,
-               HParserBackendWithParams *be_with_params);
+HParserBackendWithParams *h_copy_backend_with_params(HParserBackendWithParams *be_with_params);
+HParserBackendWithParams *h_copy_backend_with_params__m(HAllocator *mm__,
+                                                        HParserBackendWithParams *be_with_params);
 
 /**
  * @brief Free backend configuration
@@ -417,8 +368,9 @@ const char *h_get_name_for_backend(HParserBackend be);
  * @param be_with_params Backend configuration
  * @return Allocated name string (caller must free)
  */
-HAMMER_FN_DECL(char *, h_get_name_for_backend_with_params,
-               HParserBackendWithParams *be_with_params);
+char *h_get_name_for_backend_with_params(HParserBackendWithParams *be_with_params);
+char *h_get_name_for_backend_with_params__m(HAllocator *mm__,
+                                            HParserBackendWithParams *be_with_params);
 
 /**
  * @brief Get backend descriptive text
@@ -432,8 +384,9 @@ const char *h_get_descriptive_text_for_backend(HParserBackend be);
  * @param be_with_params Backend configuration
  * @return Allocated descriptive text (caller must free)
  */
-HAMMER_FN_DECL(char *, h_get_descriptive_text_for_backend_with_params,
-               HParserBackendWithParams *be_with_params);
+char *h_get_descriptive_text_for_backend_with_params(HParserBackendWithParams *be_with_params);
+char *h_get_descriptive_text_for_backend_with_params__m(HAllocator *mm__,
+                                                        HParserBackendWithParams *be_with_params);
 
 /**
  * @brief Look up backend by name
@@ -447,8 +400,9 @@ HParserBackend h_query_backend_by_name(const char *name);
  * @param name_with_params String like "lalr(1)"
  * @return Backend configuration
  */
-HAMMER_FN_DECL(HParserBackendWithParams *, h_get_backend_with_params_by_name,
-               const char *name_with_params);
+HParserBackendWithParams *h_get_backend_with_params_by_name(const char *name_with_params);
+HParserBackendWithParams *h_get_backend_with_params_by_name__m(HAllocator *mm__,
+                                                               const char *name_with_params);
 
 /** @} */
 
@@ -466,7 +420,9 @@ HAMMER_FN_DECL(HParserBackendWithParams *, h_get_backend_with_params_by_name,
  * @param length Length of input data
  * @return Parse result, or NULL on failure
  */
-HAMMER_FN_DECL(HParseResult *, h_parse, const HParser *parser, const uint8_t *input, size_t length);
+HParseResult *h_parse(const HParser *parser, const uint8_t *input, size_t length);
+HParseResult *h_parse__m(HAllocator *mm__, const HParser *parser, const uint8_t *input,
+                         size_t length);
 
 /**
  * @brief Initialize a parser for iteratively consuming an input stream in chunks. This is only
@@ -475,7 +431,8 @@ HAMMER_FN_DECL(HParseResult *, h_parse, const HParser *parser, const uint8_t *in
  * @param parser Parser to use
  * @return Result is NULL if not supported by the backend.
  */
-HAMMER_FN_DECL(HSuspendedParser *, h_parse_start, const HParser *parser);
+HSuspendedParser *h_parse_start(const HParser *parser);
+HSuspendedParser *h_parse_start__m(HAllocator *mm__, const HParser *parser);
 
 /**
  * @brief Run a suspended parser (as returned by h_parse_start) on a chunk of input.
@@ -508,7 +465,8 @@ HParseResult *h_parse_finish(HSuspendedParser *s);
  * @param len Length of string to parse
  * @return Result token type: TT_BYTES
  */
-HAMMER_FN_DECL(HParser *, h_token, const uint8_t *str, const size_t len);
+HParser *h_token(const uint8_t *str, const size_t len);
+HParser *h_token__m(HAllocator *mm__, const uint8_t *str, const size_t len);
 
 /**
  * @brief Parse literal string (macro convenience)
@@ -521,7 +479,8 @@ HAMMER_FN_DECL(HParser *, h_token, const uint8_t *str, const size_t len);
  * @param c Character to parse
  * @return Result token type: TT_UINT
  */
-HAMMER_FN_DECL(HParser *, h_ch, const uint8_t c);
+HParser *h_ch(const uint8_t c);
+HParser *h_ch__m(HAllocator *mm__, const uint8_t c);
 
 /**
  * @brief Parse character in range
@@ -529,7 +488,8 @@ HAMMER_FN_DECL(HParser *, h_ch, const uint8_t c);
  * @param upper Upper bound (inclusive)
  * @return Result token type: TT_UINT
  */
-HAMMER_FN_DECL(HParser *, h_ch_range, const uint8_t lower, const uint8_t upper);
+HParser *h_ch_range(const uint8_t lower, const uint8_t upper);
+HParser *h_ch_range__m(HAllocator *mm__, const uint8_t lower, const uint8_t upper);
 
 /**
  * @brief Parse integer in range
@@ -538,7 +498,9 @@ HAMMER_FN_DECL(HParser *, h_ch_range, const uint8_t lower, const uint8_t upper);
  * @param upper Upper bound (inclusive)
  * @return Result token type: Same as p's result type
  */
-HAMMER_FN_DECL(HParser *, h_int_range, const HParser *p, const int64_t lower, const int64_t upper);
+HParser *h_int_range(const HParser *p, const int64_t lower, const int64_t upper);
+HParser *h_int_range__m(HAllocator *mm__, const HParser *p, const int64_t lower,
+                        const int64_t upper);
 
 /**
  * @brief Parse fixed number of bits
@@ -546,14 +508,16 @@ HAMMER_FN_DECL(HParser *, h_int_range, const HParser *p, const int64_t lower, co
  * @param sign true for signed, false for unsigned
  * @return Result token type: TT_SINT if sign == true, TT_UINT if sign == false
  */
-HAMMER_FN_DECL(HParser *, h_bits, size_t len, bool sign);
+HParser *h_bits(size_t len, _Bool sign);
+HParser *h_bits__m(HAllocator *mm__, size_t len, _Bool sign);
 
 /**
  * @brief Parse fixed number of bytes
  * @param len Number of bytes
  * @return Result token type: TT_BYTES
  */
-HAMMER_FN_DECL(HParser *, h_bytes, size_t len);
+HParser *h_bytes(size_t len);
+HParser *h_bytes__m(HAllocator *mm__, size_t len);
 
 /** @} */
 
@@ -566,49 +530,57 @@ HAMMER_FN_DECL(HParser *, h_bytes, size_t len);
  * @brief Parse signed 64-bit integer
  * @return Result token type: TT_SINT
  */
-HAMMER_FN_DECL_NOARG(HParser *, h_int64);
+HParser *h_int64(void);
+HParser *h_int64__m(HAllocator *mm__);
 
 /**
  * @brief Parse signed 32-bit integer
  * @return Result token type: TT_SINT
  */
-HAMMER_FN_DECL_NOARG(HParser *, h_int32);
+HParser *h_int32(void);
+HParser *h_int32__m(HAllocator *mm__);
 
 /**
  * @brief Parse signed 16-bit integer
  * @return Result token type: TT_SINT
  */
-HAMMER_FN_DECL_NOARG(HParser *, h_int16);
+HParser *h_int16(void);
+HParser *h_int16__m(HAllocator *mm__);
 
 /**
  * @brief Parse signed 8-bit integer
  * @return Result token type: TT_SINT
  */
-HAMMER_FN_DECL_NOARG(HParser *, h_int8);
+HParser *h_int8(void);
+HParser *h_int8__m(HAllocator *mm__);
 
 /**
  * @brief Parse unsigned 64-bit integer
  * @return Result token type: TT_UINT
  */
-HAMMER_FN_DECL_NOARG(HParser *, h_uint64);
+HParser *h_uint64(void);
+HParser *h_uint64__m(HAllocator *mm__);
 
 /**
  * @brief Parse unsigned 32-bit integer
  * @return Result token type: TT_UINT
  */
-HAMMER_FN_DECL_NOARG(HParser *, h_uint32);
+HParser *h_uint32(void);
+HParser *h_uint32__m(HAllocator *mm__);
 
 /**
  * @brief Parse unsigned 16-bit integer
  * @return Result token type: TT_UINT
  */
-HAMMER_FN_DECL_NOARG(HParser *, h_uint16);
+HParser *h_uint16(void);
+HParser *h_uint16__m(HAllocator *mm__);
 
 /**
  * @brief Parse unsigned 8-bit integer
  * @return Result token type: TT_UINT
  */
-HAMMER_FN_DECL_NOARG(HParser *, h_uint8);
+HParser *h_uint8(void);
+HParser *h_uint8__m(HAllocator *mm__);
 
 /** @} */
 
@@ -621,7 +593,8 @@ HAMMER_FN_DECL_NOARG(HParser *, h_uint8);
  * @param p Parser to apply after whitespace
  * @return Result token type: p's result type
  */
-HAMMER_FN_DECL(HParser *, h_whitespace, const HParser *p);
+HParser *h_whitespace(const HParser *p);
+HParser *h_whitespace__m(HAllocator *mm__, const HParser *p);
 
 /**
  * @brief Given two parsers, p and q, returns a parser that parses them in sequence but only returns
@@ -631,7 +604,8 @@ HAMMER_FN_DECL(HParser *, h_whitespace, const HParser *p);
  * @param q Second parser
  * @return Result token type: p's result type
  */
-HAMMER_FN_DECL(HParser *, h_left, const HParser *p, const HParser *q);
+HParser *h_left(const HParser *p, const HParser *q);
+HParser *h_left__m(HAllocator *mm__, const HParser *p, const HParser *q);
 
 /**
  * @brief Given two parsers, p and q, returns a parser that parses them in sequence but only returns
@@ -641,7 +615,8 @@ HAMMER_FN_DECL(HParser *, h_left, const HParser *p, const HParser *q);
  * @param q Second parser
  * @return Result token type: q's result type
  */
-HAMMER_FN_DECL(HParser *, h_right, const HParser *p, const HParser *q);
+HParser *h_right(const HParser *p, const HParser *q);
+HParser *h_right__m(HAllocator *mm__, const HParser *p, const HParser *q);
 
 /**
  * @brief Given three parsers, p, x, and q, returns a parser that parses them in sequence but only
@@ -651,7 +626,8 @@ HAMMER_FN_DECL(HParser *, h_right, const HParser *p, const HParser *q);
  * @param q Last parser
  * @return Result token type: x's result type
  */
-HAMMER_FN_DECL(HParser *, h_middle, const HParser *p, const HParser *x, const HParser *q);
+HParser *h_middle(const HParser *p, const HParser *x, const HParser *q);
+HParser *h_middle__m(HAllocator *mm__, const HParser *p, const HParser *x, const HParser *q);
 
 /**
  * @brief Given another parser, p, and a function f, returns a parser that applies p, then applies f
@@ -661,7 +637,8 @@ HAMMER_FN_DECL(HParser *, h_middle, const HParser *p, const HParser *x, const HP
  * @param user_data Context for action
  * @return Result token type: any
  */
-HAMMER_FN_DECL(HParser *, h_action, const HParser *p, const HAction a, void *user_data);
+HParser *h_action(const HParser *p, const HAction a, void *user_data);
+HParser *h_action__m(HAllocator *mm__, const HParser *p, const HAction a, void *user_data);
 
 /**
  * @brief Parse a single character in the given charset
@@ -669,7 +646,8 @@ HAMMER_FN_DECL(HParser *, h_action, const HParser *p, const HAction a, void *use
  * @param length Charset length
  * @return Result token type: TT_UINT
  */
-HAMMER_FN_DECL(HParser *, h_in, const uint8_t *charset, size_t length);
+HParser *h_in(const uint8_t *charset, size_t length);
+HParser *h_in__m(HAllocator *mm__, const uint8_t *charset, size_t length);
 
 /**
  * @brief Parse a single character *NOT* in the given charset
@@ -677,19 +655,22 @@ HAMMER_FN_DECL(HParser *, h_in, const uint8_t *charset, size_t length);
  * @param length Charset length
  * @return Result token type: TT_UINT
  */
-HAMMER_FN_DECL(HParser *, h_not_in, const uint8_t *charset, size_t length);
+HParser *h_not_in(const uint8_t *charset, size_t length);
+HParser *h_not_in__m(HAllocator *mm__, const uint8_t *charset, size_t length);
 
 /**
  * @brief A no-argument parser that succeeds if there is no more input to parse.
  * @return Result token type: None. The HParseResult exists but its AST is NULL.
  */
-HAMMER_FN_DECL_NOARG(HParser *, h_end_p);
+HParser *h_end_p(void);
+HParser *h_end_p__m(HAllocator *mm__);
 
 /**
  * @brief This parser always fails.
  * @return Result token type: NULL. Always.
  */
-HAMMER_FN_DECL_NOARG(HParser *, h_nothing_p);
+HParser *h_nothing_p(void);
+HParser *h_nothing_p__m(HAllocator *mm__);
 
 /**
  * @brief Given a null-terminated list of parsers, apply each parser in order. The parse succeeds
@@ -697,7 +678,14 @@ HAMMER_FN_DECL_NOARG(HParser *, h_nothing_p);
  *
  * @result Result token type: TT_SEQUENCE
  */
-HAMMER_FN_DECL_VARARGS_ATTR(H_GCC_ATTRIBUTE((sentinel)), HParser *, h_sequence, HParser *p);
+HParser *h_sequence(HParser *p, ...) __attribute__((sentinel));
+HParser *h_sequence__m(HAllocator *mm__, HParser *p, ...) __attribute__((sentinel));
+HParser *h_sequence__mv(HAllocator *mm__, HParser *p, va_list ap);
+HParser *h_sequence__v(HParser *p, va_list ap);
+HParser *h_sequence__a(void *args[]);
+HParser *h_sequence__ma(HAllocator *mm__, void *args[]);
+
+#define h_drop_from(p, ...) h_drop_from_(p, __VA_ARGS__, -1)
 
 /**
  * @brief Given an `h_sequence` and a list of indices, returns a parser that parses the sequence but
@@ -707,8 +695,12 @@ HAMMER_FN_DECL_VARARGS_ATTR(H_GCC_ATTRIBUTE((sentinel)), HParser *, h_sequence, 
  * @param ... Indices of elements to drop
  * @return Result token type: TT_SEQUENCE
  */
-#define h_drop_from(p, ...) h_drop_from_(p, __VA_ARGS__, -1)
-HAMMER_FN_DECL_VARARGS(HParser *, h_drop_from_, HParser *p);
+HParser *h_drop_from_(HParser *p, ...);
+HParser *h_drop_from___m(HAllocator *mm__, HParser *p, ...);
+HParser *h_drop_from___mv(HAllocator *mm__, HParser *p, va_list ap);
+HParser *h_drop_from___v(HParser *p, va_list ap);
+HParser *h_drop_from___a(void *args[]);
+HParser *h_drop_from___ma(HAllocator *mm__, void *args[]);
 
 /**
  * @brief Given an array of parsers, p_array, apply each parser in order. The first parser to
@@ -716,7 +708,12 @@ HAMMER_FN_DECL_VARARGS(HParser *, h_drop_from_, HParser *p);
  * @param p_array Array of parsers
  * @return Result token type: The type of the first successful parser's result.
  */
-HAMMER_FN_DECL_VARARGS_ATTR(H_GCC_ATTRIBUTE((sentinel)), HParser *, h_choice, HParser *p);
+HParser *h_choice(HParser *p, ...) __attribute__((sentinel));
+HParser *h_choice__m(HAllocator *mm__, HParser *p, ...) __attribute__((sentinel));
+HParser *h_choice__mv(HAllocator *mm__, HParser *p, va_list ap);
+HParser *h_choice__v(HParser *p, va_list ap);
+HParser *h_choice__a(void *args[]);
+HParser *h_choice__ma(HAllocator *mm__, void *args[]);
 
 /**
  * @brief Given a null-terminated list of parsers, match a permutation phrase of these parsers, i.e.
@@ -742,7 +739,12 @@ HAMMER_FN_DECL_VARARGS_ATTR(H_GCC_ATTRIBUTE((sentinel)), HParser *, h_choice, HP
  * @param p Null-terminated list of parsers
  * @return Result token type: TT_SEQUENCE
  */
-HAMMER_FN_DECL_VARARGS_ATTR(H_GCC_ATTRIBUTE((sentinel)), HParser *, h_permutation, HParser *p);
+HParser *h_permutation(HParser *p, ...) __attribute__((sentinel));
+HParser *h_permutation__m(HAllocator *mm__, HParser *p, ...) __attribute__((sentinel));
+HParser *h_permutation__mv(HAllocator *mm__, HParser *p, va_list ap);
+HParser *h_permutation__v(HParser *p, va_list ap);
+HParser *h_permutation__a(void *args[]);
+HParser *h_permutation__ma(HAllocator *mm__, void *args[]);
 
 /**
  * @brief Given two parsers, p1 and p2, this parser succeeds in the following cases:
@@ -753,7 +755,8 @@ HAMMER_FN_DECL_VARARGS_ATTR(H_GCC_ATTRIBUTE((sentinel)), HParser *, h_permutatio
  * @param p2 Second parser
  * @return Result token type: p1's result type.
  */
-HAMMER_FN_DECL(HParser *, h_butnot, const HParser *p1, const HParser *p2);
+HParser *h_butnot(const HParser *p1, const HParser *p2);
+HParser *h_butnot__m(HAllocator *mm__, const HParser *p1, const HParser *p2);
 
 /**
  * @brief Given two parsers, p1 and p2, this parser succeeds in the following cases:
@@ -764,7 +767,8 @@ HAMMER_FN_DECL(HParser *, h_butnot, const HParser *p1, const HParser *p2);
  * @param p2 Second parser
  * @return Result token type: p1's result type.
  */
-HAMMER_FN_DECL(HParser *, h_difference, const HParser *p1, const HParser *p2);
+HParser *h_difference(const HParser *p1, const HParser *p2);
+HParser *h_difference__m(HAllocator *mm__, const HParser *p1, const HParser *p2);
 
 /**
  * @brief Given two parsers, p1 and p2, this parser succeeds if *either* p1 or p2 succeed, but not
@@ -774,21 +778,24 @@ HAMMER_FN_DECL(HParser *, h_difference, const HParser *p1, const HParser *p2);
  * @param p2 Second parser
  * @return Result token type: The type of the result of whichever parser succeeded.
  */
-HAMMER_FN_DECL(HParser *, h_xor, const HParser *p1, const HParser *p2);
+HParser *h_xor(const HParser *p1, const HParser *p2);
+HParser *h_xor__m(HAllocator *mm__, const HParser *p1, const HParser *p2);
 
 /**
  * @brief Given a parser, p, this parser succeeds for zero or more repetitions of p.
  * @param p Parser to repeat
  * @return Result token type: TT_SEQUENCE
  */
-HAMMER_FN_DECL(HParser *, h_many, const HParser *p);
+HParser *h_many(const HParser *p);
+HParser *h_many__m(HAllocator *mm__, const HParser *p);
 
 /**
  * @brief Given a parser, p, this parser succeeds for one or more repetitions of p.
  * @param p Parser to repeat
  * @return Result token type: TT_SEQUENCE
  */
-HAMMER_FN_DECL(HParser *, h_many1, const HParser *p);
+HParser *h_many1(const HParser *p);
+HParser *h_many1__m(HAllocator *mm__, const HParser *p);
 
 /**
  * @brief Given a parser, p, this parser succeeds for exactly N repetitions of p.
@@ -796,14 +803,16 @@ HAMMER_FN_DECL(HParser *, h_many1, const HParser *p);
  * @param n Number of repetitions
  * @return Result token type: TT_SEQUENCE
  */
-HAMMER_FN_DECL(HParser *, h_repeat_n, const HParser *p, const size_t n);
+HParser *h_repeat_n(const HParser *p, const size_t n);
+HParser *h_repeat_n__m(HAllocator *mm__, const HParser *p, const size_t n);
 
 /**
  * @brief Given a parser, p, this parser succeeds with the value p parsed or with an empty result.
  * @param p Parser to apply optionally
  * @return Result token type: If p succeeded, the type of its result; if not, TT_NONE.
  */
-HAMMER_FN_DECL(HParser *, h_optional, const HParser *p);
+HParser *h_optional(const HParser *p);
+HParser *h_optional__m(HAllocator *mm__, const HParser *p);
 
 /**
  * @brief Given a parser, p, this parser succeeds if p succeeds, but doesn't include p's result in
@@ -812,7 +821,8 @@ HAMMER_FN_DECL(HParser *, h_optional, const HParser *p);
  * @param p Parser to ignore
  * @return Result token type: None. The HParseResult exists but its AST is NULL.
  */
-HAMMER_FN_DECL(HParser *, h_ignore, const HParser *p);
+HParser *h_ignore(const HParser *p);
+HParser *h_ignore__m(HAllocator *mm__, const HParser *p);
 
 /**
  * @brief Given a parser, p, and a parser for a separator, sep, this parser matches a (possibly
@@ -824,7 +834,8 @@ HAMMER_FN_DECL(HParser *, h_ignore, const HParser *p);
  * @param sep Parser for separator
  * @return Result token type: TT_SEQUENCE
  */
-HAMMER_FN_DECL(HParser *, h_sepBy, const HParser *p, const HParser *sep);
+HParser *h_sepBy(const HParser *p, const HParser *sep);
+HParser *h_sepBy__m(HAllocator *mm__, const HParser *p, const HParser *sep);
 
 /**
  * @brief Given a parser, p, and a parser for a separator, sep, this parser matches a list of things
@@ -836,13 +847,15 @@ HAMMER_FN_DECL(HParser *, h_sepBy, const HParser *p, const HParser *sep);
  * @param sep Parser for separator
  * @return Result token type: TT_SEQUENCE
  */
-HAMMER_FN_DECL(HParser *, h_sepBy1, const HParser *p, const HParser *sep);
+HParser *h_sepBy1(const HParser *p, const HParser *sep);
+HParser *h_sepBy1__m(HAllocator *mm__, const HParser *p, const HParser *sep);
 
 /**
  * @brief This parser always returns a zero length match, i.e., empty string.
  * @return Result token type: None. The HParseResult exists but its AST is NULL.
  */
-HAMMER_FN_DECL_NOARG(HParser *, h_epsilon_p);
+HParser *h_epsilon_p(void);
+HParser *h_epsilon_p__m(HAllocator *mm__);
 
 /**
  * @brief This parser applies its first argument to read an unsigned integer value, then applies its
@@ -854,7 +867,8 @@ HAMMER_FN_DECL_NOARG(HParser *, h_epsilon_p);
  * @param value Parser to apply length times
  * @return Result token type: TT_SEQUENCE
  */
-HAMMER_FN_DECL(HParser *, h_length_value, const HParser *length, const HParser *value);
+HParser *h_length_value(const HParser *length, const HParser *value);
+HParser *h_length_value__m(HAllocator *mm__, const HParser *length, const HParser *value);
 
 /**
  * @brief This parser attaches a predicate function, which returns true or false, to a parser. The
@@ -870,7 +884,8 @@ HAMMER_FN_DECL(HParser *, h_length_value, const HParser *length, const HParser *
  * @param user_data Context for predicate
  * @return Result token type: p's result type if pred succeeded, NULL otherwise.
  */
-HAMMER_FN_DECL(HParser *, h_attr_bool, const HParser *p, HPredicate pred, void *user_data);
+HParser *h_attr_bool(const HParser *p, HPredicate pred, void *user_data);
+HParser *h_attr_bool__m(HAllocator *mm__, const HParser *p, HPredicate pred, void *user_data);
 
 /**
  * @brief The 'and' parser asserts that a conditional syntax is satisfied, but doesn't consume that
@@ -886,7 +901,8 @@ HAMMER_FN_DECL(HParser *, h_attr_bool, const HParser *p, HPredicate pred, void *
  * @param p Parser to apply
  * @return Result token type: None. The HParseResult exists but its AST is NULL.
  */
-HAMMER_FN_DECL(HParser *, h_and, const HParser *p);
+HParser *h_and(const HParser *p);
+HParser *h_and__m(HAllocator *mm__, const HParser *p);
 
 /**
  * @brief The 'not' parser asserts that a conditional syntax is *not* satisfied, but doesn't consume
@@ -904,7 +920,8 @@ HAMMER_FN_DECL(HParser *, h_and, const HParser *p);
  * @param p Parser to apply
  * @return Result token type: None. The HParseResult exists but its AST is NULL.
  */
-HAMMER_FN_DECL(HParser *, h_not, const HParser *p);
+HParser *h_not(const HParser *p);
+HParser *h_not__m(HAllocator *mm__, const HParser *p);
 
 /**
  * @brief Create a parser that just calls out to another, as yet unknown, parser.
@@ -913,14 +930,16 @@ HAMMER_FN_DECL(HParser *, h_not, const HParser *p);
  *
  * @return Result token type: the type of whatever parser is bound to it with bind_indirect().
  */
-HAMMER_FN_DECL_NOARG(HParser *, h_indirect);
+HParser *h_indirect(void);
+HParser *h_indirect__m(HAllocator *mm__);
 
 /**
  * @brief Set the inner parser of an indirect. See comments on indirect for details.
  * @param indirect Parser created with h_indirect()
  * @param inner Parser to bind to indirect
  */
-HAMMER_FN_DECL(void, h_bind_indirect, HParser *indirect, const HParser *inner);
+void h_bind_indirect(HParser *indirect, const HParser *inner);
+void h_bind_indirect__m(HAllocator *mm__, HParser *indirect, const HParser *inner);
 
 /**
  * @brief This parser runs its argument parser with the given endianness setting.
@@ -932,7 +951,8 @@ HAMMER_FN_DECL(void, h_bind_indirect, HParser *indirect, const HParser *inner);
  * @param p Parser to run with given endianness
  * @return Result token type: p's result type.
  */
-HAMMER_FN_DECL(HParser *, h_with_endianness, char endianness, const HParser *p);
+HParser *h_with_endianness(char endianness, const HParser *p);
+HParser *h_with_endianness__m(HAllocator *mm__, char endianness, const HParser *p);
 
 /**
  * @brief The 'h_put_value' combinator stashes the result of the parser it wraps in a symbol table
@@ -945,7 +965,8 @@ HAMMER_FN_DECL(HParser *, h_with_endianness, char endianness, const HParser *p);
  * @param name Name to stash the result under (must be unique)
  * @return Result token type: p's token type if name was not already in the symbol table.
  */
-HAMMER_FN_DECL(HParser *, h_put_value, const HParser *p, const char *name);
+HParser *h_put_value(const HParser *p, const char *name);
+HParser *h_put_value__m(HAllocator *mm__, const HParser *p, const char *name);
 
 /**
  * @brief The 'h_get_value' combinator retrieves a named HParseResult that was previously stashed in
@@ -955,7 +976,8 @@ HAMMER_FN_DECL(HParser *, h_put_value, const HParser *p, const char *name);
  * @return Result token type: whatever the stashed HParseResult is, if present. If absent, NULL (and
  * thus parse failure).
  */
-HAMMER_FN_DECL(HParser *, h_get_value, const char *name);
+HParser *h_get_value(const char *name);
+HParser *h_get_value__m(HAllocator *mm__, const char *name);
 
 /**
  * @brief The 'h_free_value' combinator retrieves a named HParseResult that was previously stashed
@@ -965,7 +987,8 @@ HAMMER_FN_DECL(HParser *, h_get_value, const char *name);
  * @return Result token type: whatever the stashed HParseResult is, if present. If absent, NULL (and
  * thus parse failure).
  */
-HAMMER_FN_DECL(HParser *, h_free_value, const char *name);
+HParser *h_free_value(const char *name);
+HParser *h_free_value__m(HAllocator *mm__, const char *name);
 
 /**
  * @brief Monadic bind for HParsers, i.e.:
@@ -979,14 +1002,16 @@ HAMMER_FN_DECL(HParser *, h_free_value, const char *name);
  * @param env Context to pass to k
  * @return Result: the result of k(x,env).
  */
-HAMMER_FN_DECL(HParser *, h_bind, const HParser *p, HContinuation k, void *env);
+HParser *h_bind(const HParser *p, HContinuation k, void *env);
+HParser *h_bind__m(HAllocator *mm__, const HParser *p, HContinuation k, void *env);
 
 /**
  * @brief This parser skips 'n' bits of input.
  * @param n Number of bits to skip
  * @return Result: None. The HParseResult exists but its AST is NULL.
  */
-HAMMER_FN_DECL(HParser *, h_skip, size_t n);
+HParser *h_skip(size_t n);
+HParser *h_skip__m(HAllocator *mm__, size_t n);
 
 /**
  * @brief The HParser equivalent of fseek(), 'h_seek' modifies the parser's input position.  Note
@@ -999,19 +1024,22 @@ HAMMER_FN_DECL(HParser *, h_skip, size_t n);
  * @param whence SEEK_SET, SEEK_CUR, or SEEK_END
  * @return Result: TT_UINT. The new input position.
  */
-HAMMER_FN_DECL(HParser *, h_seek, ssize_t offset, int whence);
+HParser *h_seek(ssize_t offset, int whence);
+HParser *h_seek__m(HAllocator *mm__, ssize_t offset, int whence);
 
 /**
  * @brief Report the current position in bits. Consumes no input.
  * @return Result: TT_UINT. The current input position.
  */
-HAMMER_FN_DECL_NOARG(HParser *, h_tell);
+HParser *h_tell(void);
+HParser *h_tell__m(HAllocator *mm__);
 
 /**
  * @brief Free the memory allocated to an HParseResult when it is no longer needed.
  * @param result Result to free
  */
-HAMMER_FN_DECL(void, h_parse_result_free, HParseResult *result);
+void h_parse_result_free(HParseResult *result);
+void h_parse_result_free__m(HAllocator *mm__, HParseResult *result);
 
 /** @} */
 
@@ -1076,8 +1104,9 @@ void h_pprintln(FILE *stream, const HParsedToken *tok);
  * @param be_with_params Backend configuration
  * @return 0 on success, error code otherwise
  */
-HAMMER_FN_DECL(int, h_compile_for_backend_with_params, HParser *parser,
-               HParserBackendWithParams *be_with_params);
+int h_compile_for_backend_with_params(HParser *parser, HParserBackendWithParams *be_with_params);
+int h_compile_for_backend_with_params__m(HAllocator *mm__, HParser *parser,
+                                         HParserBackendWithParams *be_with_params);
 
 /**
  * @brief Build parse tables for the given parser backend.
@@ -1093,7 +1122,8 @@ HAMMER_FN_DECL(int, h_compile_for_backend_with_params, HParser *parser,
  * @param params Parameters for the backend, or NULL for defaults
  * @return 0 on success, error code otherwise
  */
-HAMMER_FN_DECL(int, h_compile, HParser *parser, HParserBackend backend, const void *params);
+int h_compile(HParser *parser, HParserBackend backend, const void *params);
+int h_compile__m(HAllocator *mm__, HParser *parser, HParserBackend backend, const void *params);
 
 /** @} */
 
@@ -1173,7 +1203,9 @@ HParsedToken *h_act_ignore(const HParseResult *p, void *userdata);
  * @{
  */
 
-HAMMER_FN_DECL(HBenchmarkResults *, h_benchmark, HParser *parser, HParserTestcase *testcases);
+HBenchmarkResults *h_benchmark(HParser *parser, HParserTestcase *testcases);
+HBenchmarkResults *h_benchmark__m(HAllocator *mm__, HParser *parser, HParserTestcase *testcases);
+
 void h_benchmark_report(FILE *stream, HBenchmarkResults *results);
 // void h_benchmark_dump_optimized_code(FILE* stream, HBenchmarkResults* results);
 
