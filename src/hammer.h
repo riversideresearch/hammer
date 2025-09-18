@@ -540,7 +540,7 @@ HParser *h_bytes__m(HAllocator *mm__, size_t len);
  */
 
 /**
- * @brief Parse signed 64-bit integer
+ * @brief Parse a signed 64-bit integer
  * @return Result token type: TT_SINT
  * @note Consumes 64 bits from the input stream
  */
@@ -548,7 +548,7 @@ HParser *h_int64(void);
 HParser *h_int64__m(HAllocator *mm__);
 
 /**
- * @brief Parse signed 32-bit integer
+ * @brief Parse a signed 32-bit integer
  * @return Result token type: TT_SINT
  * @note Consumes 32 bits from the input stream
  */
@@ -556,7 +556,7 @@ HParser *h_int32(void);
 HParser *h_int32__m(HAllocator *mm__);
 
 /**
- * @brief Parse signed 16-bit integer
+ * @brief Parse a signed 16-bit integer
  * @return Result token type: TT_SINT
  * @note Consumes 16 bits from the input stream
  */
@@ -564,7 +564,7 @@ HParser *h_int16(void);
 HParser *h_int16__m(HAllocator *mm__);
 
 /**
- * @brief Parse signed 8-bit integer
+ * @brief Parse a signed 8-bit integer
  * @return Result token type: TT_SINT
  * @note Consumes 8 bits from the input stream
  */
@@ -572,7 +572,7 @@ HParser *h_int8(void);
 HParser *h_int8__m(HAllocator *mm__);
 
 /**
- * @brief Parse unsigned 64-bit integer
+ * @brief Parse an unsigned 64-bit integer
  * @return Result token type: TT_UINT
  * @note Consumes 64 bits from the input stream
  */
@@ -580,7 +580,7 @@ HParser *h_uint64(void);
 HParser *h_uint64__m(HAllocator *mm__);
 
 /**
- * @brief Parse unsigned 32-bit integer
+ * @brief Parse an unsigned 32-bit integer
  * @return Result token type: TT_UINT
  * @note Consumes 32 bits from the input stream
  */
@@ -588,7 +588,7 @@ HParser *h_uint32(void);
 HParser *h_uint32__m(HAllocator *mm__);
 
 /**
- * @brief Parse unsigned 16-bit integer
+ * @brief Parse an unsigned 16-bit integer
  * @return Result token type: TT_UINT
  * @note Consumes 16 bits from the input stream
  */
@@ -596,7 +596,7 @@ HParser *h_uint16(void);
 HParser *h_uint16__m(HAllocator *mm__);
 
 /**
- * @brief Parse unsigned 8-bit integer
+ * @brief Parse an unsigned 8-bit integer
  * @return Result token type: TT_UINT
  * @note Consumes 8 bits from the input stream
  */
@@ -712,6 +712,7 @@ HParser *h_sequence__ma(HAllocator *mm__, void *args[]);
  * @brief Given an `h_sequence` and a list of indices, returns a parser that parses the sequence but
  * returns it without the results at the dropped indices. If a negative integer appears in the
  * middle of the list, this combinator will silently ignore the rest of the list.
+ *
  * @param p Sequence parser
  * @param ... Indices of elements to drop
  * @return Result token type: TT_SEQUENCE
@@ -726,6 +727,7 @@ HParser *h_drop_from___ma(HAllocator *mm__, void *args[]);
 /**
  * @brief Given an array of parsers, p_array, apply each parser in order. The first parser to
  * succeed is the result; if no parsers succeed, the parse fails.
+ *
  * @param p_array Array of parsers
  * @return Result token type: The type of the first successful parser's result.
  */
