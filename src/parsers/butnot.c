@@ -1,56 +1,55 @@
 #include "parser_internal.h"
 
 typedef struct {
-  const HParser *p1;
-  const HParser *p2;
+    const HParser *p1;
+    const HParser *p2;
 } HTwoParsers;
 
-static HParseResult* parse_butnot(void *env, HParseState *state) {
-  HTwoParsers *parsers = (HTwoParsers*)env;
-  // cache the initial state of the input stream
-  HInputStream start_state = state->input_stream;
-  HParseResult *r1 = h_do_parse(parsers->p1, state);
-  // if p1 failed, bail out early
-  if (NULL == r1) {
-    return NULL;
-  } 
-  // cache the state after parse #1, since we might have to back up to it
-  HInputStream after_p1_state = state->input_stream;
-  state->input_stream = start_state;
-  HParseResult *r2 = h_do_parse(parsers->p2, state);
-  // don't touch the input state (overrun flag) if we must suspend
-  if (want_suspend(state)) {
-    return NULL;
-  }
-  // in all other cases, the input stream should be in the post-p1 state
-  state->input_stream = after_p1_state;
-  if (NULL == r2) {
-    return r1;
-  }
-  size_t r1len = token_length(r1);
-  size_t r2len = token_length(r2);
-  // if both match but p1's text no longer than p2's, fail
-  if (r1len <= r2len) {
-    return NULL;
-  } else {
-    return r1;
-  }
+static HParseResult *parse_butnot(void *env, HParseState *state) {
+    HTwoParsers *parsers = (HTwoParsers *)env;
+    // cache the initial state of the input stream
+    HInputStream start_state = state->input_stream;
+    HParseResult *r1 = h_do_parse(parsers->p1, state);
+    // if p1 failed, bail out early
+    if (NULL == r1) {
+        return NULL;
+    }
+    // cache the state after parse #1, since we might have to back up to it
+    HInputStream after_p1_state = state->input_stream;
+    state->input_stream = start_state;
+    HParseResult *r2 = h_do_parse(parsers->p2, state);
+    // don't touch the input state (overrun flag) if we must suspend
+    if (want_suspend(state)) {
+        return NULL;
+    }
+    // in all other cases, the input stream should be in the post-p1 state
+    state->input_stream = after_p1_state;
+    if (NULL == r2) {
+        return r1;
+    }
+    size_t r1len = token_length(r1);
+    size_t r2len = token_length(r2);
+    // if both match but p1's text no longer than p2's, fail
+    if (r1len <= r2len) {
+        return NULL;
+    } else {
+        return r1;
+    }
 }
 
 static const HParserVtable butnot_vt = {
-  .parse = parse_butnot,
-  .isValidRegular = h_false,
-  .isValidCF = h_false, // XXX should this be true if both p1 and p2 are CF?
-  .higher = true,
+    .parse = parse_butnot,
+    .isValidRegular = h_false,
+    .isValidCF = h_false, // XXX should this be true if both p1 and p2 are CF?
+    .higher = true,
 };
 
-HParser* h_butnot(const HParser* p1, const HParser* p2) {
-  return h_butnot__m(&system_allocator, p1, p2);
+HParser *h_butnot(const HParser *p1, const HParser *p2) {
+    return h_butnot__m(&system_allocator, p1, p2);
 }
-HParser* h_butnot__m(HAllocator* mm__, const HParser* p1, const HParser* p2) {
-  HTwoParsers *env = h_new(HTwoParsers, 1);
-  env->p1 = p1;
-  env->p2 = p2;
-  return h_new_parser(mm__, &butnot_vt, env);
+HParser *h_butnot__m(HAllocator *mm__, const HParser *p1, const HParser *p2) {
+    HTwoParsers *env = h_new(HTwoParsers, 1);
+    env->p1 = p1;
+    env->p2 = p2;
+    return h_new_parser(mm__, &butnot_vt, env);
 }
-

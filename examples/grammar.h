@@ -7,7 +7,6 @@
 // just prints the generating functions to a provided FILE*.
 //
 
-
 // If a desugared parser has user_data set, the generating function systems will try
 // to interpret it as a string:
 //
@@ -24,7 +23,6 @@
 #include "../src/backends/contextfree.h"
 #include "../src/backends/lr.h"
 
-
 // Filched from cfgrammar.c this function extracts the name from user_data if it
 // is set; otherwise assigns a name automatically from its position in some
 // ordering of non-terminals.
@@ -34,13 +32,11 @@ const char *nonterminal_name(const HCFGrammar *g, const HCFChoice *nt);
 // It returns the resulting exponent for t in length and the number of alternatives
 // accumulated in length. The monomial is (mostly) printed out to the provided FILE*,
 // the caller is responsible for adding a scalar and a power of t to the printout.
-void readsequence(FILE *file, uint32_t *count, uint32_t *length,
-		  const HCFGrammar *g, const HCFSequence *seq);
+void readsequence(FILE *file, uint32_t *count, uint32_t *length, const HCFGrammar *g,
+                  const HCFSequence *seq);
 
 // This function walks through a grammar and generates an equation for each
 // production rule. The results are printed out to the provided FILE*.
 void h_pprint_gfeqns(FILE *file, const HCFGrammar *g);
-
-
 
 #endif

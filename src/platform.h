@@ -22,19 +22,19 @@ int h_platform_vasprintf(char **strp, const char *fmt, va_list arg);
 /* Error Reporting */
 
 /* BSD errx function, seen in err.h */
-H_MSVC_DECLSPEC(noreturn) \
-void h_platform_errx(int err, const char* format, ...)	\
-  H_GCC_ATTRIBUTE((noreturn, format (printf,2,3)));
+H_MSVC_DECLSPEC(noreturn)
+void h_platform_errx(int err, const char *format, ...)
+    H_GCC_ATTRIBUTE((noreturn, format(printf, 2, 3)));
 
 /* Time Measurement */
 
 struct HStopWatch; /* forward definition */
 
 /* initialize a stopwatch */
-void h_platform_stopwatch_reset(struct HStopWatch* stopwatch);
+void h_platform_stopwatch_reset(struct HStopWatch *stopwatch);
 
 /* return difference between last reset point and now */
-int64_t h_platform_stopwatch_ns(struct HStopWatch* stopwatch);
+int64_t h_platform_stopwatch_ns(struct HStopWatch *stopwatch);
 
 /* Platform dependent definitions for HStopWatch */
 #if defined(_MSC_VER)
@@ -46,8 +46,8 @@ int64_t h_platform_stopwatch_ns(struct HStopWatch* stopwatch);
 #undef WIN32_LEAN_AND_MEAN
 
 struct HStopWatch {
-  LARGE_INTEGER qpf;
-  LARGE_INTEGER start;
+    LARGE_INTEGER qpf;
+    LARGE_INTEGER start;
 };
 
 #else
@@ -56,7 +56,7 @@ struct HStopWatch {
 #include <time.h>
 
 struct HStopWatch {
-  struct timespec start;
+    struct timespec start;
 };
 
 #endif
