@@ -637,7 +637,6 @@ struct HParserVtable_ {
     HParseResult *(*parse)(void *env, HParseState *state);
     bool (*isValidRegular)(void *env);
     bool (*isValidCF)(void *env);
-    // RVM compilation removed - not used by packrat backend
     void (*desugar)(HAllocator *mm__, HCFStack *stk__, void *env);
     bool higher; // false if primitive
 };

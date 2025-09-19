@@ -147,5 +147,3 @@ if libhammer_shared is not None:
     Export('libhammer_static libhammer_shared')
 else:
     Export('libhammer_static')
-
-# All language bindings have been removed - only packrat backend remains
