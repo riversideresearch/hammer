@@ -63,6 +63,10 @@ The `examples/` directory contains some simple examples, currently including:
 - [base64](https://en.wikipedia.org/wiki/Base64)
 - [DNS](https://en.wikipedia.org/wiki/Domain_Name_System)
 
+## Contributing
+
+For information on contributing to Hammer, including development setup, code formatting guidelines, and documentation generation, please see [DEVELOPMENT.md](DEVELOPMENT.md).
+
 ## Known Issues
 
 The regular expression backend is potentially not thread-safe (thanks to Martin Murray for pointing this out). A full rewrite of this backend is on the roadmap already due to some unexpected nondeterminism in the current implementation; we plan to fix this problem in that rewrite.
