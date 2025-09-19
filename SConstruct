@@ -15,12 +15,11 @@ if platform.system() == 'Windows':
 vars = Variables(None, ARGUMENTS)
 vars.Add(PathVariable('DESTDIR', "Root directory to install in (useful for packaging scripts)", None, PathVariable.PathIsDirCreate))
 vars.Add(PathVariable('prefix', "Where to install in the FHS", "/usr/local", PathVariable.PathAccept))
-vars.Add(ListVariable('bindings', 'Language bindings to build', 'none', ['cpp', 'dotnet', 'jni', 'perl', 'php', 'python', 'ruby']))
+# Language bindings have been removed - only packrat backend remains
 vars.Add('python', 'Python interpreter', 'python')
 
 tools = ['default', 'scanreplace']
-if 'dotnet' in ARGUMENTS.get('bindings', []):
-	tools.append('csharp/mono')
+# .NET binding removed
 
 # add the clang tool if necessary
 if os.getenv('CC') == 'clang' or platform.system() == 'Darwin':
@@ -45,8 +44,7 @@ env = Environment(ENV = envvars,
                   tools=tools,
                   toolpath=['tools'])
 
-if not 'bindings' in env:
-    env['bindings'] = []
+# Language bindings have been removed
 
 def calcInstallPath(*elements):
     path = os.path.abspath(os.path.join(*map(env.subst, elements)))

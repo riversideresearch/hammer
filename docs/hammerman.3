@@ -37,7 +37,7 @@ Hammer \- a bit oriented parsing library
 .B Hammer(3)
 is a parsing library. Like many modern parsing libraries, it provides a parser combinator interface for  writing  grammars as  inline domain-specific languages, but Hammer also provides a variety of parsing backends. It's also bit-oriented rather  than character-oriented, making it ideal for parsing binary data such as images, network packets, audio, and executables.
 
-Hammer is written in C, but will provide bindings for other languages.  If you don't see a language you're interested in on the list, just ask.
+Hammer is written in C and provides a packrat parsing backend.
 
 Hammer currently builds under Linux, OS X, and Windows.
 .SH "NOTES"
@@ -49,19 +49,6 @@ Benchmarking for parsing backends -- determine empirically which backend will be
 
     Parsing backends:
         Packrat parsing
-        LL(k)
-        GLR
-        LALR
-        Regular expressions
-    Language bindings:
-        C++
-        Java (not currently building; give us a few days)
-        Python
-        Ruby
-        Perl
-        Go
-        PHP
-        .NET
 .SH "EXAMPLE"
 .nf
  1  #include <hammer/hammer.h>

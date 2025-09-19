@@ -3,7 +3,7 @@
 # and kick off a recursive make
 # Also, "make src/all" turns into "make -C src all"
 
-SUBDIRS = src examples src/bindings/jni
+SUBDIRS = src examples
 
 include config.mk
 TOPLEVEL=.

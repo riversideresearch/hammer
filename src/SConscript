@@ -148,5 +148,4 @@ if libhammer_shared is not None:
 else:
     Export('libhammer_static')
 
-for b in env['bindings']:
-    env.SConscript(['bindings/%s/SConscript' % b])
+# All language bindings have been removed - only packrat backend remains
