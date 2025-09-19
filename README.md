@@ -25,10 +25,6 @@ Features
 * Benchmarking for parsing backends -- determine empirically which backend will be most time-efficient for your grammar
 * Parsing backends:
   * Packrat parsing
-  * LL(k) 
-  * GLR 
-  * LALR
-  * Regular expressions 
 * Language bindings: 
   * C++
   * Java (incomplete)
