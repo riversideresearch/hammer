@@ -37,28 +37,11 @@ void h_platform_stopwatch_reset(struct HStopWatch *stopwatch);
 int64_t h_platform_stopwatch_ns(struct HStopWatch *stopwatch);
 
 /* Platform dependent definitions for HStopWatch */
-#if defined(_MSC_VER)
-
-#ifndef WIN32_LEAN_AND_MEAN
-#define WIN32_LEAN_AND_MEAN 1
-#endif
-#include <windows.h>
-#undef WIN32_LEAN_AND_MEAN
-
-struct HStopWatch {
-    LARGE_INTEGER qpf;
-    LARGE_INTEGER start;
-};
-
-#else
-/* Unix like platforms */
 
 #include <time.h>
 
 struct HStopWatch {
     struct timespec start;
 };
-
-#endif
 
 #endif

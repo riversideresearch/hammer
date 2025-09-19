@@ -16,7 +16,7 @@ Hammer is a parsing library. Like many modern parsing libraries, it provides a p
 
 Hammer is written in C and provides a packrat parsing backend.
 
-Hammer currently builds under Linux, OS X, and Windows.
+Hammer currently builds under Linux and other Unix-like systems.
 
 ## Features
 
