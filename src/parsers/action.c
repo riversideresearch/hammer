@@ -14,12 +14,7 @@ static HParseResult* parse_action(void *env, HParseState *state) {
     //HParsedToken *tok = a->action(h_do_parse(a->p, state));
     if(tmp) {
       HParsedToken *tok = (HParsedToken*)a->action(tmp, a->user_data);
-      // return make_result(state->arena, tok);
-      if (tok) {
-        return make_result(state->arena, tok);
-      } else {
-        return NULL;
-      }
+      return make_result(state->arena, tok);
     } else
       return NULL;
   } else // either the parser's missing or the action's missing
