@@ -1,6 +1,38 @@
 # Development Guide
 
-This document combines development notes, hacking guidelines, and TODO items for the Hammer parser library. (TODO, HACKING, and )
+This document combines contributor guidelines, development notes, and TODO items for the Hammer parser library.
+
+## Contributor Setup
+
+To contribute to Hammer, please make sure you have the following tools installed:
+
+- **clang-format** (v18+) → automatic code formatting based on the `.clang-format` file  
+- **Doxygen** → generate API documentation from comments  
+- **pre-commit** (optional but recommended) → auto-run `clang-format` before commits  
+
+### Formatting Code
+
+Run clang-format before committing to keep code style consistent:
+
+**All code files:**
+```bash
+clang-format -i **/*.c **/*.h
+```
+
+**Apply clang-format to a single file:**
+```bash
+clang-format -i path/to/file.c
+```
+
+### Generating Documentation
+
+Build developer docs locally with:
+
+```bash
+doxygen Doxyfile
+```
+
+This will create HTML output in `docs/html/index.html`.
 
 ## TODO Items (previously TODO)
 

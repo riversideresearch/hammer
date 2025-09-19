@@ -16,94 +16,65 @@ Hammer is a parsing library. Like many modern parsing libraries, it provides a p
 
 Hammer is written in C and provides a packrat parsing backend.
 
-Hammer currently builds under Linux, OS X, and Windows. 
+Hammer currently builds under Linux, OS X, and Windows.
 
-Features
-========
-* Bit-oriented -- grammars can include single-bit flags or multi-bit constructs that span character boundaries, with no hassle
-* Thread-safe, reentrant (for most purposes; see Known Issues for details)
-* Benchmarking for parsing backends -- determine empirically which backend will be most time-efficient for your grammar
-* Parsing backends:
-  * Packrat parsing
+## Features
 
-Installing
-==========
+- **Bit-oriented** -- grammars can include single-bit flags or multi-bit constructs that span character boundaries, with no hassle
+- **Thread-safe, reentrant** (for most purposes; see Known Issues for details)
+- **Benchmarking for parsing backends** -- determine empirically which backend will be most time-efficient for your grammar
+- **Parsing backends:** -- currently only Packrat parsing is supported
+
+## Installing
+
 ### Prerequisites
-* [SCons](http://scons.org/)
+
+- [SCons](http://scons.org/)
 
 ### Optional Dependencies
-* pkg-config (for `scons test`)
-* glib-2.0 (>= 2.29) (for `scons test`)
-* glib-2.0-dev (for `scons test`)
+
+- pkg-config (for `scons test`)
+- glib-2.0 (>= 2.29) (for `scons test`)
+- glib-2.0-dev (for `scons test`)
 
 To build, type `scons`.
 To run the built-in test suite, type `scons test`.
 To avoid the test dependencies, add `--no-tests`.
 For a debug build, add `--variant=debug`.
 
-To make Hammer available system-wide, use `scons install`. This places include files in `/usr/local/include/hammer` 
-and library files in `/usr/local/lib` by default; to install elsewhere, add a `prefix=<destination>` argument, e.g. 
-`scons install prefix=$HOME`.
+To make Hammer available system-wide, use `scons install`. This places include files in `/usr/local/include/hammer` and library files in `/usr/local/lib` by default; to install elsewhere, add a `prefix=<destination>` argument, e.g. `scons install prefix=$HOME`.
 
-Usage
-=====
+## Usage
+
 Just `#include <hammer/hammer.h>` (also `#include <hammer/glue.h>` if you plan to use any of the convenience macros) and link with `-lhammer`.
 
 If you've installed Hammer system-wide, you can use `pkg-config` in the usual way.
 
-To learn about hammer check
-* the [user guide](https://github.com/UpstandingHackers/hammer/wiki/User-guide)
-* [Hammer Primer](https://github.com/sergeybratus/HammerPrimer) (outdated in terms of code, but good to get the general thinking)
-* [Try Hammer](https://github.com/sboesen/TryHammer)
+To learn about hammer check:
 
-Examples
-========
+- the [user guide](https://github.com/UpstandingHackers/hammer/wiki/User-guide)
+- [Hammer Primer](https://github.com/sergeybratus/HammerPrimer) (outdated in terms of code, but good to get the general thinking)
+- [Try Hammer](https://github.com/sboesen/TryHammer)
+
+## Examples
+
 The `examples/` directory contains some simple examples, currently including:
-* [base64](https://en.wikipedia.org/wiki/Base64)
-* [DNS](https://en.wikipedia.org/wiki/Domain_Name_System)
 
-Contributor Setup
-==========
-To contribute to Hammer, please make sure you have the following tools installed:
+- [base64](https://en.wikipedia.org/wiki/Base64)
+- [DNS](https://en.wikipedia.org/wiki/Domain_Name_System)
 
-- **clang-format** (v18+) → automatic code formatting based on the `.clang-format` file  
-- **Doxygen** → generate API documentation from comments  
-- **pre-commit** (optional but recommended) → auto-run `clang-format` before commits  
-
-### Formatting code
-Run clang-format before committing to keep code style consistent:
-
-All code files:
-```bash
-clang-format -i **/*.c **/*.h
-```
-
-Apply clang-format to a single file:
-```bash
-clang-format -i path/to/file.c
-```
-
-### Generating documentation
-Build developer docs locally with:
-
-```bash
-doxygen Doxyfile
-```
-This will create HTML output in docs/html/index.html.
-
-Known Issues
-============
+## Known Issues
 
 The regular expression backend is potentially not thread-safe (thanks to Martin Murray for pointing this out). A full rewrite of this backend is on the roadmap already due to some unexpected nondeterminism in the current implementation; we plan to fix this problem in that rewrite.
 
-Contact
-=======
+## Contact
+
 Send an email to parsing@riversideresearch.org
 
-ACKNOWLEDGMENT
-=====
+## Acknowledgment
+
 This material is based upon work supported by the Defense Advanced Research Projects Agency (DARPA) under Prime Contract No. HR001119C0077. Any opinions, findings, and conclusions or recommendations expressed in this material are those of the author(s) and do not necessarily reflect the views of the Defense Advanced Research Projects Agency (DARPA).
- 
+
 This work is a fork of the repository found at: https://gitlab.special-circumstanc.es/hammer/hammer
- 
+
 Distribution A: Approved for Public Release
