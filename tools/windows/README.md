@@ -1,1 +1,0 @@
-Support tools for the Windows (win32/win64) port.
