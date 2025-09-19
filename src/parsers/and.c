@@ -16,7 +16,6 @@ static const HParserVtable and_vt = {
 				difficult to get right, so we're leaving it for
 				a future revision. --mlp, 18/12/12 */
   .isValidCF = h_false,      /* despite TODO above, this remains false. */
-  .compile_to_rvm = h_not_regular,
   .higher = true,
 };
 

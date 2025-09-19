@@ -67,33 +67,12 @@ static void desugar_choice(HAllocator *mm__, HCFStack *stk__, void *env) {
   } HCFS_END_CHOICE();
 }
 
-static bool choice_ctrvm(HRVMProg *prog, void* env) {
-  HSequence *s = (HSequence*)env;
-  // NOTE(uucidl): stack allocation since this backend uses
-  // setjmp/longjmp for error handling.
-  STACK_VLA(uint16_t, gotos, s->len);
-  for (size_t i=0; i<s->len; ++i) {
-    uint16_t insn = h_rvm_insert_insn(prog, RVM_FORK, 0);
-    if (!h_compile_regex(prog, s->p_array[i])) {
-      return false;
-    }
-    gotos[i] = h_rvm_insert_insn(prog, RVM_GOTO, 65535);
-    h_rvm_patch_arg(prog, insn, h_rvm_get_ip(prog));
-  }
-  h_rvm_insert_insn(prog, RVM_MATCH, 0x00FF); // fail.
-  uint16_t jump = h_rvm_get_ip(prog);
-  for (size_t i=0; i<s->len; ++i) {
-      h_rvm_patch_arg(prog, gotos[i], jump);
-  }
-  return true;
-}
 
 static const HParserVtable choice_vt = {
   .parse = parse_choice,
   .isValidRegular = choice_isValidRegular,
   .isValidCF = choice_isValidCF,
   .desugar = desugar_choice,
-  .compile_to_rvm = choice_ctrvm,
   .higher = true,
 };
 

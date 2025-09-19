@@ -41,7 +41,6 @@ static const HParserVtable butnot_vt = {
   .parse = parse_butnot,
   .isValidRegular = h_false,
   .isValidCF = h_false, // XXX should this be true if both p1 and p2 are CF?
-  .compile_to_rvm = h_not_regular,
   .higher = true,
 };
 

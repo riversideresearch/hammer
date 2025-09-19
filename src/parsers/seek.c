@@ -74,7 +74,6 @@ static const HParserVtable skip_vt = {
   .parse = parse_skip,
   .isValidRegular = h_false,
   .isValidCF = h_false,
-  .compile_to_rvm = h_not_regular,
   .higher = false,
 };
 
@@ -82,7 +81,6 @@ static const HParserVtable seek_vt = {
   .parse = parse_seek,
   .isValidRegular = h_false,
   .isValidCF = h_false,
-  .compile_to_rvm = h_not_regular,
   .higher = false,
 };
 
@@ -90,7 +88,6 @@ static const HParserVtable tell_vt = {
   .parse = parse_tell,
   .isValidRegular = h_false,
   .isValidCF = h_false,
-  .compile_to_rvm = h_not_regular,
   .higher = false,
 };
 

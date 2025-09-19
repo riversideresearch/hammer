@@ -22,17 +22,12 @@ static void desugar_end(HAllocator *mm__, HCFStack *stk__, void *env) {
   HCFS_ADD_END();
 }
 
-static bool end_ctrvm(HRVMProg *prog, void *env) {
-  h_rvm_insert_insn(prog, RVM_EOF, 0);
-  return true;
-}
 
 static const HParserVtable end_vt = {
   .parse = parse_end,
   .isValidRegular = h_true,
   .isValidCF = h_true,
   .desugar = desugar_end,
-  .compile_to_rvm = end_ctrvm,
   .higher = false,
 };
 

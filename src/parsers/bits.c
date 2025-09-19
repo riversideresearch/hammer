@@ -72,39 +72,13 @@ static void desugar_bits(HAllocator *mm__, HCFStack *stk__, void *env) {
   } HCFS_END_CHOICE();
 }
 
-static bool h_svm_action_bits(HArena *arena, HSVMContext *ctx, void* env) {
-  // BUG: relies un undefined behaviour: int64_t is a signed uint64_t; not necessarily true on 32-bit
-  struct bits_env *env_ = env;
-  HParsedToken *top = ctx->stack[ctx->stack_count-1];
-  assert(top->token_type == TT_BYTES);
-  uint64_t res = 0;
-  for (size_t i = 0; i < top->bytes.len; i++)
-    res = (res << 8) | top->bytes.token[i];   // TODO: Handle other endiannesses.
-  uint64_t msb = (env_->signedp ? 1LL:0) << (top->bytes.len * 8 - 1);
-  res = (res ^ msb) - msb;
-  top->uint = res; // possibly cast to signed through union
-  top->token_type = (env_->signedp ? TT_SINT : TT_UINT);
-  return true;
-}
 
-static bool bits_ctrvm(HRVMProg *prog, void* env) {
-  struct bits_env *env_ = (struct bits_env*)env;
-  h_rvm_insert_insn(prog, RVM_PUSH, 0);
-  for (size_t i=0; i < (env_->length/8); ++i) { // FUTURE: when we can handle non-byte-aligned, the env_->length/8 part will be different
-    h_rvm_insert_insn(prog, RVM_MATCH, 0xFF00);
-    h_rvm_insert_insn(prog, RVM_STEP, 0);
-  }
-  h_rvm_insert_insn(prog, RVM_CAPTURE, 0);
-  h_rvm_insert_insn(prog, RVM_ACTION, h_rvm_create_action(prog, h_svm_action_bits, env));
-  return true;
-}
 
 static const HParserVtable bits_vt = {
   .parse = parse_bits,
   .isValidRegular = h_true,
   .isValidCF = h_true,
   .desugar = desugar_bits,
-  .compile_to_rvm = bits_ctrvm,
   .higher = false,
 };
 

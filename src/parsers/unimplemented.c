@@ -17,7 +17,6 @@ static const HParserVtable unimplemented_vt = {
   .isValidRegular = h_false,
   .isValidCF = h_false,
   .desugar = NULL,
-  .compile_to_rvm = h_not_regular,
   .higher = true,
 };
 

@@ -26,11 +26,7 @@ PARSERS := \
 	indirect
 
 BACKENDS := \
-	packrat \
-	regex \
-	llk \
-	lalr \
-	glr
+	packrat
 
 HAMMER_PARTS := \
 	bitreader.o \
@@ -44,8 +40,6 @@ HAMMER_PARTS := \
 	benchmark.o \
 	cfgrammar.o \
 	glue.o \
-	backends/lr.o \
-	backends/lr0.o \
 	$(PARSERS:%=parsers/%.o) \
 	$(BACKENDS:%=backends/%.o)
 

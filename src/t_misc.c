@@ -54,26 +54,12 @@ static void test_oom(void) {
 
   // sanity-check: parses should succeed with the normal allocator...
   g_check_parse_ok(p, PB_PACKRAT, "x",1);
-  g_check_parse_ok(p, PB_REGULAR, "x",1);
-  g_check_parse_ok(p, PB_LLk, "x",1);
-  g_check_parse_ok(p, PB_LALR, "x",1);
-  g_check_parse_ok(p, PB_GLR, "x",1);
-  //XXX g_check_parse_chunks_ok(p, PB_REGULAR, "",0, "x",1);
-  g_check_parse_chunks_ok(p, PB_LLk, "",0, "x",1);
-  g_check_parse_chunks_ok(p, PB_LALR, "",0, "x",1);
-  //XXX g_check_parse_chunks_ok(p, PB_GLR, "",0, "x",1);
+  g_check_parse_chunks_ok(p, PB_PACKRAT, "",0, "x",1);
 
   // ...and fail gracefully with the broken one
   HAllocator *mm__ = &fail_allocator;
   g_check_parse_failed__m(mm__, p, PB_PACKRAT, "x",1);
-  g_check_parse_failed__m(mm__, p, PB_REGULAR, "x",1);
-  g_check_parse_failed__m(mm__, p, PB_LLk, "x",1);
-  g_check_parse_failed__m(mm__, p, PB_LALR, "x",1);
-  g_check_parse_failed__m(mm__, p, PB_GLR, "x",1);
-  //XXX g_check_parse_chunks_failed__m(mm__, p, PB_REGULAR, "",0, "x",1);
-  g_check_parse_chunks_failed__m(mm__, p, PB_LLk, "",0, "x",1);
-  g_check_parse_chunks_failed__m(mm__, p, PB_LALR, "",0, "x",1);
-  //XXX g_check_parse_chunks_failed__m(mm__, p, PB_GLR, "",0, "x",1);
+  g_check_parse_chunks_failed__m(mm__, p, PB_PACKRAT, "",0, "x",1);
 }
 
 void register_misc_tests(void) {

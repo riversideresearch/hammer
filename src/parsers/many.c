@@ -139,67 +139,12 @@ static void desugar_many(HAllocator *mm__, HCFStack *stk__, void *env) {
   } HCFS_END_CHOICE();
 }
 
-static bool many_ctrvm(HRVMProg *prog, void *env) {
-  HRepeat *repeat = (HRepeat*)env;
-  uint16_t clear_to_mark = h_rvm_create_action(prog, h_svm_action_clear_to_mark, NULL);
-  // TODO: implement min & max properly. Right now, it's always
-  // max==inf, min={0,1}
-
-  // Structure:
-  // Min == 0:
-  //        FORK end // if Min == 0
-  //        GOTO mid
-  //   nxt: <SEP>
-  //   mid: <ELEM>
-  //        FORK nxt
-  //   end:
-
-  if (repeat->min_p) {
-  h_rvm_insert_insn(prog, RVM_PUSH, 0);
-    assert(repeat->count < 2); // TODO: The other cases should be supported later.
-    uint16_t end_fork = 0xFFFF; // Shut up GCC
-    if (repeat->count == 0)
-      end_fork = h_rvm_insert_insn(prog, RVM_FORK, 0xFFFF);
-    uint16_t goto_mid = h_rvm_insert_insn(prog, RVM_GOTO, 0xFFFF);
-    uint16_t nxt = h_rvm_get_ip(prog);
-    if (repeat->sep != NULL) {
-      h_rvm_insert_insn(prog, RVM_PUSH, 0);
-      if (!h_compile_regex(prog, repeat->sep))
-	return false;
-      h_rvm_insert_insn(prog, RVM_ACTION, clear_to_mark);
-    }
-    h_rvm_patch_arg(prog, goto_mid, h_rvm_get_ip(prog));
-    if (!h_compile_regex(prog, repeat->p))
-      return false;
-    h_rvm_insert_insn(prog, RVM_FORK, nxt);
-    if (repeat->count == 0)
-      h_rvm_patch_arg(prog, end_fork, h_rvm_get_ip(prog));
-    
-    h_rvm_insert_insn(prog, RVM_ACTION, h_rvm_create_action(prog, h_svm_action_make_sequence, NULL));
-    return true;
-  } else {
-    h_rvm_insert_insn(prog, RVM_PUSH, 0);
-    for (size_t i = 0; i < repeat->count; i++) {
-      if (repeat->sep != NULL && i != 0) {
-	h_rvm_insert_insn(prog, RVM_PUSH, 0);
-	if (!h_compile_regex(prog, repeat->sep))
-	  return false;
-	h_rvm_insert_insn(prog, RVM_ACTION, clear_to_mark);
-      }
-      if (!h_compile_regex(prog, repeat->p))
-	return false;
-    }
-    h_rvm_insert_insn(prog, RVM_ACTION, h_rvm_create_action(prog, h_svm_action_make_sequence, NULL));
-    return true;
-  }
-}
 
 static const HParserVtable many_vt = {
   .parse = parse_many,
   .isValidRegular = many_isValidRegular,
   .isValidCF = many_isValidCF,
   .desugar = desugar_many,
-  .compile_to_rvm = many_ctrvm,
   .higher = true,
 };
 

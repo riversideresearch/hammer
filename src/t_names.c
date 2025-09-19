@@ -9,36 +9,16 @@ static void test_tt_backend_description(void) {
   /* Check that we get some */
   desc = h_get_descriptive_text_for_backend(PB_PACKRAT);
   g_check_cmp_ptr(desc, !=, NULL);
-  desc = h_get_descriptive_text_for_backend(PB_REGULAR);
-  g_check_cmp_ptr(desc, !=, NULL);
-  desc = h_get_descriptive_text_for_backend(PB_LLk);
-  g_check_cmp_ptr(desc, !=, NULL);
-  desc = h_get_descriptive_text_for_backend(PB_LALR);
-  g_check_cmp_ptr(desc, !=, NULL);
-  desc = h_get_descriptive_text_for_backend(PB_GLR);
-  g_check_cmp_ptr(desc, !=, NULL);
 }
 
 /* Reference backend names */
 static const char * packrat_name = "packrat";
-static const char * regular_name = "regex";
-static const char * llk_name = "llk";
-static const char * lalr_name = "lalr";
-static const char * glr_name = "glr";
 
 static void test_tt_backend_short_name(void) {
   const char *name = NULL;
 
   name = h_get_name_for_backend(PB_PACKRAT);
   g_check_maybe_string_eq(name, packrat_name);
-  name = h_get_name_for_backend(PB_REGULAR);
-  g_check_maybe_string_eq(name, regular_name);
-  name = h_get_name_for_backend(PB_LLk);
-  g_check_maybe_string_eq(name, llk_name);
-  name = h_get_name_for_backend(PB_LALR);
-  g_check_maybe_string_eq(name, lalr_name);
-  name = h_get_name_for_backend(PB_GLR);
-  g_check_maybe_string_eq(name, glr_name);
 }
 
 static void test_tt_query_backend_by_name(void) {
@@ -46,8 +26,6 @@ static void test_tt_query_backend_by_name(void) {
 
   be = h_query_backend_by_name(packrat_name);
   g_check_inttype("%d", HParserBackend, be, ==, PB_PACKRAT);
-  be = h_query_backend_by_name(regular_name);
-  g_check_inttype("%d", HParserBackend, be, ==, PB_REGULAR);
 
 }
 
@@ -58,24 +36,6 @@ static void test_tt_get_backend_with_params_by_name(void) {
   be_w_p = h_get_backend_with_params_by_name(packrat_name);
   g_check_inttype("%d", HParserBackend, be_w_p->backend, ==, PB_PACKRAT);
   g_check_maybe_string_eq(be_w_p->requested_name, packrat_name);
-  h_free_backend_with_params(be_w_p);
-
-  be_w_p = h_get_backend_with_params_by_name(glr_name);
-  g_check_inttype("%d", HParserBackend, be_w_p->backend, ==, PB_GLR);
-  g_check_maybe_string_eq(be_w_p->requested_name, glr_name);
-  h_free_backend_with_params(be_w_p);
-
-  /* request with params */
-  be_w_p = h_get_backend_with_params_by_name("lalr(1)");
-  g_check_inttype("%d", HParserBackend, be_w_p->backend, ==, PB_LALR);
-  g_check_maybe_string_eq(be_w_p->requested_name, lalr_name);
-  g_check_cmp_size((uintptr_t)be_w_p->params, ==, 1);
-  h_free_backend_with_params(be_w_p);
-
-  /*request for default params - alternative possible style */
-  be_w_p = h_get_backend_with_params_by_name("glr()");
-  g_check_inttype("%d", HParserBackend, be_w_p->backend, ==, PB_GLR);
-  g_check_maybe_string_eq(be_w_p->requested_name, glr_name);;
   h_free_backend_with_params(be_w_p);
 
   /*request for a backend not in the enum of backends included in hammer */
@@ -89,76 +49,22 @@ static void test_tt_get_backend_with_params_by_name(void) {
   g_check_maybe_string_eq(be_w_p->requested_name, packrat_name);
   h_free_backend_with_params(be_w_p);
 
-  be_w_p = h_get_backend_with_params_by_name("glr(1,2)");
-  g_check_inttype("%d", HParserBackend, be_w_p->backend, ==, PB_GLR);
-  g_check_maybe_string_eq(be_w_p->requested_name, glr_name);
-  g_check_cmp_size((uintptr_t)be_w_p->params, ==, 1);
-  h_free_backend_with_params(be_w_p);
-
-  be_w_p = h_get_backend_with_params_by_name("glr(1,vnvnvn)");
-  g_check_inttype("%d", HParserBackend, be_w_p->backend, ==, PB_GLR);
-  g_check_maybe_string_eq(be_w_p->requested_name, glr_name);
-  g_check_cmp_size((uintptr_t)be_w_p->params, ==, 1);
-  h_free_backend_with_params(be_w_p);
-
-  be_w_p = h_get_backend_with_params_by_name("lalr(1, 2)");
-  g_check_inttype("%d", HParserBackend, be_w_p->backend, ==, PB_LALR);
-  g_check_maybe_string_eq(be_w_p->requested_name, lalr_name);
-  g_check_cmp_size((uintptr_t)be_w_p->params, ==, 1);
-  h_free_backend_with_params(be_w_p);
-
-  be_w_p = h_get_backend_with_params_by_name("llk(k=2)");
-  g_check_inttype("%d", HParserBackend, be_w_p->backend, ==, PB_LLk);
-  g_check_maybe_string_eq(be_w_p->requested_name, llk_name);
-  g_check_cmp_size((uintptr_t)be_w_p->params, ==, 2);
-  h_free_backend_with_params(be_w_p);
-
 }
 
 static void test_tt_h_get_descriptive_text_for_backend_with_params(void){
   HAllocator *mm__ = &system_allocator;
-  HParserBackendWithParams *be_with_params = h_get_backend_with_params_by_name("llk(1)");
+  HParserBackendWithParams *be_with_params = h_get_backend_with_params_by_name("packrat");
   char * descr = h_get_descriptive_text_for_backend_with_params(be_with_params);
-  g_check_maybe_string_eq(descr, "LL(1) parser backend");
-  h_free(descr);
-  h_free_backend_with_params(be_with_params);
-  be_with_params = h_get_backend_with_params_by_name("lalr(1)");
-  descr = h_get_descriptive_text_for_backend_with_params(be_with_params);
-  g_check_maybe_string_eq(descr, "LALR(1) parser backend");
-  h_free(descr);
-  h_free_backend_with_params(be_with_params);
-  be_with_params = h_get_backend_with_params_by_name("glr(2)");
-  descr = h_get_descriptive_text_for_backend_with_params(be_with_params);
-  g_check_maybe_string_eq(descr, "GLR(2) parser backend");
-  h_free(descr);
-  h_free_backend_with_params(be_with_params);
-  be_with_params = h_get_backend_with_params_by_name("glr()");
-  descr = h_get_descriptive_text_for_backend_with_params(be_with_params);
-  g_check_maybe_string_eq(descr, "GLR(k) parser backend (default k is 1)");
+  g_check_maybe_string_eq(descr, "Packrat parser with Warth's recursion");
   h_free(descr);
   h_free_backend_with_params(be_with_params);
 }
 
 static void test_tt_h_get_name_for_backend_with_params(void){
   HAllocator *mm__ = &system_allocator;
-  HParserBackendWithParams *be_with_params = h_get_backend_with_params_by_name("llk(1)");
+  HParserBackendWithParams *be_with_params = h_get_backend_with_params_by_name("packrat");
   char * descr = h_get_name_for_backend_with_params(be_with_params);
-  g_check_maybe_string_eq(descr, "LL(1)");
-  h_free(descr);
-  h_free_backend_with_params(be_with_params);
-  be_with_params = h_get_backend_with_params_by_name("lalr(2)");
-  descr = h_get_name_for_backend_with_params(be_with_params);
-  g_check_maybe_string_eq(descr, "LALR(2)");
-  h_free(descr);
-  h_free_backend_with_params(be_with_params);
-  be_with_params = h_get_backend_with_params_by_name("glr(1)");
-  descr = h_get_name_for_backend_with_params(be_with_params);
-  g_check_maybe_string_eq(descr, "GLR(1)");
-  h_free(descr);
-  h_free_backend_with_params(be_with_params);
-  be_with_params = h_get_backend_with_params_by_name("glr");
-  descr = h_get_name_for_backend_with_params(be_with_params);
-  g_check_maybe_string_eq(descr, "GLR(k)");
+  g_check_maybe_string_eq(descr, "packrat");
   h_free(descr);
   h_free_backend_with_params(be_with_params);
 }
@@ -168,8 +74,8 @@ static void test_tt_h_get_name_for_backend_with_params(void){
 static void test_tt_h_compile_for_backend_with_params(void) {
   HParserBackendWithParams * be_w_p = NULL;
 
-  be_w_p = h_get_backend_with_params_by_name("llk(1)");
-  g_check_inttype("%d", HParserBackend, be_w_p->backend, ==, PB_LLk);
+  be_w_p = h_get_backend_with_params_by_name("packrat");
+  g_check_inttype("%d", HParserBackend, be_w_p->backend, ==, PB_PACKRAT);
 
   HParser *p = h_many(h_sequence(h_ch('A'), h_ch('B'), NULL));
 

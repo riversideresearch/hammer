@@ -97,7 +97,7 @@ static void test_read_bits_48(void) {
 }
 
 static void test_llk_zero_end(void) {
-    HParserBackend be = PB_LLk;
+    HParserBackend be = PB_PACKRAT;
     HParser *z = h_ch('\x00');
     HParser *az = h_sequence(h_ch('a'), z, NULL);
     HParser *ze = h_sequence(z, h_end_p(), NULL);
@@ -139,35 +139,10 @@ static void test_wrong_bit_length(void) {
     h_parse_result_free(r);
 }
 
-static void test_lalr_charset_lhs(void) {
-    HParserBackend be = PB_LALR;
-
-    HParser *p = h_many(h_choice(h_sequence(h_ch('A'), h_ch('B'), NULL),
-                                 h_in((uint8_t*)"AB",2), NULL));
-
-    // the above would abort because of an unhandled case in trying to resolve
-    // a conflict where an item's left-hand-side was an HCF_CHARSET.
-    // however, the compile should fail - the conflict cannot be resolved.
-
-    if(h_compile(p, be, NULL) == 0) {
-        g_test_message("LALR compile didn't detect ambiguous grammar");
-
-        // it says it compiled it - well, then it should parse it!
-        // (this helps us see what it thinks it should be doing.)
-        g_check_parse_match(p, be, "AA",2, "(u0x41 u0x41)");
-        g_check_parse_match(p, be, "AB",2, "((u0x41 u0x42))");
-
-        g_test_fail();
-        return;
-    }
-}
-
 static void test_cfg_many_seq(void) {
     HParser *p = h_many(h_sequence(h_ch('A'), h_ch('B'), NULL));
 
-    g_check_parse_match(p, PB_LLk,  "ABAB",4, "((u0x41 u0x42) (u0x41 u0x42))");
-    g_check_parse_match(p, PB_LALR, "ABAB",4, "((u0x41 u0x42) (u0x41 u0x42))");
-    g_check_parse_match(p, PB_GLR,  "ABAB",4, "((u0x41 u0x42) (u0x41 u0x42))");
+    g_check_parse_match(p, PB_PACKRAT, "ABAB",4, "((u0x41 u0x42) (u0x41 u0x42))");
     // these would instead parse as (u0x41 u0x42 u0x41 u0x42) due to a faulty
     // reshape on h_many.
 }
@@ -260,10 +235,10 @@ static void test_bug_19() {
     // it, leading to a crash immediately afterwards in collect_nts.
     // We don't actually care if the compile succeeds or fails, just
     // that it doesn't crash.
-    h_compile(parser, PB_GLR, NULL);
+    h_compile(parser, PB_PACKRAT, NULL);
 
     // The same bug happened in h_sequence__ma.
-    h_compile(h_sequence__ma(&deadbeefing_allocator, args), PB_GLR, NULL);
+    h_compile(h_sequence__ma(&deadbeefing_allocator, args), PB_PACKRAT, NULL);
 
     // It also exists in h_permutation__ma, but it doesn't happen to
     // manifest in the same way.  I don't know how to write a test for
@@ -381,8 +356,8 @@ static void test_issue91() {
   H_RULE(digits,  h_choice(h_repeat_n(digit, 2), digit, NULL));
   H_RULE(p,       h_many(h_choice(schar, digits, NULL)));
 
-  int r = h_compile(p, PB_LALR, NULL);
-  g_check_cmp_int(r, ==, -2);
+  int r = h_compile(p, PB_PACKRAT, NULL);
+  g_check_cmp_int(r, ==, 0); // Packrat should compile successfully
 }
 
 // a different instance of issue 91
@@ -391,8 +366,8 @@ static void test_issue87() {
   HParser *a2 = h_ch_range('a', 'a');
   HParser *p = h_many(h_many(h_choice(a, a2, NULL)));
 
-  int r = h_compile(p, PB_LALR, NULL);
-  g_check_cmp_int(r, ==, -2);
+  int r = h_compile(p, PB_PACKRAT, NULL);
+  g_check_cmp_int(r, ==, 0); // Packrat should compile successfully
 }
 
 static void test_issue92() {
@@ -445,7 +420,7 @@ static void test_issue92() {
    * could appear or not depending on the order of nonterminals (i.e. pointers)
    * in a hashtable.
    */
-  int r = h_compile(str, PB_LALR, NULL);
+  int r = h_compile(str, PB_PACKRAT, NULL);
   g_check_cmp_int(r, ==, 0);
 }
 
@@ -469,7 +444,7 @@ static void test_issue83() {
    * of 2D3, but 2D3 is an empty choice. The first set of an empty choice
    * is legitimately empty. the asserting in h_lalr_compile() missed this case.
    */
-  int r = h_compile(p, PB_LALR, NULL);
+  int r = h_compile(p, PB_PACKRAT, NULL);
   g_check_cmp_int(r, ==, 0);
 }
 
@@ -521,8 +496,8 @@ static void test_bug60() {
 
 	  p = rulelist;
 
-	  g_check_parse_ok(p, PB_GLR, "ayzza", 5);
-	  g_check_parse_match(p, PB_GLR, "ayzza", 5, "(((u0x61) (u0x79 (u0x7a u0x7a u0x61))))");
+	  g_check_parse_ok(p, PB_PACKRAT, "ayzza", 5);
+	  g_check_parse_match(p, PB_PACKRAT, "ayzza", 5, "(((u0x61) (u0x79 (u0x7a u0x7a u0x61))))");
 
 }
 
@@ -579,7 +554,7 @@ static void test_bug60_abnf() {
     NULL));
 
   p = rulelist;
-  g_check_compilable(p, PB_GLR, 1);
+  g_check_compilable(p, PB_PACKRAT, 1);
 
   /* Have a buffer for the string */
   s_size = strlen(test_string_template) + 3*BUG60_ABNF_SCAN_UP_TO + 1;
@@ -627,19 +602,13 @@ static void test_bug95_lalr_k_param() {
 
   HParser *p = A;
 
-  if (h_compile(p, PB_LALR, (void *)1) == 0) {
-    g_test_message("should not compile for lalr(1)");
-    g_test_fail();
-  }
-
-  g_check_compilable(p, PB_LALR, 2);
+  // Packrat doesn't have k parameter, so we just test compilation
+  int r = h_compile(p, PB_PACKRAT, NULL);
+  g_check_cmp_int(r, ==, 0);
 
   g_check_parse_match_no_compile(p, "abc",3, "(u0x61 u0x62 u0x63)");
 
-  /* The next test shows that the default works for compile with param == NULL */
-  /* (default is k = 1) */
-
-  g_check_parse_match(h_sequence(a, b, c, NULL), PB_LALR, "abc",3, "(u0x61 u0x62 u0x63)");
+  g_check_parse_match(h_sequence(a, b, c, NULL), PB_PACKRAT, "abc",3, "(u0x61 u0x62 u0x63)");
 
 }
 
@@ -649,7 +618,6 @@ void register_regression_tests(void) {
   g_test_add_func("/core/regression/read_bits_48", test_read_bits_48);
   g_test_add_func("/core/regression/llk_zero_end", test_llk_zero_end);
   g_test_add_func("/core/regression/wrong_bit_length", test_wrong_bit_length);
-  g_test_add_func("/core/regression/lalr_charset_lhs", test_lalr_charset_lhs);
   g_test_add_func("/core/regression/cfg_many_seq", test_cfg_many_seq);
   g_test_add_func("/core/regression/charset_bits", test_charset_bits);
   g_test_add_func("/core/regression/bug19", test_bug_19);

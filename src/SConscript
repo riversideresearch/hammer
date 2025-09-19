@@ -23,8 +23,6 @@ parsers_headers = [
 ]
 
 backends_headers = [
-    'backends/regex.h',
-    'backends/contextfree.h',
     'backends/missing.h',
     'backends/params.h'
 ]
@@ -62,7 +60,7 @@ parsers = ['parsers/%s.c'%s for s in
             'seek']]
 
 backends = ['backends/%s.c' % s for s in
-            ['missing', 'packrat', 'llk', 'regex', 'glr', 'lalr', 'lr', 'lr0', 'params']]
+            ['missing', 'packrat', 'params']]
 
 misc_hammer_parts = [
     'allocator.c',

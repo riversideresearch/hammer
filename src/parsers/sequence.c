@@ -80,23 +80,12 @@ static void desugar_sequence(HAllocator *mm__, HCFStack *stk__, void *env) {
   } HCFS_END_CHOICE();
 }
 
-static bool sequence_ctrvm(HRVMProg *prog, void *env) {
-  HSequence *s = (HSequence*)env;
-  h_rvm_insert_insn(prog, RVM_PUSH, 0);
-  for (size_t i=0; i<s->len; ++i) {
-    if (!s->p_array[i]->vtable->compile_to_rvm(prog, s->p_array[i]->env))
-      return false;
-  }
-  h_rvm_insert_insn(prog, RVM_ACTION, h_rvm_create_action(prog, h_svm_action_make_sequence, NULL));
-  return true;
-}
 
 static const HParserVtable sequence_vt = {
   .parse = parse_sequence,
   .isValidRegular = sequence_isValidRegular,
   .isValidCF = sequence_isValidCF,
   .desugar = desugar_sequence,
-  .compile_to_rvm = sequence_ctrvm,
   .higher = true,
 };
 

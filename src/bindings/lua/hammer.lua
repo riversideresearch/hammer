@@ -3,11 +3,7 @@ ffi.cdef[[
 typedef enum HParserBackend_ {
   PB_MIN = 0,
   PB_PACKRAT = PB_MIN, // PB_MIN is always the default.
-  PB_REGULAR,
-  PB_LLk,
-  PB_LALR,
-  PB_GLR,
-  PB_MAX = PB_GLR
+  PB_MAX = PB_PACKRAT
 } HParserBackend;
 
 typedef enum HTokenType_ {

@@ -30,7 +30,6 @@ static const HParserVtable put_vt = {
   .parse = parse_put,
   .isValidRegular = h_false,
   .isValidCF = h_false,
-  .compile_to_rvm = h_not_regular,
   .higher = true,
 };
 
@@ -60,7 +59,6 @@ static const HParserVtable get_vt = {
   .parse = parse_get,
   .isValidRegular = h_false,
   .isValidCF = h_false,
-  .compile_to_rvm = h_not_regular,
   .higher = true,
 };
 
@@ -95,7 +93,6 @@ static const HParserVtable free_vt = {
   .parse = parse_free,
   .isValidRegular = h_false,
   .isValidCF = h_false,
-  .compile_to_rvm = h_not_regular,
   .higher = true,
 };
 

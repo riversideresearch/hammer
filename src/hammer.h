@@ -50,11 +50,7 @@ typedef enum HParserBackend_ {
     PB_INVALID = PB_MIN, /**< Have a backend that always fails to pass around "no such backend"
                             indications */
     PB_PACKRAT,
-    PB_REGULAR,
-    PB_LLk,
-    PB_LALR,
-    PB_GLR,
-    PB_MAX = PB_GLR
+    PB_MAX = PB_PACKRAT
 } HParserBackend;
 
 typedef struct HParserBackendVTable_ HParserBackendVTable;
@@ -76,8 +72,7 @@ typedef struct HParserBackendWithParams_ {
 
     /*
      * Backend-specific parameters - if this needs to be freed, the backend should provide a
-     * free_params method in its vtable; currently no backends do this - PB_PACKRAT and PB_REGULAR
-     * take no params, and PB_LLk, PB_LALR and PB_GLR take an integer cast to void*
+     * free_params method in its vtable; currently no backends do this - PB_PACKRAT takes no params
      */
     void *params;
 

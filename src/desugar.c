@@ -1,6 +1,5 @@
 #include "hammer.h"
 #include "internal.h"
-#include "backends/contextfree.h"
 
 HCFChoice *h_desugar(HAllocator *mm__, HCFStack *stk__, const HParser *parser) {
   HCFStack *nstk__ = stk__;

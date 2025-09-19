@@ -71,40 +71,13 @@ static bool is_isValidCF(void *env) {
   return true;
 }
 
-static bool h_svm_action_ignoreseq(HArena *arena, HSVMContext *ctx, void* env) {
-  HIgnoreSeq *seq = (HIgnoreSeq*)env;
-  HParsedToken* save = NULL;
-  // We can assume that each subitem generated at most one item on the
-  // stack.
-  assert(seq->len >= 1);
-  for (int i = seq->len - 1; i>=0; i--) {
-    if (i == (int)seq->which && ctx->stack[ctx->stack_count-1]->token_type != TT_MARK) 
-      save = ctx->stack[ctx->stack_count-1];
-    // skip over everything up to and including the mark.
-    while (ctx->stack[--ctx->stack_count]->token_type != TT_MARK)
-      ;
-  }
-  ctx->stack[ctx->stack_count++] = save;
-  return true;
-}
 
-static bool is_ctrvm(HRVMProg *prog, void* env) {
-  HIgnoreSeq *seq = (HIgnoreSeq*)env;
-  for (size_t i=0; i<seq->len; ++i) {
-    h_rvm_insert_insn(prog, RVM_PUSH, 0);
-    if (!h_compile_regex(prog, seq->parsers[i]))
-      return false;
-  }
-  h_rvm_insert_insn(prog, RVM_ACTION, h_rvm_create_action(prog, h_svm_action_ignoreseq, env));
-  return true;
-}
 
 static const HParserVtable ignoreseq_vt = {
   .parse = parse_ignoreseq,
   .isValidRegular = is_isValidRegular,
   .isValidCF = is_isValidCF,
   .desugar = desugar_ignoreseq,
-  .compile_to_rvm = is_ctrvm,
   .higher = true,
 };
 
