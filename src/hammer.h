@@ -1217,6 +1217,8 @@ HParsedToken *h_act_last(const HParseResult *p, void *userdata);
 HParsedToken *h_act_flatten(const HParseResult *p, void *userdata);
 HParsedToken *h_act_ignore(const HParseResult *p, void *userdata);
 
+/** @} */
+
 /** @defgroup benchmark_functions Benchmark functions
  * @{
  */
