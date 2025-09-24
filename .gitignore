@@ -38,3 +38,8 @@ docs/latex
 docs/man
 *.dot.pdf
 docs/milestone2.dot.pdf
+
+# Cppcheck
+tools/cppcheck/report.txt
+tools/cppcheck/report.xml
+tools/cppcheck/html/
