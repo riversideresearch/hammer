@@ -15,49 +15,47 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 
+#include "hammer.h"
+
+#include "allocator.h"
+#include "glue.h"
+#include "internal.h"
+#include "parsers/parser_internal.h"
+
 #include <assert.h>
 #include <ctype.h>
 #include <limits.h>
 #include <stdarg.h>
 #include <string.h>
-#include "hammer.h"
-#include "internal.h"
-#include "allocator.h"
-#include "parsers/parser_internal.h"
-#include "glue.h"
 
 static HParserBackendVTable *backends[PB_MAX + 1] = {
-  &h__missing_backend_vtable, /* For PB_INVALID */
-  &h__packrat_backend_vtable, /* For PB_PACKRAT */
-  &h__regex_backend_vtable, /* For PB_REGULAR */
-  &h__llk_backend_vtable, /* For PB_LLk */
-  &h__lalr_backend_vtable, /* For PB_LALR */
-  &h__glr_backend_vtable /* For PB_GLR */
+    &h__missing_backend_vtable, /* For PB_INVALID */
+    &h__packrat_backend_vtable  /* For PB_PACKRAT */
 };
-
 
 /* Helper function, since these lines appear in every parser */
 
 typedef struct {
-  const HParser *p1;
-  const HParser *p2;
+    const HParser *p1;
+    const HParser *p2;
 } HTwoParsers;
 
 /* Backend-related inquiries */
 
 int h_is_backend_available(HParserBackend backend) {
-  if (backend >= PB_MIN && backend <= PB_MAX) {
-    return (backends[backend] != &h__missing_backend_vtable) ? 1 : 0;
-  } else return 0;
+    if (backend >= PB_MIN && backend <= PB_MAX) {
+        return (backends[backend] != &h__missing_backend_vtable) ? 1 : 0;
+    } else
+        return 0;
 }
 
 HParserBackend h_get_default_backend(void) {
-  /* Call the inline version in internal.h */
-  return h_get_default_backend__int();
+    /* Call the inline version in internal.h */
+    return h_get_default_backend__int();
 }
 
-HParserBackendVTable * h_get_default_backend_vtable(void){
-  return h_get_default_backend_vtable__int();
+HParserBackendVTable *h_get_default_backend_vtable(void) {
+    return h_get_default_backend_vtable__int();
 }
 
 /*
@@ -65,52 +63,50 @@ HParserBackendVTable * h_get_default_backend_vtable(void){
  * method.
  */
 
-HParserBackendWithParams * h_copy_backend_with_params(
-    HParserBackendWithParams *be_with_params) {
-  return h_copy_backend_with_params__m(&system_allocator, be_with_params);
+HParserBackendWithParams *h_copy_backend_with_params(HParserBackendWithParams *be_with_params) {
+    return h_copy_backend_with_params__m(&system_allocator, be_with_params);
 }
 
-HParserBackendWithParams * h_copy_backend_with_params__m(HAllocator *mm__,
-    HParserBackendWithParams *be_with_params) {
-  HParserBackendWithParams *r = NULL;
-  int s;
+HParserBackendWithParams *h_copy_backend_with_params__m(HAllocator *mm__,
+                                                        HParserBackendWithParams *be_with_params) {
+    HParserBackendWithParams *r = NULL;
+    int s;
 
-  if (be_with_params && be_with_params->backend >= PB_MIN &&
-      be_with_params->backend <= PB_MAX) {
-    if (mm__ == NULL) {
-      /* use the allocator from the input */
-      mm__ = be_with_params->mm__;
-    }
-
-    /* got an allocator? */
-    if (mm__) {
-      r = h_new(HParserBackendWithParams, 1);
-      if (r) {
-        r->mm__ = mm__;
-        r->requested_name = be_with_params->requested_name;
-        r->backend = be_with_params->backend;
-        r->backend_vtable = be_with_params->backend_vtable;
-        if (be_with_params->backend_vtable != NULL
-        		&& be_with_params->backend_vtable->copy_params) {
-          s = be_with_params->backend_vtable->copy_params(mm__,
-              &(r->params), be_with_params->params);
-          if (s != 0) {
-            /* copy_params() failed */
-            h_free(r);
-            r = NULL;
-          }
-        } else {
-          /* else just ignore it and set it to NULL */
-          r->params = NULL;
+    if (be_with_params && be_with_params->backend >= PB_MIN && be_with_params->backend <= PB_MAX) {
+        if (mm__ == NULL) {
+            /* use the allocator from the input */
+            mm__ = be_with_params->mm__;
         }
-      }
-      /* else fail out */
-    }
-    /* else give up and return NULL */
-  }
-  /* else return NULL, nothing to copy */
 
-  return r;
+        /* got an allocator? */
+        if (mm__) {
+            r = h_new(HParserBackendWithParams, 1);
+            if (r) {
+                r->mm__ = mm__;
+                r->requested_name = be_with_params->requested_name;
+                r->backend = be_with_params->backend;
+                r->backend_vtable = be_with_params->backend_vtable;
+                if (be_with_params->backend_vtable != NULL &&
+                    be_with_params->backend_vtable->copy_params) {
+                    s = be_with_params->backend_vtable->copy_params(mm__, &(r->params),
+                                                                    be_with_params->params);
+                    if (s != 0) {
+                        /* copy_params() failed */
+                        h_free(r);
+                        r = NULL;
+                    }
+                } else {
+                    /* else just ignore it and set it to NULL */
+                    r->params = NULL;
+                }
+            }
+            /* else fail out */
+        }
+        /* else give up and return NULL */
+    }
+    /* else return NULL, nothing to copy */
+
+    return r;
 }
 
 /*
@@ -120,36 +116,39 @@ HParserBackendWithParams * h_copy_backend_with_params__m(HAllocator *mm__,
  */
 
 int h_copy_numeric_param(HAllocator *mm__, void **out, void *in) {
-  int rv = 0;
+    int rv = 0;
 
-  if (out) *out = in; 
-  else rv = -1; /* error return, nowhere to write result */
+    if (out)
+        *out = in;
+    else
+        rv = -1; /* error return, nowhere to write result */
 
-  return rv; 
+    return rv;
 }
 
 /* Free this HParserBackendWithParams, and free the params too */
 
 void h_free_backend_with_params(HParserBackendWithParams *be_with_params) {
-  HAllocator *mm__ = &system_allocator;
+    HAllocator *mm__ = &system_allocator;
 
-  if (be_with_params) {
-    if (be_with_params->mm__) mm__ = be_with_params->mm__;
+    if (be_with_params) {
+        if (be_with_params->mm__)
+            mm__ = be_with_params->mm__;
 
-    if (h_is_backend_available(be_with_params->backend)) {
-      if (be_with_params->backend_vtable != NULL
-    		  && be_with_params->backend_vtable->free_params) {
-        be_with_params->backend_vtable->
-          free_params(be_with_params->mm__, be_with_params->params);
-      }
+        if (h_is_backend_available(be_with_params->backend)) {
+            if (be_with_params->backend_vtable != NULL &&
+                be_with_params->backend_vtable->free_params) {
+                be_with_params->backend_vtable->free_params(be_with_params->mm__,
+                                                            be_with_params->params);
+            }
+        }
+
+        if (be_with_params->requested_name != NULL) {
+            h_free(be_with_params->requested_name);
+        }
+
+        h_free(be_with_params);
     }
-
-    if(be_with_params->requested_name != NULL) {
-    	h_free(be_with_params->requested_name);
-    }
-
-    h_free(be_with_params);
-  }
 }
 
 /*
@@ -157,68 +156,66 @@ void h_free_backend_with_params(HParserBackendWithParams *be_with_params) {
  * the same in both cases.
  */
 
-static const char * h_get_string_for_backend(
-    HParserBackend be, int description) {
-  /*
-   * For names, failure to resolve should return null - those are
-   * cases we can't look up by name either.  Human readable descriptions
-   * should have human-readable error strings
-   */
-  const char *text = description ? "this is a bug!" : NULL;
-  const char **ptr;
+static const char *h_get_string_for_backend(HParserBackend be, int description) {
+    /*
+     * For names, failure to resolve should return null - those are
+     * cases we can't look up by name either.  Human readable descriptions
+     * should have human-readable error strings
+     */
+    const char *text = description ? "this is a bug!" : NULL;
+    const char **ptr;
 
-  if (be >= PB_MIN && be <= PB_MAX) {
-    /* the invalid backend is special */
-    if (be == PB_INVALID) {
-      text = description ? "invalid backend" : NULL;
-    } else {
-      if (backends[be] != backends[PB_INVALID]) {
-        /* Point to the name or description */
-        ptr = description ?
-          &(backends[be]->backend_description) :
-          &(backends[be]->backend_short_name);
-        /* See if the backend knows how to describe itself */
-        if (*ptr != NULL) {
-          text = *ptr;
+    if (be >= PB_MIN && be <= PB_MAX) {
+        /* the invalid backend is special */
+        if (be == PB_INVALID) {
+            text = description ? "invalid backend" : NULL;
         } else {
-          /* nope */
-          text = description ? "no description available" : NULL;
+            if (backends[be] != backends[PB_INVALID]) {
+                /* Point to the name or description */
+                ptr = description ? &(backends[be]->backend_description)
+                                  : &(backends[be]->backend_short_name);
+                /* See if the backend knows how to describe itself */
+                if (*ptr != NULL) {
+                    text = *ptr;
+                } else {
+                    /* nope */
+                    text = description ? "no description available" : NULL;
+                }
+            } else {
+                /*
+                 * This is the case for backends which weren't compiled into this
+                 * library.
+                 */
+                text = description ? "unsupported backend" : NULL;
+            }
         }
-      } else {
-        /*
-         * This is the case for backends which weren't compiled into this
-         * library.
-         */
-        text = description ? "unsupported backend" : NULL;
-      }
+    } else {
+        text = description ? "bad backend number" : NULL;
     }
-  } else {
-    text = description ? "bad backend number" : NULL;
-  }
 
-  return text;
+    return text;
 }
 
 /* Return an identifying name for this backend */
 
-const char * h_get_name_for_backend(HParserBackend be) {
-  /*
-   * call h_get_string_for_backend(), 0 indicates name
-   * rather than description requested
-   */
-  return h_get_string_for_backend(be, 0);
+const char *h_get_name_for_backend(HParserBackend be) {
+    /*
+     * call h_get_string_for_backend(), 0 indicates name
+     * rather than description requested
+     */
+    return h_get_string_for_backend(be, 0);
 }
 
 /*
  * Return some human-readable descriptive text for this backend
  */
 
-const char * h_get_descriptive_text_for_backend(HParserBackend be) {
-  /*
-   * call h_get_string_for_backend(), 1 indicates a
-   * description is requested.
-   */
-  return h_get_string_for_backend(be, 1);
+const char *h_get_descriptive_text_for_backend(HParserBackend be) {
+    /*
+     * call h_get_string_for_backend(), 1 indicates a
+     * description is requested.
+     */
+    return h_get_string_for_backend(be, 1);
 }
 
 /*
@@ -226,514 +223,482 @@ const char * h_get_descriptive_text_for_backend(HParserBackend be) {
  * params; the logic is the same in both cases.
  */
 
-static char * h_get_string_for_backend_with_params__m(HAllocator *mm__,
-    HParserBackendWithParams *be_with_params, int description) {
-  char *text = NULL;
-  const char *generic_text = NULL;
-  HParserBackend be = PB_INVALID;
-  char * (**text_getter_func)(HAllocator *mm__,
-                              HParserBackend be,
-                              void *params) = NULL;
+static char *h_get_string_for_backend_with_params__m(HAllocator *mm__,
+                                                     HParserBackendWithParams *be_with_params,
+                                                     int description) {
+    char *text = NULL;
+    const char *generic_text = NULL;
+    HParserBackend be = PB_INVALID;
+    char *(**text_getter_func)(HAllocator *mm__, HParserBackend be, void *params) = NULL;
 
+    if (mm__ == NULL || be_with_params == NULL)
+        goto done;
 
-  if (mm__ == NULL || be_with_params == NULL) goto done;
+    /* check if we can compute custom text with params for this backend */
+    be = be_with_params->backend;
+    if (be >= PB_MIN && be <= PB_MAX && be != PB_INVALID && backends[be] != backends[PB_INVALID]) {
+        text_getter_func = description ? &(backends[be]->get_description_with_params)
+                                       : &(backends[be]->get_short_name_with_params);
 
-  /* check if we can compute custom text with params for this backend */
-  be = be_with_params->backend;
-  if (be >= PB_MIN && be <= PB_MAX && be != PB_INVALID &&
-      backends[be] != backends[PB_INVALID]) {
-    text_getter_func = description ?
-      &(backends[be]->get_description_with_params) :
-      &(backends[be]->get_short_name_with_params);
-
-    if (*text_getter_func != NULL) {
-        text = (*text_getter_func)(mm__, be,
-            be_with_params->params);
+        if (*text_getter_func != NULL) {
+            text = (*text_getter_func)(mm__, be, be_with_params->params);
+        }
     }
-  }
 
-  /* got it? */
-  if (!text) {
-    /* fall back to the generic descriptive text */
-    generic_text = h_get_string_for_backend(be, description);
-    if (generic_text) {
-      size_t size = strlen(generic_text) + 1;
-      text = h_new(char, size);
-      strncpy(text, generic_text, size);
+    /* got it? */
+    if (!text) {
+        /* fall back to the generic descriptive text */
+        generic_text = h_get_string_for_backend(be, description);
+        if (generic_text) {
+            size_t size = strlen(generic_text) + 1;
+            text = h_new(char, size);
+            strncpy(text, generic_text, size);
+        }
     }
-  }
 
- done:
-  return text;
+done:
+    return text;
 }
 /* Allocate and return an identifying name for this backend
  * with parameters.  The caller is responsible for freeing the result.
  */
-char * h_get_name_for_backend_with_params__m(HAllocator *mm__,
-    HParserBackendWithParams *be_with_params) {
-  return h_get_string_for_backend_with_params__m(mm__, be_with_params, 0);
+char *h_get_name_for_backend_with_params__m(HAllocator *mm__,
+                                            HParserBackendWithParams *be_with_params) {
+    return h_get_string_for_backend_with_params__m(mm__, be_with_params, 0);
 }
 
-char * h_get_name_for_backend_with_params(HParserBackendWithParams *be_with_params) {
-  return h_get_name_for_backend_with_params__m(&system_allocator, be_with_params);
+char *h_get_name_for_backend_with_params(HParserBackendWithParams *be_with_params) {
+    return h_get_name_for_backend_with_params__m(&system_allocator, be_with_params);
 }
 /*
  * Allocate and return some human-readable descriptive text for this backend
  * with parameters.  The caller is responsible for freeing the result.
  */
 
-char * h_get_descriptive_text_for_backend_with_params__m(HAllocator *mm__,
-    HParserBackendWithParams *be_with_params) {
-  return h_get_string_for_backend_with_params__m(mm__, be_with_params, 1);
+char *h_get_descriptive_text_for_backend_with_params__m(HAllocator *mm__,
+                                                        HParserBackendWithParams *be_with_params) {
+    return h_get_string_for_backend_with_params__m(mm__, be_with_params, 1);
 }
 
-char * h_get_descriptive_text_for_backend_with_params(
-    HParserBackendWithParams *be_with_params) {
-  return h_get_descriptive_text_for_backend_with_params__m(
-      &system_allocator, be_with_params);
+char *h_get_descriptive_text_for_backend_with_params(HParserBackendWithParams *be_with_params) {
+    return h_get_descriptive_text_for_backend_with_params__m(&system_allocator, be_with_params);
 }
 
 /* Helpers for the above for backends with no params */
 
-static char * h_get_backend_text_with_no_params(HAllocator *mm__,
-                                                HParserBackend be,
-                                                int description) {
-  char *text = NULL;
-  const char *src = NULL;
-  int size;
+static char *h_get_backend_text_with_no_params(HAllocator *mm__, HParserBackend be,
+                                               int description) {
+    char *text = NULL;
+    const char *src = NULL;
+    int size;
 
-  if (!(mm__ != NULL && be != PB_INVALID &&
-        be >= PB_MIN && be <= PB_MAX)) goto done;
+    if (!(mm__ != NULL && be != PB_INVALID && be >= PB_MIN && be <= PB_MAX))
+        goto done;
 
-  src = description ?
-    backends[be]->backend_description :
-    backends[be]->backend_short_name;
+    src = description ? backends[be]->backend_description : backends[be]->backend_short_name;
 
-  if (src) {
-    size = strlen(src) + 1;
-    text = h_new(char, size);
-    if (text) strncpy(text, src, size);
-  }
+    if (src) {
+        size = strlen(src) + 1;
+        text = h_new(char, size);
+        if (text)
+            strncpy(text, src, size);
+    }
 
- done:
-  return text;
+done:
+    return text;
 }
 
 /* Query a backend by short name; return PB_INVALID if no match */
 
 HParserBackend h_query_backend_by_name(const char *name) {
-  HParserBackend result = PB_INVALID, i;
+    HParserBackend result = PB_INVALID, i;
 
-  if (name != NULL) {
-    /* Okay, iterate over the backends PB_MIN <= i <= PB_MAX and check */
-    i = PB_MIN;
-    do {
-      if (i != PB_INVALID) {
-        if (backends[i]->backend_short_name != NULL) {
-          if (strcmp(name, backends[i]->backend_short_name) == 0) {
-            result = i;
-          }
-        }
-      }
-      ++i;
-    } while (i <= PB_MAX && result == PB_INVALID);
-  }
+    if (name != NULL) {
+        /* Okay, iterate over the backends PB_MIN <= i <= PB_MAX and check */
+        i = PB_MIN;
+        do {
+            if (i != PB_INVALID) {
+                if (backends[i]->backend_short_name != NULL) {
+                    if (strcmp(name, backends[i]->backend_short_name) == 0) {
+                        result = i;
+                    }
+                }
+            }
+            ++i;
+        } while (i <= PB_MAX && result == PB_INVALID);
+    }
 
-  return result;
+    return result;
 }
 
-char * h_get_description_with_no_params(HAllocator *mm__,
-                                        HParserBackend be, void *params) {
-  return h_get_backend_text_with_no_params(mm__, be, 1);
+char *h_get_description_with_no_params(HAllocator *mm__, HParserBackend be, void *params) {
+    return h_get_backend_text_with_no_params(mm__, be, 1);
 }
 
-char * h_get_short_name_with_no_params(HAllocator *mm__,
-                                           HParserBackend be, void *params) {
-  return h_get_backend_text_with_no_params(mm__, be, 0);
+char *h_get_short_name_with_no_params(HAllocator *mm__, HParserBackend be, void *params) {
+    return h_get_backend_text_with_no_params(mm__, be, 0);
 }
-
 
 /*TODO: possibly move to its own file?
  * If so, move include of glue.h as well
  * this parser is the only code using glue.h in here
  */
 
-HParsedToken *act_backend_with_params(const HParseResult *p, void* user_data)
-{
-  backend_with_params_t *be_with_params = H_ALLOC(backend_with_params_t);
+HParsedToken *act_backend_with_params(const HParseResult *p, void *user_data) {
+    backend_with_params_t *be_with_params = H_ALLOC(backend_with_params_t);
 
-  backend_name_t *name = H_FIELD(backend_name_t, 0);
-  be_with_params->name = *name;
+    backend_name_t *name = H_FIELD(backend_name_t, 0);
+    be_with_params->name = *name;
 
-  HParsedToken * param_list = p->ast->seq->elements[1];
-  if (param_list->token_type == TT_SEQUENCE && param_list->seq->used == 3) {
-    backend_params_t *params = H_INDEX(backend_params_t, param_list, 1);
-    be_with_params->params = *params;
-  }
-
-  return H_MAKE(backend_with_params_t, (void*)be_with_params);
-}
-
-HParsedToken* act_backend_name(const HParseResult *p, void* user_data) {
-  backend_name_t *r = H_ALLOC(backend_name_t);
-
-  HParsedToken *flat = h_act_flatten(p, user_data);
-
-  r->len = h_seq_len(flat);
-  r->name = h_arena_malloc(p->arena, r->len + 1);
-  for (size_t i=0; i<r->len; ++i) {
-
-    r->name[i] = flat->seq->elements[i]->uint;
-  }
-  r->name[r->len] = 0;
-
-  return H_MAKE(backend_name_t, r);
-}
-
-HParsedToken *act_param(const HParseResult *p, void* user_data)
-{
-  backend_param_t *r = H_ALLOC(backend_param_t);
-
-  r->len = h_seq_len(p->ast);
-  r->param = h_arena_malloc(p->arena, r->len + 1);
-  for (size_t i=0; i<r->len; ++i)
-    r->param[i] = H_FIELD_UINT(i);
-  r->param[r->len] = 0;
-
-  return H_MAKE(backend_param_t, r);
-
-}
-
-HParsedToken *act_param_name(const HParseResult *p, void* user_data)
-{
-  backend_param_name_t *r = H_ALLOC(backend_param_name_t);
-
-  HParsedToken *flat = h_act_flatten(p, user_data);
-
-  r->len = h_seq_len(flat);
-  r->param_name = h_arena_malloc(p->arena, r->len + 1);
-  for (size_t i=0; i<r->len; ++i)
-    r->param_name[i] = flat->seq->elements[i]->uint;
-  r->param_name[r->len] = 0;
-
-  return H_MAKE(backend_param_name_t, r);
-
-}
-
-HParsedToken *act_param_with_name(const HParseResult *p, void* user_data)
-{
-  backend_param_with_name_t *backend_param_with_name = H_ALLOC(backend_param_with_name_t);
-
-  HParsedToken *tok = p->ast->seq->elements[0];
-
-  if (tok->token_type == TT_SEQUENCE) {
-    backend_param_name_t *param_name = H_INDEX(backend_param_name_t, tok, 0);
-    backend_param_with_name->param_name = *param_name;
-  }
-
-  backend_param_t *param = H_FIELD(backend_param_t, 1);
-  backend_param_with_name->param = *param;
-
-  return H_MAKE(backend_param_with_name_t, backend_param_with_name);
-}
-
-HParsedToken *act_backend_params(const HParseResult *p, void* user_data)
-{
-  HParsedToken *res = H_MAKE(backend_params_t, (void*)p->ast);
-
-  backend_params_t *bp = H_ALLOC(backend_params_t);
-
-  HParsedToken **fields = h_seq_elements(p->ast);
-
-  bp->len  = h_seq_len(p->ast);
-  bp->params = h_arena_malloc(p->arena, sizeof(backend_param_with_name_t)*bp->len);
-  for(size_t i=0; i<bp->len; i++) {
-    bp->params[i] = *H_INDEX(backend_param_with_name_t, p->ast, i);
-  }
-
-  return H_MAKE(backend_params_t, bp);
-
-  return res;
-}
-
-static HParser * build_hparser_rule(void) {
-
-  H_RULE(alpha, h_choice(h_ch_range('A', 'Z'), h_ch_range('a', 'z'), NULL));
-  H_RULE(digit, h_ch_range(0x30, 0x39));
-  H_RULE(sp, h_ch(' '));
-  H_RULE(eq, h_ch('='));
-  H_RULE(comma, h_ch(','));
-  H_RULE(sep, h_sequence(comma, h_optional(sp), NULL));
-  H_RULE(left_paren, h_ch('('));
-  H_RULE(right_paren, h_ch(')'));
-
-  H_RULE(alphas, h_many1(alpha));
-  H_RULE(digits, h_many1(digit));
-
-  H_ARULE(backend_name, h_sequence(
-      alphas,
-      h_many(h_choice(digit, alpha, NULL)),
-      NULL));
-  H_ARULE(param, h_choice(digits, alphas, NULL));
-  H_ARULE(param_name, h_sequence(alphas, h_optional(digits), NULL));
-  H_ARULE(param_with_name,
-      h_sequence(h_optional(h_sequence(
-        param_name, eq, NULL)), param, NULL));
-  H_ARULE(backend_params, h_sepBy(param_with_name, sep));
-
-  H_RULE(param_list, h_sequence(left_paren, backend_params, right_paren, NULL) );
-
-  H_ARULE(backend_with_params, h_sequence(backend_name, h_optional(param_list), NULL));
-
-  return backend_with_params;
-}
-
-
-
-static HParser * build_hparser(void) {
-
-  HParser *p = NULL;
-  int r;
-  p = build_hparser_rule();
-  r = h_compile(p, PB_PACKRAT, NULL);
-
-  if (r == 0) {
-    return p;
-  } else {
-    printf("Compiling parser failed\n");
-    return NULL;
-  }
-}
-
-HParserBackendWithParams * h_get_backend_with_params_by_name(const char *name_with_params) {
-  HAllocator *mm__ = &system_allocator;
-  HParserBackendWithParams *result = NULL;
-
-  HParser *parser = NULL;
-  HParseResult *r = NULL;
-
-  if(name_with_params != NULL) {
-    result = h_new(HParserBackendWithParams, 1);
-    if (result) {
-      result->mm__ = mm__;
-      result->requested_name = NULL;
-
-      parser = build_hparser();
-      if (!parser) {
-        return NULL;
-      }
-
-      r = h_parse(parser, (const uint8_t *)name_with_params, strlen(name_with_params));
-
-      if (r) {
-
-        backend_with_params_t *be_w_params = r->ast->user;
-
-
-        backend_name_t *name = &be_w_params->name;
-
-        backend_params_t *params = &be_w_params->params;
-
-        result->requested_name = h_new(char,name->len+1);
-        memset(result->requested_name, '\0', name->len+1);
-        strncpy(result->requested_name, (char*) name->name, name->len);
-
-        result->backend = h_query_backend_by_name(result->requested_name);
-
-
-
-        if (result->backend >= PB_MIN && result->backend <= PB_MAX)
-          result->backend_vtable =  backends[result->backend];
-        else
-          result->backend_vtable = backends[PB_INVALID];
-
-        /* use the backend supplied method to extract any params from the input */
-        result->params = NULL;
-        if(params->len > 0) {
-          if (result->backend_vtable->extract_params) {
-            result->backend_vtable->extract_params(result, be_w_params);
-          }
-        }
-        // free the parse result
-        h_parse_result_free(r);
-        r = NULL;
-
-        //free the memory used by the backend for parser data
-        //(TODO: code to completely free the memory used for this parser)
-        parser->backend_vtable->free(parser);
-      }
+    HParsedToken *param_list = p->ast->seq->elements[1];
+    if (param_list->token_type == TT_SEQUENCE && param_list->seq->used == 3) {
+        backend_params_t *params = H_INDEX(backend_params_t, param_list, 1);
+        be_with_params->params = *params;
     }
-  }
 
-  return result;
+    return H_MAKE(backend_with_params_t, (void *)be_with_params);
 }
 
+HParsedToken *act_backend_name(const HParseResult *p, void *user_data) {
+    backend_name_t *r = H_ALLOC(backend_name_t);
 
-HParseResult* h_parse(const HParser* parser, const uint8_t* input, size_t length) {
-  return h_parse__m(&system_allocator, parser, input, length);
+    HParsedToken *flat = h_act_flatten(p, user_data);
+
+    r->len = h_seq_len(flat);
+    r->name = h_arena_malloc(p->arena, r->len + 1);
+    for (size_t i = 0; i < r->len; ++i) {
+
+        r->name[i] = flat->seq->elements[i]->uint;
+    }
+    r->name[r->len] = 0;
+
+    return H_MAKE(backend_name_t, r);
 }
-HParseResult* h_parse__m(HAllocator* mm__, const HParser* parser, const uint8_t* input, size_t length) {
-  // Set up a parse state...
-  HInputStream input_stream = {
-    .pos = 0,
-    .index = 0,
-    .bit_offset = 0,
-    .overrun = 0,
-    .endianness = DEFAULT_ENDIANNESS,
-    .length = length,
-    .input = input,
-    .last_chunk = true
-  };
 
-  return parser->backend_vtable->parse(mm__, parser, &input_stream);
+HParsedToken *act_param(const HParseResult *p, void *user_data) {
+    backend_param_t *r = H_ALLOC(backend_param_t);
+
+    r->len = h_seq_len(p->ast);
+    r->param = h_arena_malloc(p->arena, r->len + 1);
+    for (size_t i = 0; i < r->len; ++i)
+        r->param[i] = H_FIELD_UINT(i);
+    r->param[r->len] = 0;
+
+    return H_MAKE(backend_param_t, r);
+}
+
+HParsedToken *act_param_name(const HParseResult *p, void *user_data) {
+    backend_param_name_t *r = H_ALLOC(backend_param_name_t);
+
+    HParsedToken *flat = h_act_flatten(p, user_data);
+
+    r->len = h_seq_len(flat);
+    r->param_name = h_arena_malloc(p->arena, r->len + 1);
+    for (size_t i = 0; i < r->len; ++i)
+        r->param_name[i] = flat->seq->elements[i]->uint;
+    r->param_name[r->len] = 0;
+
+    return H_MAKE(backend_param_name_t, r);
+}
+
+HParsedToken *act_param_with_name(const HParseResult *p, void *user_data) {
+    backend_param_with_name_t *backend_param_with_name = H_ALLOC(backend_param_with_name_t);
+
+    HParsedToken *tok = p->ast->seq->elements[0];
+
+    if (tok->token_type == TT_SEQUENCE) {
+        backend_param_name_t *param_name = H_INDEX(backend_param_name_t, tok, 0);
+        backend_param_with_name->param_name = *param_name;
+    }
+
+    backend_param_t *param = H_FIELD(backend_param_t, 1);
+    backend_param_with_name->param = *param;
+
+    return H_MAKE(backend_param_with_name_t, backend_param_with_name);
+}
+
+HParsedToken *act_backend_params(const HParseResult *p, void *user_data) {
+    HParsedToken *res = H_MAKE(backend_params_t, (void *)p->ast);
+
+    backend_params_t *bp = H_ALLOC(backend_params_t);
+
+    HParsedToken **fields = h_seq_elements(p->ast);
+
+    bp->len = h_seq_len(p->ast);
+    bp->params = h_arena_malloc(p->arena, sizeof(backend_param_with_name_t) * bp->len);
+    for (size_t i = 0; i < bp->len; i++) {
+        bp->params[i] = *H_INDEX(backend_param_with_name_t, p->ast, i);
+    }
+
+    return H_MAKE(backend_params_t, bp);
+
+    return res;
+}
+
+static HParser *build_hparser_rule(void) {
+
+    H_RULE(alpha, h_choice(h_ch_range('A', 'Z'), h_ch_range('a', 'z'), NULL));
+    H_RULE(digit, h_ch_range(0x30, 0x39));
+    H_RULE(sp, h_ch(' '));
+    H_RULE(eq, h_ch('='));
+    H_RULE(comma, h_ch(','));
+    H_RULE(sep, h_sequence(comma, h_optional(sp), NULL));
+    H_RULE(left_paren, h_ch('('));
+    H_RULE(right_paren, h_ch(')'));
+
+    H_RULE(alphas, h_many1(alpha));
+    H_RULE(digits, h_many1(digit));
+
+    H_ARULE(backend_name, h_sequence(alphas, h_many(h_choice(digit, alpha, NULL)), NULL));
+    H_ARULE(param, h_choice(digits, alphas, NULL));
+    H_ARULE(param_name, h_sequence(alphas, h_optional(digits), NULL));
+    H_ARULE(param_with_name, h_sequence(h_optional(h_sequence(param_name, eq, NULL)), param, NULL));
+    H_ARULE(backend_params, h_sepBy(param_with_name, sep));
+
+    H_RULE(param_list, h_sequence(left_paren, backend_params, right_paren, NULL));
+
+    H_ARULE(backend_with_params, h_sequence(backend_name, h_optional(param_list), NULL));
+
+    return backend_with_params;
+}
+
+static HParser *build_hparser(void) {
+
+    HParser *p = NULL;
+    int r;
+    p = build_hparser_rule();
+    r = h_compile(p, PB_PACKRAT, NULL);
+
+    if (r == 0) {
+        return p;
+    } else {
+        printf("Compiling parser failed\n");
+        return NULL;
+    }
+}
+
+HParserBackendWithParams *h_get_backend_with_params_by_name(const char *name_with_params) {
+    HAllocator *mm__ = &system_allocator;
+    HParserBackendWithParams *result = NULL;
+
+    HParser *parser = NULL;
+    HParseResult *r = NULL;
+
+    if (name_with_params != NULL) {
+        result = h_new(HParserBackendWithParams, 1);
+        if (result) {
+            result->mm__ = mm__;
+            result->requested_name = NULL;
+
+            parser = build_hparser();
+            if (!parser) {
+                return NULL;
+            }
+
+            r = h_parse(parser, (const uint8_t *)name_with_params, strlen(name_with_params));
+
+            if (r) {
+
+                backend_with_params_t *be_w_params = r->ast->user;
+
+                backend_name_t *name = &be_w_params->name;
+
+                backend_params_t *params = &be_w_params->params;
+
+                result->requested_name = h_new(char, name->len + 1);
+                memset(result->requested_name, '\0', name->len + 1);
+                strncpy(result->requested_name, (char *)name->name, name->len);
+
+                result->backend = h_query_backend_by_name(result->requested_name);
+
+                if (result->backend >= PB_MIN && result->backend <= PB_MAX)
+                    result->backend_vtable = backends[result->backend];
+                else
+                    result->backend_vtable = backends[PB_INVALID];
+
+                /* use the backend supplied method to extract any params from the input */
+                result->params = NULL;
+                if (params->len > 0) {
+                    if (result->backend_vtable->extract_params) {
+                        result->backend_vtable->extract_params(result, be_w_params);
+                    }
+                }
+                // free the parse result
+                h_parse_result_free(r);
+                r = NULL;
+
+                // free the memory used by the backend for parser data
+                //(TODO: code to completely free the memory used for this parser)
+                parser->backend_vtable->free(parser);
+            }
+        }
+    }
+
+    return result;
+}
+
+HParseResult *h_parse(const HParser *parser, const uint8_t *input, size_t length) {
+    return h_parse__m(&system_allocator, parser, input, length);
+}
+HParseResult *h_parse__m(HAllocator *mm__, const HParser *parser, const uint8_t *input,
+                         size_t length) {
+    // Set up a parse state...
+    HInputStream input_stream = {.pos = 0,
+                                 .index = 0,
+                                 .bit_offset = 0,
+                                 .overrun = 0,
+                                 .endianness = DEFAULT_ENDIANNESS,
+                                 .length = length,
+                                 .input = input,
+                                 .last_chunk = true};
+
+    return parser->backend_vtable->parse(mm__, parser, &input_stream);
 }
 
 void h_parse_result_free__m(HAllocator *alloc, HParseResult *result) {
-  h_parse_result_free(result);
+    h_parse_result_free(result);
 }
 
 void h_parse_result_free(HParseResult *result) {
-  if(result == NULL) return;
-  h_delete_arena(result->arena);
+    if (result == NULL)
+        return;
+    h_delete_arena(result->arena);
 }
 
-bool h_false(void* env) {
-  (void)env;
-  return false;
+bool h_false(void *env) {
+    (void)env;
+    return false;
 }
 
-bool h_true(void* env) {
-  (void)env;
-  return true;
+bool h_true(void *env) {
+    (void)env;
+    return true;
 }
 
 bool h_not_regular(HRVMProg *prog, void *env) {
-  (void)env;
-  return false;
+    (void)env;
+    return false;
 }
 
-int h_compile_for_backend_with_params(HParser* parser, HParserBackendWithParams* be_with_params){
-  HAllocator *mm__ = &system_allocator;
+int h_compile_for_backend_with_params(HParser *parser, HParserBackendWithParams *be_with_params) {
+    HAllocator *mm__ = &system_allocator;
 
-  if (be_with_params) {
-    if (be_with_params->mm__) mm__ = be_with_params->mm__;
-  }
+    if (be_with_params) {
+        if (be_with_params->mm__)
+            mm__ = be_with_params->mm__;
+    }
 
-  return h_compile_for_backend_with_params__m(mm__, parser, be_with_params);
+    return h_compile_for_backend_with_params__m(mm__, parser, be_with_params);
 }
 
-int h_compile_for_backend_with_params__m(HAllocator* mm__, HParser* parser, HParserBackendWithParams* be_with_params) {
-  int ret = h_compile__m(mm__, parser, be_with_params->backend, be_with_params->params);
-  if (!ret)
-    be_with_params->backend_vtable = parser->backend_vtable;
-  return ret;
+int h_compile_for_backend_with_params__m(HAllocator *mm__, HParser *parser,
+                                         HParserBackendWithParams *be_with_params) {
+    int ret = h_compile__m(mm__, parser, be_with_params->backend, be_with_params->params);
+    if (!ret)
+        be_with_params->backend_vtable = parser->backend_vtable;
+    return ret;
 }
 
-int h_compile(HParser* parser, HParserBackend backend, const void* params) {
-  return h_compile__m(&system_allocator, parser, backend, params);
+int h_compile(HParser *parser, HParserBackend backend, const void *params) {
+    return h_compile__m(&system_allocator, parser, backend, params);
 }
 
-int h_compile__m(HAllocator* mm__, HParser* parser, HParserBackend backend, const void* params) {
-  if (!parser) {
-    return -1;
-  }
-  if (parser->backend >= PB_MIN && parser->backend <= PB_MAX &&
-      backends[parser->backend]->free != NULL) {
-    backends[parser->backend]->free(parser);
-  }
-  int ret = backends[backend]->compile(mm__, parser, params);
-  if (!ret) {
-    parser->backend = backend;
-    parser->backend_vtable = backends[backend];
-  }
-  return ret;
+int h_compile__m(HAllocator *mm__, HParser *parser, HParserBackend backend, const void *params) {
+    if (!parser) {
+        return -1;
+    }
+    if (parser->backend >= PB_MIN && parser->backend <= PB_MAX &&
+        backends[parser->backend]->free != NULL) {
+        backends[parser->backend]->free(parser);
+    }
+    int ret = backends[backend]->compile(mm__, parser, params);
+    if (!ret) {
+        parser->backend = backend;
+        parser->backend_vtable = backends[backend];
+    }
+    return ret;
 }
 
-
-HSuspendedParser* h_parse_start(const HParser* parser) {
-  return h_parse_start__m(&system_allocator, parser);
+HSuspendedParser *h_parse_start(const HParser *parser) {
+    return h_parse_start__m(&system_allocator, parser);
 }
-HSuspendedParser* h_parse_start__m(HAllocator* mm__, const HParser* parser) {
-  if(!parser->backend_vtable || !parser->backend_vtable->parse_start)
-    return NULL;
+HSuspendedParser *h_parse_start__m(HAllocator *mm__, const HParser *parser) {
+    if (!parser->backend_vtable || !parser->backend_vtable->parse_start)
+        return NULL;
 
-  // allocate and init suspended state
-  HSuspendedParser *s = h_new(HSuspendedParser, 1);
-  if(!s)
-    return NULL;
-  s->mm__ = mm__;
-  s->parser = parser;
-  s->backend_state = NULL;
-  s->done = false;
-  s->pos = 0;
-  s->bit_offset = 0;
-  s->endianness = DEFAULT_ENDIANNESS;
+    // allocate and init suspended state
+    HSuspendedParser *s = h_new(HSuspendedParser, 1);
+    if (!s)
+        return NULL;
+    s->mm__ = mm__;
+    s->parser = parser;
+    s->backend_state = NULL;
+    s->done = false;
+    s->pos = 0;
+    s->bit_offset = 0;
+    s->endianness = DEFAULT_ENDIANNESS;
 
-  // backend-specific initialization
-  // should allocate s->backend_state
-  parser->backend_vtable->parse_start(s);
+    // backend-specific initialization
+    // should allocate s->backend_state
+    parser->backend_vtable->parse_start(s);
 
-  return s;
-}
-
-bool h_parse_chunk(HSuspendedParser* s, const uint8_t* input, size_t length) {
-  assert(s->parser->backend_vtable->parse_chunk != NULL);
-
-  // no-op if parser is already done
-  if(s->done)
-    return true;
-
-  // input 
-  HInputStream input_stream = {
-    .pos = s->pos,
-    .index = 0,
-    .bit_offset = 0,
-    .overrun = 0,
-    .endianness = s->endianness,
-    .length = length,
-    .input = input,
-    .last_chunk = false
-  };
-
-  // process chunk
-  s->done = s->parser->backend_vtable->parse_chunk(s, &input_stream);
-  s->endianness = input_stream.endianness;
-  s->pos += input_stream.index;
-  s->bit_offset = input_stream.bit_offset;
-
-  return s->done;
+    return s;
 }
 
-HParseResult* h_parse_finish(HSuspendedParser* s) {
-  assert(s->parser->backend_vtable->parse_chunk != NULL);
-  assert(s->parser->backend_vtable->parse_finish != NULL);
+bool h_parse_chunk(HSuspendedParser *s, const uint8_t *input, size_t length) {
+    assert(s->parser->backend_vtable->parse_chunk != NULL);
 
-  HAllocator *mm__ = s->mm__;
+    // no-op if parser is already done
+    if (s->done)
+        return true;
 
-  // signal end of input if parser is not already done
-  if(!s->done) {
-    HInputStream empty = {
-      .pos = s->pos,
-      .index = 0,
-      .bit_offset = 0,
-      .overrun = 0,
-      .endianness = s->endianness,
-      .length = 0,
-      .input = NULL,
-      .last_chunk = true
-    };
+    // input
+    HInputStream input_stream = {.pos = s->pos,
+                                 .index = 0,
+                                 .bit_offset = 0,
+                                 .overrun = 0,
+                                 .endianness = s->endianness,
+                                 .length = length,
+                                 .input = input,
+                                 .last_chunk = false};
 
-    s->done = s->parser->backend_vtable->parse_chunk(s, &empty);
-    assert(s->done);
-  }
+    // process chunk
+    s->done = s->parser->backend_vtable->parse_chunk(s, &input_stream);
+    s->endianness = input_stream.endianness;
+    s->pos += input_stream.index;
+    s->bit_offset = input_stream.bit_offset;
 
-  // extract result
-  HParseResult *r = s->parser->backend_vtable->parse_finish(s);
-  if(r)
-    r->bit_length = s->pos * 8 + s->bit_offset;
+    return s->done;
+}
 
-  // NB: backend should have freed backend_state
-  h_free(s);
+HParseResult *h_parse_finish(HSuspendedParser *s) {
+    assert(s->parser->backend_vtable->parse_chunk != NULL);
+    assert(s->parser->backend_vtable->parse_finish != NULL);
 
-  return r;
+    HAllocator *mm__ = s->mm__;
+
+    // signal end of input if parser is not already done
+    if (!s->done) {
+        HInputStream empty = {.pos = s->pos,
+                              .index = 0,
+                              .bit_offset = 0,
+                              .overrun = 0,
+                              .endianness = s->endianness,
+                              .length = 0,
+                              .input = NULL,
+                              .last_chunk = true};
+
+        s->done = s->parser->backend_vtable->parse_chunk(s, &empty);
+        assert(s->done);
+    }
+
+    // extract result
+    HParseResult *r = s->parser->backend_vtable->parse_finish(s);
+    if (r)
+        r->bit_length = s->pos * 8 + s->bit_offset;
+
+    // NB: backend should have freed backend_state
+    h_free(s);
+
+    return r;
 }

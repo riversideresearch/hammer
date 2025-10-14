@@ -12,32 +12,31 @@
 // transform the parse tree in small steps in a bottom-up fashion. Compare
 // base64_sem2.c for an alternative approach using a single top-level action.
 
-#include "../src/hammer.h"
 #include "../src/glue.h"
+#include "../src/hammer.h"
+
 #include <assert.h>
 #include <inttypes.h>
-
 
 ///
 // Semantic actions for the grammar below, each corresponds to an "ARULE".
 // They must be named act_<rulename>.
 ///
 
-HParsedToken *act_bsfdig(const HParseResult *p, void* user_data)
-{
+HParsedToken *act_bsfdig(const HParseResult *p, void *user_data) {
     HParsedToken *res = H_MAKE_UINT(0);
 
     uint8_t c = H_CAST_UINT(p->ast);
 
-    if(c >= 0x41 && c <= 0x5A) // A-Z
+    if (c >= 0x41 && c <= 0x5A) // A-Z
         res->uint = c - 0x41;
-    else if(c >= 0x61 && c <= 0x7A) // a-z
+    else if (c >= 0x61 && c <= 0x7A) // a-z
         res->uint = c - 0x61 + 26;
-    else if(c >= 0x30 && c <= 0x39) // 0-9
+    else if (c >= 0x30 && c <= 0x39) // 0-9
         res->uint = c - 0x30 + 52;
-    else if(c == '+')
+    else if (c == '+')
         res->uint = 62;
-    else if(c == '/')
+    else if (c == '/')
         res->uint = 63;
 
     return res;
@@ -45,34 +44,34 @@ HParsedToken *act_bsfdig(const HParseResult *p, void* user_data)
 
 H_ACT_APPLY(act_index0, h_act_index, 0);
 
-#define act_bsfdig_4bit  act_bsfdig
-#define act_bsfdig_2bit  act_bsfdig
+#define act_bsfdig_4bit act_bsfdig
+#define act_bsfdig_2bit act_bsfdig
 
-#define act_equals       h_act_ignore
-#define act_ws           h_act_ignore
+#define act_equals h_act_ignore
+#define act_ws h_act_ignore
 
-#define act_document     act_index0
+#define act_document act_index0
 
 // General-form action to turn a block of base64 digits into bytes.
-HParsedToken *act_base64_n(int n, const HParseResult *p, void* user_data)
-{
+HParsedToken *act_base64_n(int n, const HParseResult *p, void *user_data) {
     HParsedToken *res = H_MAKE_SEQN(n);
 
     HParsedToken **digits = h_seq_elements(p->ast);
 
     uint32_t x = 0;
     int bits = 0;
-    for(int i=0; i<n+1; i++) {
-        x <<= 6; x |= digits[i]->uint;
+    for (int i = 0; i < n + 1; i++) {
+        x <<= 6;
+        x |= digits[i]->uint;
         bits += 6;
     }
-    x >>= bits%8;   // align, i.e. cut off extra bits
+    x >>= bits % 8; // align, i.e. cut off extra bits
 
-    for(int i=0; i<n; i++) {
+    for (int i = 0; i < n; i++) {
         HParsedToken *item = H_MAKE_UINT(x & 0xFF);
 
-        res->seq->elements[n-1-i] = item;   // output the last byte and
-        x >>= 8;                            // discard it
+        res->seq->elements[n - 1 - i] = item; // output the last byte and
+        x >>= 8;                              // discard it
     }
     res->seq->used = n;
 
@@ -83,8 +82,7 @@ H_ACT_APPLY(act_base64_3, act_base64_n, 3);
 H_ACT_APPLY(act_base64_2, act_base64_n, 2);
 H_ACT_APPLY(act_base64_1, act_base64_n, 1);
 
-HParsedToken *act_base64(const HParseResult *p, void* user_data)
-{
+HParsedToken *act_base64(const HParseResult *p, void *user_data) {
     assert(p->ast->token_type == TT_SEQUENCE);
     assert(p->ast->seq->used == 2);
     assert(p->ast->seq->elements[0]->token_type == TT_SEQUENCE);
@@ -93,47 +91,43 @@ HParsedToken *act_base64(const HParseResult *p, void* user_data)
 
     // concatenate base64_3 blocks
     HCountedArray *seq = H_FIELD_SEQ(0);
-    for(size_t i=0; i<seq->used; i++)
+    for (size_t i = 0; i < seq->used; i++)
         h_seq_append(res, seq->elements[i]);
 
     // append one trailing base64_2 or _1 block
     HParsedToken *tok = h_seq_index(p->ast, 1);
-    if(tok->token_type == TT_SEQUENCE)
+    if (tok->token_type == TT_SEQUENCE)
         h_seq_append(res, tok);
 
     return res;
 }
 
-
 ///
 // Set up the parser with the grammar to be recognized.
 ///
 
-HParser *init_parser(void)
-{
+HParser *init_parser(void) {
     // CORE
-    H_RULE (digit,   h_ch_range(0x30, 0x39));
-    H_RULE (alpha,   h_choice(h_ch_range(0x41, 0x5a), h_ch_range(0x61, 0x7a), NULL));
-    H_RULE (space,   h_in((uint8_t *)" \t\n\r\f\v", 6));
+    H_RULE(digit, h_ch_range(0x30, 0x39));
+    H_RULE(alpha, h_choice(h_ch_range(0x41, 0x5a), h_ch_range(0x61, 0x7a), NULL));
+    H_RULE(space, h_in((uint8_t *)" \t\n\r\f\v", 6));
 
     // AUX.
-    H_RULE (plus,    h_ch('+'));
-    H_RULE (slash,   h_ch('/'));
-    H_ARULE(equals,  h_ch('='));
+    H_RULE(plus, h_ch('+'));
+    H_RULE(slash, h_ch('/'));
+    H_ARULE(equals, h_ch('='));
 
-    H_ARULE(bsfdig,       h_choice(alpha, digit, plus, slash, NULL));
-    H_ARULE(bsfdig_4bit,  h_in((uint8_t *)"AEIMQUYcgkosw048", 16));
-    H_ARULE(bsfdig_2bit,  h_in((uint8_t *)"AQgw", 4));
-    H_ARULE(base64_3,     h_repeat_n(bsfdig, 4));
-    H_ARULE(base64_2,     h_sequence(bsfdig, bsfdig, bsfdig_4bit, equals, NULL));
-    H_ARULE(base64_1,     h_sequence(bsfdig, bsfdig_2bit, equals, equals, NULL));
-    H_ARULE(base64,       h_sequence(h_many(base64_3),
-                                     h_optional(h_choice(base64_2,
-                                                         base64_1, NULL)),
-                                     NULL));
+    H_ARULE(bsfdig, h_choice(alpha, digit, plus, slash, NULL));
+    H_ARULE(bsfdig_4bit, h_in((uint8_t *)"AEIMQUYcgkosw048", 16));
+    H_ARULE(bsfdig_2bit, h_in((uint8_t *)"AQgw", 4));
+    H_ARULE(base64_3, h_repeat_n(bsfdig, 4));
+    H_ARULE(base64_2, h_sequence(bsfdig, bsfdig, bsfdig_4bit, equals, NULL));
+    H_ARULE(base64_1, h_sequence(bsfdig, bsfdig_2bit, equals, equals, NULL));
+    H_ARULE(base64,
+            h_sequence(h_many(base64_3), h_optional(h_choice(base64_2, base64_1, NULL)), NULL));
 
-    H_ARULE(ws,           h_many(space));
-    H_ARULE(document,     h_sequence(ws, base64, ws, h_end_p(), NULL));
+    H_ARULE(ws, h_many(space));
+    H_ARULE(document, h_sequence(ws, base64, ws, h_end_p(), NULL));
 
     // BUG sometimes inputs that should just don't parse.
     // It *seemed* to happen mostly with things like "bbbbaaaaBA==".
@@ -142,17 +136,15 @@ HParser *init_parser(void)
     return document;
 }
 
-
 ///
 // Main routine: print input, parse, print result, return success/failure.
 ///
 
 #include <stdio.h>
 
-const HParser *parser;  // Allocated statically to suppress leak warnings
+const HParser *parser; // Allocated statically to suppress leak warnings
 
-int main(int argc, char **argv)
-{
+int main(int argc, char **argv) {
     uint8_t input[102400];
     size_t inputsize;
     HParseResult *result;
@@ -164,8 +156,8 @@ int main(int argc, char **argv)
     fwrite(input, 1, inputsize, stderr);
     result = h_parse(parser, input, inputsize);
 
-    if(result) {
-        fprintf(stderr, "parsed=%" PRId64 " bytes\n", result->bit_length/8);
+    if (result) {
+        fprintf(stderr, "parsed=%" PRId64 " bytes\n", result->bit_length / 8);
         h_pprint(stdout, result->ast, 0, 0);
         h_parse_result_free(result);
         return 0;

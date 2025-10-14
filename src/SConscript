@@ -23,8 +23,6 @@ parsers_headers = [
 ]
 
 backends_headers = [
-    'backends/regex.h',
-    'backends/contextfree.h',
     'backends/missing.h',
     'backends/params.h'
 ]
@@ -62,7 +60,7 @@ parsers = ['parsers/%s.c'%s for s in
             'seek']]
 
 backends = ['backends/%s.c' % s for s in
-            ['missing', 'packrat', 'llk', 'regex', 'glr', 'lalr', 'lr', 'lr0', 'params']]
+            ['missing', 'packrat', 'params']]
 
 misc_hammer_parts = [
     'allocator.c',
@@ -79,13 +77,7 @@ misc_hammer_parts = [
     'system_allocator.c',
     'sloballoc.c']
 
-if env['PLATFORM'] == 'win32':
-    misc_hammer_parts += [
-        'platform_win32.c',
-        'tsearch.c',
-    ]
-else:
-    misc_hammer_parts += ['platform_bsdlike.c']
+misc_hammer_parts += ['platform_bsdlike.c']
 
 ctests = ['t_benchmark.c',
           't_bitreader.c',
@@ -100,11 +92,6 @@ ctests = ['t_benchmark.c',
 
 static_library_name = 'hammer'
 build_shared_library=True
-if env['PLATFORM'] == 'win32':
-    # FIXME(windows): symbols in hammer are not exported yet, a shared lib would be useless
-    build_shared_library=False
-    # prevent collision between .lib from dll and .lib for static lib
-    static_library_name = 'hammer_s'
 
 if 'GPROF' in env and env['GPROF'] == 1:
     # Disable the shared library (it won't work with gprof) and rename the static one
@@ -149,6 +136,3 @@ if libhammer_shared is not None:
     Export('libhammer_static libhammer_shared')
 else:
     Export('libhammer_static')
-
-for b in env['bindings']:
-    env.SConscript(['bindings/%s/SConscript' % b])

@@ -9,21 +9,16 @@ import subprocess
 import sys
 
 default_install_dir='/usr/local'
-if platform.system() == 'Windows':
-    default_install_dir = 'build' # no obvious place for installation on Windows
 
 vars = Variables(None, ARGUMENTS)
 vars.Add(PathVariable('DESTDIR', "Root directory to install in (useful for packaging scripts)", None, PathVariable.PathIsDirCreate))
 vars.Add(PathVariable('prefix', "Where to install in the FHS", "/usr/local", PathVariable.PathAccept))
-vars.Add(ListVariable('bindings', 'Language bindings to build', 'none', ['cpp', 'dotnet', 'jni', 'perl', 'php', 'python', 'ruby']))
 vars.Add('python', 'Python interpreter', 'python')
 
 tools = ['default', 'scanreplace']
-if 'dotnet' in ARGUMENTS.get('bindings', []):
-	tools.append('csharp/mono')
 
 # add the clang tool if necessary
-if os.getenv('CC') == 'clang' or platform.system() == 'Darwin':
+if os.getenv('CC') == 'clang':
 	tools.append('clang')
 else:
 	# try to detect if cc happens to be clang by inspecting --version
@@ -36,17 +31,11 @@ else:
 envvars = {'PATH' : os.environ['PATH']}
 if 'PKG_CONFIG_PATH' in os.environ:
     envvars['PKG_CONFIG_PATH'] = os.environ['PKG_CONFIG_PATH']
-if platform.system() == 'Windows':
-    # from the scons FAQ (keywords: LNK1104 TEMPFILE), needed by link.exe
-    envvars['TMP'] = os.environ['TMP']
 
 env = Environment(ENV = envvars,
                   variables = vars,
                   tools=tools,
                   toolpath=['tools'])
-
-if not 'bindings' in env:
-    env['bindings'] = []
 
 def calcInstallPath(*elements):
     path = os.path.abspath(os.path.join(*map(env.subst, elements)))
@@ -105,7 +94,7 @@ AddOption('--in-place',
 
 AddOption('--no-tests',
           dest='with_tests',
-          default=env['PLATFORM'] != 'win32',
+          default=True,
           action='store_false',
           help='Do not build tests')
 
@@ -133,23 +122,12 @@ if env['CC'] == 'cl':
         ]
     )
 else:
-    if env['PLATFORM'] == 'darwin':
-        # It's reported -D_POSIX_C_SOURCE breaks the Mac OS build; I think we
-        # may need _DARWIN_C_SOURCE instead/in addition to, but let's wait to
-        # have access to a Mac to test/repo
-        env.MergeFlags('-std=c99 -Wall -Wextra -Werror -Wno-unused-parameter -Wno-attributes -Wno-unused-variable')
-    else:
-        # Using -D_POSIX_C_SOURCE=200809L here, not on an ad-hoc basis when,
-        # #including, is important
-        env.MergeFlags('-std=c99 -D_POSIX_C_SOURCE=200809L -Wall -Wextra -Werror -Wno-unused-parameter -Wno-attributes -Wno-unused-variable')
+    # Using -D_POSIX_C_SOURCE=200809L here, not on an ad-hoc basis when,
+    # #including, is important
+    env.MergeFlags('-std=c99 -D_POSIX_C_SOURCE=200809L -Wall -Wextra -Werror -Wno-unused-parameter -Wno-attributes -Wno-unused-variable')
 
 # Linker options
-if env['PLATFORM'] == 'darwin':
-    env.Append(SHLINKFLAGS = '-install_name ' + env['libpath'] + '/${TARGET.file}')
-elif platform.system() == 'OpenBSD':
-    pass
-elif env['PLATFORM'] == 'win32':
-    # no extra lib needed
+if platform.system() == 'OpenBSD':
     pass
 else:
     env.MergeFlags('-lrt')

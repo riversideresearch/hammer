@@ -2,23 +2,21 @@
 
 #include "internal.h"
 
-
 typedef struct HCFGrammar_ {
-  HCFChoice   *start;   // start symbol (nonterminal)
-  HHashSet    *nts;     // HCFChoices, each representing the alternative
+    HCFChoice *start;   // start symbol (nonterminal)
+    HHashSet *nts;      // HCFChoices, each representing the alternative
                         // productions for one nonterminal
-  HHashSet    *geneps;  // set of NTs that can generate the empty string
-  HHashTable  *first;   // memoized first sets of the grammar's symbols
-  HHashTable  *follow;  // memoized follow sets of the grammar's NTs
-  HArena      *arena;
-  HAllocator  *mm__;
+    HHashSet *geneps;   // set of NTs that can generate the empty string
+    HHashTable *first;  // memoized first sets of the grammar's symbols
+    HHashTable *follow; // memoized follow sets of the grammar's NTs
+    HArena *arena;
+    HAllocator *mm__;
 
-  // constant sets containing only the empty string or end symbol.
-  // these are only members of HCFGrammar because they need a pointer to arena.
-  const struct HStringMap_ *singleton_epsilon;
-  const struct HStringMap_ *singleton_end;
+    // constant sets containing only the empty string or end symbol.
+    // these are only members of HCFGrammar because they need a pointer to arena.
+    const struct HStringMap_ *singleton_epsilon;
+    const struct HStringMap_ *singleton_end;
 } HCFGrammar;
-
 
 /* Representing input characters (bytes) in HHashTables.
  * To use these as keys, we must avoid 0 as because NULL means "not set".
@@ -33,11 +31,11 @@ static inline uint8_t key_char(HCharKey k) { return (0xFF & k); }
  * Each path through the tree represents the string along its branches.
  */
 typedef struct HStringMap_ {
-  void *epsilon_branch;         // points to leaf value
-  void *end_branch;             // points to leaf value
-  HHashTable *char_branches;    // maps to inner nodes (HStringMaps)
-  HArena *arena;
-  bool taint;                   // for use by h_follow() and h_first()
+    void *epsilon_branch;      // points to leaf value
+    void *end_branch;          // points to leaf value
+    HHashTable *char_branches; // maps to inner nodes (HStringMaps)
+    HArena *arena;
+    bool taint; // for use by h_follow() and h_first()
 } HStringMap;
 
 HStringMap *h_stringmap_new(HArena *a);
@@ -55,19 +53,19 @@ bool h_stringmap_present_epsilon(const HStringMap *m);
 bool h_stringmap_empty(const HStringMap *m);
 bool h_stringmap_equal(const HStringMap *a, const HStringMap *b);
 
-static inline HStringMap *h_stringmap_get_char(const HStringMap *m, const uint8_t c)
- { return h_hashtable_get(m->char_branches, (void *)char_key(c)); }
+static inline HStringMap *h_stringmap_get_char(const HStringMap *m, const uint8_t c) {
+    return h_hashtable_get(m->char_branches, (void *)char_key(c));
+}
 
 // dummy return value used by h_stringmap_get_lookahead when out of input
 #define NEED_INPUT ((void *)-1)
-
 
 /* Convert 'parser' into CFG representation by desugaring and compiling the set
  * of nonterminals.
  * A NULL return means we are unable to represent the parser as a CFG.
  */
-HCFGrammar *h_cfgrammar(HAllocator* mm__, const HParser *parser);
-HCFGrammar *h_cfgrammar_(HAllocator* mm__, HCFChoice *start);
+HCFGrammar *h_cfgrammar(HAllocator *mm__, const HParser *parser);
+HCFGrammar *h_cfgrammar_(HAllocator *mm__, HCFChoice *start);
 
 HCFGrammar *h_cfgrammar_new(HAllocator *mm__);
 
@@ -94,9 +92,7 @@ const HStringMap *h_follow(size_t k, HCFGrammar *g, const HCFChoice *x);
 /* Compute the predict_k set of production "A -> rhs".
  * Always returns a newly-allocated HStringMap.
  */
-HStringMap *h_predict(size_t k, HCFGrammar *g,
-                        const HCFChoice *A, const HCFSequence *rhs);
-
+HStringMap *h_predict(size_t k, HCFGrammar *g, const HCFChoice *A, const HCFSequence *rhs);
 
 /* Pretty-printers for grammars and associated data. */
 void h_pprint_grammar(FILE *file, const HCFGrammar *g, int indent);
@@ -104,7 +100,6 @@ void h_pprint_sequence(FILE *f, const HCFGrammar *g, const HCFSequence *seq);
 void h_pprint_symbol(FILE *f, const HCFGrammar *g, const HCFChoice *x);
 void h_pprint_symbolset(FILE *file, const HCFGrammar *g, const HHashSet *set, int indent);
 void h_pprint_stringset(FILE *file, const HStringMap *set, int indent);
-void h_pprint_stringmap(FILE *file, char sep,
-                        void (*valprint)(FILE *f, void *env, void *val), void *env,
-                        const HStringMap *map);
+void h_pprint_stringmap(FILE *file, char sep, void (*valprint)(FILE *f, void *env, void *val),
+                        void *env, const HStringMap *map);
 void h_pprint_char(FILE *file, uint8_t c);

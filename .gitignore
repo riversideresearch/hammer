@@ -1,9 +1,8 @@
-# generated files
+# Build artifacts
 *.o
 *.os
 *.so
 *.a
-*.gem
 *.pyc
 *.class
 libhammer.pc
@@ -14,23 +13,33 @@ examples/base64_sem1
 examples/base64_sem2
 jni/com*.h
 src/test_suite
+lib/hush
 
-# coverage and profiling stuff
+# Coverage and profiling
 *.gcov
 *.gcda
 *.gcno
 gmon.out
 
-# editor leftovers
+# Editor/IDE leftovers
 *~
 *.sw?
 \#*
-
-# misc
-lib/hush
-TAGS
-docs/milestone2.dot.pdf
-*.dot.pdf
 Session.vim
+TAGS
 cscope.out
+
+# SCons
 .sconsign.dblite
+
+# Documentation build artifacts
+docs/html
+docs/latex
+docs/man
+*.dot.pdf
+docs/milestone2.dot.pdf
+
+# Cppcheck
+tools/cppcheck/report.txt
+tools/cppcheck/report.xml
+tools/cppcheck/html/
