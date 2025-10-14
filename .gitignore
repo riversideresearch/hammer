@@ -43,3 +43,11 @@ docs/milestone2.dot.pdf
 tools/cppcheck/report.txt
 tools/cppcheck/report.xml
 tools/cppcheck/html/
+
+# Debian package generated files
+debian/.debhelper/
+debian/libhammer/
+debian/tmp/
+debian/debhelper-build-stamp
+debian/files
+debian/libhammer.substvars

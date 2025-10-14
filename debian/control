@@ -1,0 +1,15 @@
+Source: libhammer
+Section: libs
+Priority: optional
+Maintainer: Riverside Research Secure Parsing Team <parsing@riversideresearch.org>
+Build-Depends: debhelper-compat (= 13), scons, python3, gcc, pkg-config
+Standards-Version: 4.6.2
+Homepage: https://github.com/riversideresearch/hammer
+
+Package: libhammer
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: The Hammer parsing library
+ Hammer is a parser combinator library for C that makes it easy to
+ define and compose binary and text format parsers. This package
+ provides the shared library libhammer.so and associated headers.

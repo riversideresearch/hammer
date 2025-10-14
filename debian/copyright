@@ -1,0 +1,8 @@
+Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: Hammer
+Source: https://github.com/riversideresearch/hammer
+
+Files: *
+Copyright: 2015-2025 Riverside Research
+License: BSD-3-Clause
+ License text from LICENSE file in source.

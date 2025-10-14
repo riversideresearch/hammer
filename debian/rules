@@ -1,0 +1,14 @@
+#!/usr/bin/make -f
+
+# Export variables so SCons picks them up
+export DESTDIR=$(CURDIR)/debian/tmp
+export PREFIX=/usr/local
+
+%:
+	dh $@ --buildsystem=makefile
+
+override_dh_auto_build:
+	scons
+
+override_dh_auto_install:
+	scons install DESTDIR=$(DESTDIR) prefix=/usr/local

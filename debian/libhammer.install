@@ -1,0 +1,3 @@
+usr/local/lib/* usr/lib/
+usr/local/include/hammer/* usr/include/hammer/
+usr/local/lib/pkgconfig/* usr/lib/pkgconfig/
