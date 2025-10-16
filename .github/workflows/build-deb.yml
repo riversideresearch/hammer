@@ -39,6 +39,11 @@ jobs:
       - name: Upload .deb to release
         uses: softprops/action-gh-release@v1
         with:
+          tag_name: ${{ steps.tag.outputs.tag }}
+          name: Release ${{ steps.tag.outputs.tag }}
+          draft: false
+          prerelease: false
+          generate_release_notes: true
           files: ${{ steps.deb.outputs.deb_file }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
