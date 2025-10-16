@@ -1,0 +1,36 @@
+name: Build libhammer .deb
+
+on:
+  workflow_dispatch:
+# on:
+#   release:
+#     types: [published]
+
+jobs:
+  build-deb:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential debhelper devscripts scons
+
+      - name: Build .deb package
+        run: |
+          dpkg-buildpackage -us -uc -b
+
+      - name: Find generated .deb
+        id: deb
+        run: |
+          DEB_FILE=$(ls ../libhammer_*.deb)
+          echo "deb_file=$DEB_FILE" >> $GITHUB_OUTPUT
+
+      - name: Upload .deb to release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: ${{ steps.deb.outputs.deb_file }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
