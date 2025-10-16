@@ -1,25 +1,17 @@
 name: Build libhammer .deb
 
 on:
-  release:
-    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   build-deb:
     runs-on: ubuntu-latest
+    
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-      
-      - name: Cache APT packages
-        uses: actions/cache@v4
-        with:
-          path: |
-            /var/cache/apt
-            /var/lib/apt/lists
-          key: ${{ runner.os }}-apt-${{ hashFiles('debian/control') }}
-          restore-keys: |
-            ${{ runner.os }}-apt-
+      - uses: actions/checkout@v4
 
       - name: Install dependencies
         run: |
@@ -27,8 +19,7 @@ jobs:
           sudo apt-get install -y build-essential debhelper devscripts scons libglib2.0-dev pkg-config
 
       - name: Build .deb package
-        run: |
-          dpkg-buildpackage -us -uc -b
+        run: dpkg-buildpackage -us -uc -b
 
       - name: Find generated .deb
         id: deb
@@ -36,13 +27,18 @@ jobs:
           DEB_FILE=$(ls ../libhammer_*.deb)
           echo "deb_file=$DEB_FILE" >> $GITHUB_OUTPUT
 
+      - name: Create tag
+        id: tag
+        run: |
+          TAG="v$(date +'%Y%m%d%H%M%S')"
+          git tag $TAG
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+
       - name: Upload .deb to release
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ steps.tag.outputs.tag }}
           name: Release ${{ steps.tag.outputs.tag }}
-          draft: false
-          prerelease: false
           generate_release_notes: true
           files: ${{ steps.deb.outputs.deb_file }}
         env:
