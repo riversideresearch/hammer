@@ -1,10 +1,8 @@
 name: Build libhammer .deb
 
 on:
-  workflow_dispatch:
-# on:
-#   release:
-#     types: [published]
+  release:
+    types: [published]
 
 jobs:
   build-deb:
