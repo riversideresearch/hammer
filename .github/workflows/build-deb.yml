@@ -21,26 +21,23 @@ jobs:
       - name: Build .deb package
         run: dpkg-buildpackage -us -uc -b
 
-      - name: Find generated .deb
+      - name: Find and rename generated .deb
         id: deb
         run: |
           DEB_FILE=$(ls ../libhammer_*.deb)
+          VERSION=$(cat VERSION)
+          mv $DEB_FILE libhammer_${VERSION}_amd64.deb
           echo "deb_file=$DEB_FILE" >> $GITHUB_OUTPUT
 
       - name: Create tag
         id: tag
         run: |
-          VERSION=$(cat VERSION)
           TAG="v$VERSION"
           git tag $TAG
           echo "tag=$TAG" >> $GITHUB_OUTPUT
 
-      - name: Upload .deb to release
-        uses: softprops/action-gh-release@v1
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
         with:
-          tag_name: ${{ steps.tag.outputs.tag }}
-          name: Release ${{ steps.tag.outputs.tag }}
-          generate_release_notes: true
-          files: ${{ steps.deb.outputs.deb_file }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          name: libhammer-deb
+          path: ${{ steps.deb.outputs.deb_file }}
