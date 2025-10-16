@@ -1,5 +1,5 @@
-libhammer (1.0-1) unstable; urgency=medium
+libhammer (0.9.0-1) unstable; urgency=medium
 
-  * Initial release of Hammer parser library
+  * Pre-release of Hammer parser library
 
  -- Mahmoud Elbasiouny <melbasiouny@riversideresearch.org>  Tue, 14 Oct 2025 13:00:00 -0500

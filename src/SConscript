@@ -6,8 +6,8 @@ import os.path
 
 Import('env testruns')
 
-# Bump this if you break binary compatibility (e.g. renumber backends)
-hammer_shlib_version = "1.0.0"
+# Read version from environment (exported from SConstruct)
+hammer_shlib_version = env['VERSION']
 
 dist_headers = [
     'hammer.h',

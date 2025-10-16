@@ -34,6 +34,19 @@ doxygen Doxyfile
 
 This will create HTML output in `docs/html/index.html`.
 
+## Version Management
+
+The project uses centralized version management via the `VERSION` file to ensure consistency across GitHub releases, Debian packages, and pkg-config files.
+
+### How It Works
+
+- **VERSION file**: Contains semantic version (e.g., `1.0.0`)
+- **All components** automatically read from this file:
+  - GitHub tags: `v1.0.0`
+  - Debian packages: `1.0.0-1`
+  - Shared library: `libhammer.so.1.0.0`
+  - pkg-config: Version field
+
 ## TODO Items (previously TODO)
 
 - Make h_action functions be called only after parse is complete.
