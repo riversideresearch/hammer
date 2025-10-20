@@ -7,10 +7,6 @@
 #define H_GCC_ATTRIBUTE(x)
 #endif
 
-#if defined(_MSC_VER)
-#define H_MSVC_DECLSPEC(x) __declspec(x)
-#else
 #define H_MSVC_DECLSPEC(x)
-#endif
 
 #endif

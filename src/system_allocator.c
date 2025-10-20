@@ -1,6 +1,7 @@
-#include <string.h>
-#include <stdlib.h>
 #include "internal.h"
+
+#include <stdlib.h>
+#include <string.h>
 
 // NOTE(uucidl): undefine to automatically fill up newly allocated block
 // with this byte:
@@ -11,9 +12,8 @@
  * Blocks allocated by the system_allocator start with this header.
  * I.e. the user part of the allocation directly follows.
  */
-typedef struct HDebugBlockHeader_
-{
-  size_t size; /** size of the user allocation */
+typedef struct HDebugBlockHeader_ {
+    size_t size; /** size of the user allocation */
 } HDebugBlockHeader;
 
 #define BLOCK_HEADER_SIZE (sizeof(HDebugBlockHeader))
@@ -24,67 +24,61 @@ typedef struct HDebugBlockHeader_
 /**
  * Compute the total size needed for a given allocation size.
  */
-static inline size_t block_size(size_t alloc_size) {
-  return BLOCK_HEADER_SIZE + alloc_size;
-}
+static inline size_t block_size(size_t alloc_size) { return BLOCK_HEADER_SIZE + alloc_size; }
 
 /**
  * Obtain the block containing the user pointer `uptr`
  */
-static inline void* block_for_user_ptr(void *uptr) {
-  return ((char*)uptr) - BLOCK_HEADER_SIZE;
-}
+static inline void *block_for_user_ptr(void *uptr) { return ((char *)uptr) - BLOCK_HEADER_SIZE; }
 
 /**
  * Obtain the user area of the allocation from a given block
  */
-static inline void* user_ptr(void *block) {
-  return ((char*)block) + BLOCK_HEADER_SIZE;
-}
+static inline void *user_ptr(void *block) { return ((char *)block) + BLOCK_HEADER_SIZE; }
 
-static void* system_alloc(HAllocator *allocator, size_t size) {
-  void *block = malloc(block_size(size));
-  if (!block) {
-    return NULL;
-  }
-  void *uptr = user_ptr(block);
+static void *system_alloc(HAllocator *allocator, size_t size) {
+    void *block = malloc(block_size(size));
+    if (!block) {
+        return NULL;
+    }
+    void *uptr = user_ptr(block);
 #ifdef DEBUG__MEMFILL
-  memset(uptr, DEBUG__MEMFILL, size);
-  ((HDebugBlockHeader*)block)->size = size;
+    memset(uptr, DEBUG__MEMFILL, size);
+    ((HDebugBlockHeader *)block)->size = size;
 #endif
-  return uptr;
+    return uptr;
 }
 
-static void* system_realloc(HAllocator *allocator, void* uptr, size_t size) {
-  if (!uptr) {
-    return system_alloc(allocator, size);
-  }
-  // XXX this is incorrect if size == 0 and BLOCK_HEADER_SIZE != 0; it fails
-  // to behave like free(3)
-  void* block = realloc(block_for_user_ptr(uptr), block_size(size));
-  if (!block) {
-    return NULL;
-  }
-  uptr = user_ptr(block);
+static void *system_realloc(HAllocator *allocator, void *uptr, size_t size) {
+    if (!uptr) {
+        return system_alloc(allocator, size);
+    }
+    // XXX this is incorrect if size == 0 and BLOCK_HEADER_SIZE != 0; it fails
+    // to behave like free(3)
+    void *block = realloc(block_for_user_ptr(uptr), block_size(size));
+    if (!block) {
+        return NULL;
+    }
+    uptr = user_ptr(block);
 
 #ifdef DEBUG__MEMFILL
-  // XXX this is the wrong block; this is reading uninitialized memory
-  size_t old_size = ((HDebugBlockHeader*)block)->size;
-  if (size > old_size)
-    memset((char*)uptr+old_size, DEBUG__MEMFILL, size - old_size);
-  ((HDebugBlockHeader*)block)->size = size;
+    // XXX this is the wrong block; this is reading uninitialized memory
+    size_t old_size = ((HDebugBlockHeader *)block)->size;
+    if (size > old_size)
+        memset((char *)uptr + old_size, DEBUG__MEMFILL, size - old_size);
+    ((HDebugBlockHeader *)block)->size = size;
 #endif
-  return uptr;
+    return uptr;
 }
 
-static void system_free(HAllocator *allocator, void* uptr) {
-  if (uptr) {
-    free(block_for_user_ptr(uptr));
-  }
+static void system_free(HAllocator *allocator, void *uptr) {
+    if (uptr) {
+        free(block_for_user_ptr(uptr));
+    }
 }
 
 HAllocator system_allocator = {
-  .alloc = system_alloc,
-  .realloc = system_realloc,
-  .free = system_free,
+    .alloc = system_alloc,
+    .realloc = system_realloc,
+    .free = system_free,
 };
