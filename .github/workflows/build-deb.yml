@@ -26,12 +26,14 @@ jobs:
         run: |
           DEB_FILE=$(ls ../libhammer_*.deb)
           VERSION=$(cat VERSION)
-          mv $DEB_FILE libhammer_${VERSION}_amd64.deb
-          echo "deb_file=$DEB_FILE" >> $GITHUB_OUTPUT
+          NEW_NAME="libhammer_${VERSION}_amd64.deb"
+          mv $DEB_FILE $NEW_NAME
+          echo "deb_file=$NEW_NAME" >> $GITHUB_OUTPUT
 
       - name: Create tag
         id: tag
         run: |
+          VERSION=$(cat VERSION)
           TAG="v$VERSION"
           git tag $TAG
           echo "tag=$TAG" >> $GITHUB_OUTPUT
