@@ -1,7 +1,8 @@
 # -*- python -*-
 
 from __future__ import absolute_import, division, print_function
-
+import glob
+import os
 import os.path
 
 Import('env testruns')
@@ -79,6 +80,11 @@ misc_hammer_parts = [
 
 misc_hammer_parts += ['platform_bsdlike.c']
 
+# Use repository root to avoid variant_dir path leakage
+project_root = Dir('#').abspath
+tests_dir = os.path.join(project_root, 'tests')
+src_dir = os.path.join(project_root, 'src')
+
 ctests = ['t_benchmark.c',
           't_bitreader.c',
           't_bitwriter.c',
@@ -88,6 +94,12 @@ ctests = ['t_benchmark.c',
           't_mm.c',
           't_names.c',
           't_regression.c']
+
+# Auto-discover test files matching pattern test_*.c
+combinator_tests = sorted(glob.glob(os.path.join(tests_dir, 'test_*.c')))
+# Filter out test_suite.c if it exists
+combinator_tests = [os.path.basename(t) for t in combinator_tests if 'test_suite.c' not in t]
+ctests.extend(combinator_tests)
 
 
 static_library_name = 'hammer'
@@ -114,6 +126,7 @@ else:
     Default(libhammer_static)
     env.Install('$libpath', [libhammer_static])
 
+env.Append(CPPPATH=[Dir('#').abspath, src_dir])
 env.Install('$incpath', dist_headers)
 env.Install('$parsersincpath', parsers_headers)
 env.Install('$backendsincpath', backends_headers)
@@ -122,12 +135,17 @@ env.Install('$pkgconfigpath', '../../../libhammer.pc')
 if GetOption('with_tests'):
     testenv = env.Clone()
     testenv.ParseConfig('pkg-config --cflags --libs glib-2.0')
+    # Add src/ to include path so tests can include hammer.h, internal.h, etc.
+    testenv.Prepend(CPPPATH=[src_dir, os.path.join(src_dir, 'parsers')])
     if libhammer_shared is not None:
         testenv.Append(LIBS=['hammer'])
     else:
         testenv.Append(LIBS=[static_library_name])
     testenv.Prepend(LIBPATH=['.'])
-    ctestexec = testenv.Program('test_suite', ctests + ['test_suite.c'], LINKFLAGS='--coverage' if testenv.GetOption('coverage') else None)
+    # Build test files from tests/ directory
+    test_sources = [os.path.join(tests_dir, t) for t in ctests] + [os.path.join(tests_dir, 'test_suite.c')]
+    ctestexec = testenv.Program(os.path.join('$BUILD_BASE', 'test_suite'), test_sources, 
+                                LINKFLAGS='--coverage' if testenv.GetOption('coverage') else None)
     ctest = Alias('testc', [ctestexec], ''.join(['env LD_LIBRARY_PATH=', os.path.dirname(ctestexec[0].path), ' ', ctestexec[0].path]))
     AlwaysBuild(ctest)
     testruns.append(ctest)
