@@ -99,8 +99,12 @@ ctests = ['t_benchmark.c',
 
 # Auto-discover test files matching pattern test_*.c
 combinator_tests = sorted(glob.glob(os.path.join(tests_dir, 'test_*.c')))
-# Filter out test_suite.c if it exists
-combinator_tests = [os.path.basename(t) for t in combinator_tests if 'test_suite.c' not in t]
+# Also include parser tests living under tests/parsers/
+parsers_tests_dir = os.path.join(tests_dir, 'parsers')
+if os.path.isdir(parsers_tests_dir):
+    combinator_tests += sorted(glob.glob(os.path.join(parsers_tests_dir, '*.c')))
+# Filter out test_suite.c if it exists and store paths relative to tests_dir
+combinator_tests = [os.path.relpath(t, tests_dir) for t in combinator_tests if 'test_suite.c' not in t]
 ctests.extend(combinator_tests)
 
 # Calculate and report parser test coverage (by presence of test_<name>.c files)

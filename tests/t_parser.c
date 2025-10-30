@@ -7,7 +7,7 @@
 #include <glib.h>
 #include <string.h>
 
-static void test_token(gconstpointer backend) {
+__attribute__((unused)) static void test_token(gconstpointer backend) {
     const HParser *token_ = h_token((const uint8_t *)"95\xa2", 3);
 
     g_check_parse_match(token_, (HParserBackend)GPOINTER_TO_INT(backend), "95\xa2", 3,
@@ -15,21 +15,21 @@ static void test_token(gconstpointer backend) {
     g_check_parse_failed(token_, (HParserBackend)GPOINTER_TO_INT(backend), "95", 2);
 }
 
-static void test_ch(gconstpointer backend) {
+__attribute__((unused)) static void test_ch(gconstpointer backend) {
     const HParser *ch_ = h_ch(0xa2);
 
     g_check_parse_match(ch_, (HParserBackend)GPOINTER_TO_INT(backend), "\xa2", 1, "u0xa2");
     g_check_parse_failed(ch_, (HParserBackend)GPOINTER_TO_INT(backend), "\xa3", 1);
 }
 
-static void test_ch_range(gconstpointer backend) {
+__attribute__((unused)) static void test_ch_range(gconstpointer backend) {
     const HParser *range_ = h_ch_range('a', 'c');
 
     g_check_parse_match(range_, (HParserBackend)GPOINTER_TO_INT(backend), "b", 1, "u0x62");
     g_check_parse_failed(range_, (HParserBackend)GPOINTER_TO_INT(backend), "d", 1);
 }
 
-static void test_bits0(gconstpointer backend) {
+__attribute__((unused)) static void test_bits0(gconstpointer backend) {
     const HParser *bits0_;
 
     bits0_ = h_bits(0, false);
@@ -43,7 +43,7 @@ static void test_bits0(gconstpointer backend) {
     g_check_parse_match(bits0_, (HParserBackend)GPOINTER_TO_INT(backend), "a", 1, "(s0 u0x61)");
 }
 
-static void test_bits(gconstpointer backend) {
+__attribute__((unused)) static void test_bits(gconstpointer backend) {
     const HParser *bits_;
 
     bits_ = h_bits(3, false);
@@ -67,7 +67,7 @@ static void test_bits(gconstpointer backend) {
     g_check_parse_failed(bits_, (HParserBackend)GPOINTER_TO_INT(backend), "a", 1);
 }
 
-static void test_bytes(gconstpointer backend) {
+__attribute__((unused)) static void test_bytes(gconstpointer backend) {
     HParserBackend be = (HParserBackend)GPOINTER_TO_INT(backend);
     const HParser *p;
 
@@ -91,7 +91,7 @@ static void test_bytes(gconstpointer backend) {
 }
 
 //@MARK_START
-static void test_int64(gconstpointer backend) {
+__attribute__((unused)) static void test_int64(gconstpointer backend) {
     const HParser *int64_ = h_int64();
 
     g_check_parse_match(int64_, (HParserBackend)GPOINTER_TO_INT(backend),
@@ -100,7 +100,7 @@ static void test_int64(gconstpointer backend) {
                          "\xff\xff\xff\xfe\x00\x00\x00", 7);
 }
 
-static void test_int32(gconstpointer backend) {
+__attribute__((unused)) static void test_int32(gconstpointer backend) {
     const HParser *int32_ = h_int32();
 
     g_check_parse_match(int32_, (HParserBackend)GPOINTER_TO_INT(backend), "\xff\xfe\x00\x00", 4,
@@ -112,7 +112,7 @@ static void test_int32(gconstpointer backend) {
     g_check_parse_failed(int32_, (HParserBackend)GPOINTER_TO_INT(backend), "\x00\x02\x00", 3);
 }
 
-static void test_int16(gconstpointer backend) {
+__attribute__((unused)) static void test_int16(gconstpointer backend) {
     const HParser *int16_ = h_int16();
 
     g_check_parse_match(int16_, (HParserBackend)GPOINTER_TO_INT(backend), "\xfe\x00", 2, "s-0x200");
@@ -122,14 +122,14 @@ static void test_int16(gconstpointer backend) {
     g_check_parse_failed(int16_, (HParserBackend)GPOINTER_TO_INT(backend), "\x02", 1);
 }
 
-static void test_int8(gconstpointer backend) {
+__attribute__((unused)) static void test_int8(gconstpointer backend) {
     const HParser *int8_ = h_int8();
 
     g_check_parse_match(int8_, (HParserBackend)GPOINTER_TO_INT(backend), "\x88", 1, "s-0x78");
     g_check_parse_failed(int8_, (HParserBackend)GPOINTER_TO_INT(backend), "", 0);
 }
 
-static void test_uint64(gconstpointer backend) {
+__attribute__((unused)) static void test_uint64(gconstpointer backend) {
     const HParser *uint64_ = h_uint64();
 
     g_check_parse_match(uint64_, (HParserBackend)GPOINTER_TO_INT(backend),
@@ -138,7 +138,7 @@ static void test_uint64(gconstpointer backend) {
                          "\x00\x00\x00\x02\x00\x00\x00", 7);
 }
 
-static void test_uint32(gconstpointer backend) {
+__attribute__((unused)) static void test_uint32(gconstpointer backend) {
     const HParser *uint32_ = h_uint32();
 
     g_check_parse_match(uint32_, (HParserBackend)GPOINTER_TO_INT(backend), "\x00\x02\x00\x00", 4,
@@ -146,14 +146,14 @@ static void test_uint32(gconstpointer backend) {
     g_check_parse_failed(uint32_, (HParserBackend)GPOINTER_TO_INT(backend), "\x00\x02\x00", 3);
 }
 
-static void test_uint16(gconstpointer backend) {
+__attribute__((unused)) static void test_uint16(gconstpointer backend) {
     const HParser *uint16_ = h_uint16();
 
     g_check_parse_match(uint16_, (HParserBackend)GPOINTER_TO_INT(backend), "\x02\x00", 2, "u0x200");
     g_check_parse_failed(uint16_, (HParserBackend)GPOINTER_TO_INT(backend), "\x02", 1);
 }
 
-static void test_uint8(gconstpointer backend) {
+__attribute__((unused)) static void test_uint8(gconstpointer backend) {
     const HParser *uint8_ = h_uint8();
 
     g_check_parse_match(uint8_, (HParserBackend)GPOINTER_TO_INT(backend), "\x78", 1, "u0x78");
@@ -165,7 +165,7 @@ static void test_uint8(gconstpointer backend) {
 static HParsedToken *act_double(const HParseResult *p, void *u) {
     return H_MAKE_DOUBLE((double)H_FIELD_UINT(0) + (double)H_FIELD_UINT(1) / 10);
 }
-static void test_double(gconstpointer backend) {
+__attribute__((unused)) static void test_double(gconstpointer backend) {
     HParser *b = h_uint8();
     HParser *dbl = h_action(h_sequence(b, b, NULL), act_double, NULL);
     uint8_t input[] = {4, 2};
@@ -177,7 +177,7 @@ static void test_double(gconstpointer backend) {
 static HParsedToken *act_float(const HParseResult *p, void *u) {
     return H_MAKE_FLOAT((float)H_FIELD_UINT(0) + (float)H_FIELD_UINT(1) / 10);
 }
-static void test_float(gconstpointer backend) {
+__attribute__((unused)) static void test_float(gconstpointer backend) {
     HParser *b = h_uint8();
     HParser *flt = h_action(h_sequence(b, b, NULL), act_float, NULL);
     uint8_t input[] = {4, 2};
@@ -185,7 +185,7 @@ static void test_float(gconstpointer backend) {
     g_check_parse_match(flt, (HParserBackend)GPOINTER_TO_INT(backend), input, 2, "f0x1.0cccccp+2");
 }
 
-static void test_int_range(gconstpointer backend) {
+__attribute__((unused)) static void test_int_range(gconstpointer backend) {
     const HParser *int_range_ = h_int_range(h_uint8(), 3, 10);
 
     g_check_parse_match(int_range_, (HParserBackend)GPOINTER_TO_INT(backend), "\x05", 1, "u0x5");
@@ -978,25 +978,9 @@ static void test_drop_from(gconstpointer backend) {
 }
 
 void register_parser_tests(void) {
-    g_test_add_data_func("/core/parser/packrat/token", GINT_TO_POINTER(PB_PACKRAT), test_token);
-    g_test_add_data_func("/core/parser/packrat/ch", GINT_TO_POINTER(PB_PACKRAT), test_ch);
-    g_test_add_data_func("/core/parser/packrat/ch_range", GINT_TO_POINTER(PB_PACKRAT),
-                         test_ch_range);
-    g_test_add_data_func("/core/parser/packrat/bits0", GINT_TO_POINTER(PB_PACKRAT), test_bits0);
-    g_test_add_data_func("/core/parser/packrat/bits", GINT_TO_POINTER(PB_PACKRAT), test_bits);
-    g_test_add_data_func("/core/parser/packrat/bytes", GINT_TO_POINTER(PB_PACKRAT), test_bytes);
-    g_test_add_data_func("/core/parser/packrat/int64", GINT_TO_POINTER(PB_PACKRAT), test_int64);
-    g_test_add_data_func("/core/parser/packrat/int32", GINT_TO_POINTER(PB_PACKRAT), test_int32);
-    g_test_add_data_func("/core/parser/packrat/int16", GINT_TO_POINTER(PB_PACKRAT), test_int16);
-    g_test_add_data_func("/core/parser/packrat/int8", GINT_TO_POINTER(PB_PACKRAT), test_int8);
-    g_test_add_data_func("/core/parser/packrat/uint64", GINT_TO_POINTER(PB_PACKRAT), test_uint64);
-    g_test_add_data_func("/core/parser/packrat/uint32", GINT_TO_POINTER(PB_PACKRAT), test_uint32);
-    g_test_add_data_func("/core/parser/packrat/uint16", GINT_TO_POINTER(PB_PACKRAT), test_uint16);
-    g_test_add_data_func("/core/parser/packrat/uint8", GINT_TO_POINTER(PB_PACKRAT), test_uint8);
-    g_test_add_data_func("/core/parser/packrat/int_range", GINT_TO_POINTER(PB_PACKRAT),
-                         test_int_range);
-    g_test_add_data_func("/core/parser/packrat/double", GINT_TO_POINTER(PB_PACKRAT), test_double);
-    g_test_add_data_func("/core/parser/packrat/float", GINT_TO_POINTER(PB_PACKRAT), test_float);
+    /* moved to tests/parsers/test_basic.c */
+    /* moved to tests/parsers/test_integers.c */
+    /* moved to tests/parsers/test_floats.c */
     g_test_add_data_func("/core/parser/packrat/whitespace", GINT_TO_POINTER(PB_PACKRAT),
                          test_whitespace);
     g_test_add_data_func("/core/parser/packrat/left", GINT_TO_POINTER(PB_PACKRAT), test_left);
@@ -1062,4 +1046,28 @@ void register_parser_tests(void) {
     g_test_add_data_func("/core/parser/packrat/tell", GINT_TO_POINTER(PB_PACKRAT), test_tell);
     g_test_add_data_func("/core/parser/packrat/drop_from", GINT_TO_POINTER(PB_PACKRAT),
                          test_drop_from);
+
+    /* charset */
+    extern void test_charset_in(gconstpointer backend);
+    extern void test_charset_not_in(gconstpointer backend);
+    g_test_add_data_func("/core/parser/packrat/charset/in", GINT_TO_POINTER(PB_PACKRAT),
+                         test_charset_in);
+    g_test_add_data_func("/core/parser/packrat/charset/not_in", GINT_TO_POINTER(PB_PACKRAT),
+                         test_charset_not_in);
+
+    /* ignoreseq wrappers */
+    extern void test_ignoreseq_left(gconstpointer backend);
+    extern void test_ignoreseq_right(gconstpointer backend);
+    extern void test_ignoreseq_middle(gconstpointer backend);
+    g_test_add_data_func("/core/parser/packrat/ignoreseq/left", GINT_TO_POINTER(PB_PACKRAT),
+                         test_ignoreseq_left);
+    g_test_add_data_func("/core/parser/packrat/ignoreseq/right", GINT_TO_POINTER(PB_PACKRAT),
+                         test_ignoreseq_right);
+    g_test_add_data_func("/core/parser/packrat/ignoreseq/middle", GINT_TO_POINTER(PB_PACKRAT),
+                         test_ignoreseq_middle);
+
+    /* indirect */
+    extern void test_indirect_basic(gconstpointer backend);
+    g_test_add_data_func("/core/parser/packrat/indirect/basic", GINT_TO_POINTER(PB_PACKRAT),
+                         test_indirect_basic);
 }
