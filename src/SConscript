@@ -4,6 +4,8 @@ from __future__ import absolute_import, division, print_function
 import glob
 import os
 import os.path
+import shlex
+import re
 
 Import('env testruns')
 
@@ -101,9 +103,49 @@ combinator_tests = sorted(glob.glob(os.path.join(tests_dir, 'test_*.c')))
 combinator_tests = [os.path.basename(t) for t in combinator_tests if 'test_suite.c' not in t]
 ctests.extend(combinator_tests)
 
+# Calculate and report parser test coverage (by presence of test_<name>.c files)
+def _basename_no_ext(path):
+    return os.path.splitext(os.path.basename(path))[0]
+
+# parser source filenames are like parsers/<name>.c → extract <name>
+_parser_names = sorted(_basename_no_ext(p).replace('parsers' + os.sep, '')
+                       for p in parsers)
+
+# discovered test filenames are like test_<name>.c → extract <name>
+_tested_names = set(_basename_no_ext(t)[len('test_'):]
+                    for t in combinator_tests
+                    if _basename_no_ext(t).startswith('test_'))
+
+# Also detect combinator tests registered inside tests/t_parser.c
+_tparser_path = os.path.join(tests_dir, 't_parser.c')
+if os.path.exists(_tparser_path):
+    try:
+        with open(_tparser_path, 'r') as _f:
+            _tp = _f.read()
+        # Extract names from lines like: 
+        # g_test_add_data_func("/core/parser/packrat/<name>", ...)
+        _names_from_tp = set(re.findall(r"/core/parser/packrat/([A-Za-z0-9_]+)", _tp))
+        # Map special aliases from *_p to source filenames where applicable
+        _alias_map = {
+            'epsilon_p': 'epsilon',
+            'end_p': 'end',
+            'nothing_p': 'nothing',
+        }
+        for n in list(_names_from_tp):
+            _tested_names.add(_alias_map.get(n, n))
+    except Exception:
+        pass
+
+_num_parsers = len(_parser_names)
+_num_tested = len([n for n in _parser_names if n in _tested_names])
+_parser_test_summary = "Parser combinator tests: %d/%d" % (_num_tested, _num_parsers)
 
 static_library_name = 'hammer'
 build_shared_library=True
+
+if GetOption('coverage'):
+    # Use static library when collecting coverage to ensure .gcda files are generated reliably
+    build_shared_library = False
 
 if 'GPROF' in env and env['GPROF'] == 1:
     # Disable the shared library (it won't work with gprof) and rename the static one
@@ -146,7 +188,14 @@ if GetOption('with_tests'):
     test_sources = [os.path.join(tests_dir, t) for t in ctests] + [os.path.join(tests_dir, 'test_suite.c')]
     ctestexec = testenv.Program(os.path.join('$BUILD_BASE', 'test_suite'), test_sources, 
                                 LINKFLAGS='--coverage' if testenv.GetOption('coverage') else None)
-    ctest = Alias('testc', [ctestexec], ''.join(['env LD_LIBRARY_PATH=', os.path.dirname(ctestexec[0].path), ' ', ctestexec[0].path]))
+    _libdir = os.path.dirname(ctestexec[0].path)
+    _exe = ctestexec[0].path
+    _run_and_summarize = (
+        "tmp=$$(mktemp); env LD_LIBRARY_PATH=" + _libdir + " " + _exe +
+        " > \"$$tmp\"; status=$$?; grep -v '^# TEST SUMMARY:' \"$$tmp\"; "
+        "printf '%s\\n' " + shlex.quote(_parser_test_summary) + "; rm \"$$tmp\"; exit $$status"
+    )
+    ctest = Alias('testc', [ctestexec], _run_and_summarize)
     AlwaysBuild(ctest)
     testruns.append(ctest)
 
