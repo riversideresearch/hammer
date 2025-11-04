@@ -2,8 +2,6 @@ name: Build libmicrohammer .deb
 
 on:
   workflow_dispatch:
-  release:
-    types: [published]
 
 permissions:
   contents: write
@@ -33,7 +31,6 @@ jobs:
           echo "deb_file=$NEW_NAME" >> $GITHUB_OUTPUT
 
       - name: Create tag
-        if: github.event_name == 'workflow_dispatch'
         id: tag
         run: |
           VERSION=$(cat VERSION)
