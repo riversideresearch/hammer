@@ -1,5 +1,15 @@
-libhammer (0.9.0-1) unstable; urgency=medium
+libmicrohammer (1.0.0-1) unstable; urgency=medium
 
-  * Pre-release of Hammer parser library
+  * Initial release of Microhammer, a slimmed-down subset of the Hammer parsing library.
+  * Removed:
+    - non-packrat backends
+    - all language bindings
+    - Windows/macOS support
+    - Makefile build system
+    - other non-essential files
+  * Added / Improved:
+    - improved documentation (consistent Doxygen for public API)
+    - code style consistency (linting + formatting)
+    - Debian packaging / build support
 
- -- Mahmoud Elbasiouny <melbasiouny@riversideresearch.org>  Tue, 14 Oct 2025 13:00:00 -0500
+ -- Mahmoud Elbasiouny <melbasiouny@riversideresearch.org>  Tue, 04 Nov 2025 13:00:00 -0500
