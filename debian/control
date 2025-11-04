@@ -1,12 +1,12 @@
-Source: libhammer
+Source: libmicrohammer
 Section: libs
 Priority: optional
 Maintainer: Riverside Research Secure Parsing Team <parsing@riversideresearch.org>
-Build-Depends: debhelper-compat (= 13), scons, python3, gcc, pkg-config
+Build-Depends: debhelper-compat (= 13), scons, python3, gcc, pkg-config, libglib2.0-dev
 Standards-Version: 4.6.2
 Homepage: https://github.com/riversideresearch/hammer
 
-Package: libhammer
+Package: libmicrohammer
 Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends}
 Description: The Hammer parsing library

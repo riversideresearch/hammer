@@ -1,4 +1,4 @@
-name: Build libhammer .deb
+name: Build libmicrohammer .deb
 
 on:
   workflow_dispatch:
@@ -24,9 +24,9 @@ jobs:
       - name: Find and rename generated .deb
         id: deb
         run: |
-          DEB_FILE=$(ls ../libhammer_*.deb)
+          DEB_FILE=$(ls ../libmicrohammer_*.deb)
           VERSION=$(cat VERSION)
-          NEW_NAME="libhammer_${VERSION}_amd64.deb"
+          NEW_NAME="libmicrohammer_${VERSION}_amd64.deb"
           mv $DEB_FILE $NEW_NAME
           echo "deb_file=$NEW_NAME" >> $GITHUB_OUTPUT
 
@@ -41,5 +41,5 @@ jobs:
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
-          name: libhammer-deb
+          name: libmicrohammer-deb
           path: ${{ steps.deb.outputs.deb_file }}

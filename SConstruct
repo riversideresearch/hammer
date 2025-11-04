@@ -58,7 +58,14 @@ env['incpath'] = calcInstallPath('$prefix', 'include', 'hammer')
 env['parsersincpath'] = calcInstallPath('$prefix', 'include', 'hammer', 'parsers')
 env['backendsincpath'] = calcInstallPath('$prefix', 'include', 'hammer', 'backends')
 env['pkgconfigpath'] = calcInstallPath('$prefix', 'lib', 'pkgconfig')
-env.ScanReplace('libhammer.pc.in')
+
+with open('VERSION', 'r') as f:
+    version = f.read().strip()
+
+# Export version for use in sub-SConscripts
+env['VERSION'] = version
+
+env.ScanReplace('libhammer.pc.in', VERSION=version)
 
 AddOption('--variant',
           dest='variant',
