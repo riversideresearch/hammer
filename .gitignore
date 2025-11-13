@@ -48,7 +48,9 @@ tools/cppcheck/html/
 # Debian package generated files
 debian/.debhelper/
 debian/libhammer/
+debian/libmicrohammer/
 debian/tmp/
 debian/debhelper-build-stamp
 debian/files
 debian/libhammer.substvars
+debian/libmicrohammer.substvars
