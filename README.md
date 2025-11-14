@@ -29,13 +29,22 @@ Hammer currently builds under Linux and other Unix-like systems.
 
 ### Prerequisites
 
-- [SCons](http://scons.org/)
+- [SCons](http://scons.org/) (use `pipx` to install)
+
+```bash
+sudo apt install pipx
+pipx install scons
+```
 
 ### Optional Dependencies
 
 - pkg-config (for `scons test`)
 - glib-2.0 (>= 2.29) (for `scons test`)
 - glib-2.0-dev (for `scons test`)
+
+```bash
+sudo apt install pkg-config libglib2.0-dev
+```
 
 To build, type `scons`.
 To run the built-in test suite, type `scons test`.
