@@ -49,8 +49,7 @@ int main(int argc, char **argv) {
     register_mm_tests();
     register_names_tests();
     register_regression_tests();
-    if (g_test_slow() || g_test_perf())
-        register_benchmark_tests();
+    register_benchmark_tests(); // Always run for coverage
 
     g_test_run();
 }
