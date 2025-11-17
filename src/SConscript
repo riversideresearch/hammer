@@ -192,7 +192,16 @@ if GetOption('with_tests'):
     test_sources = [os.path.join(tests_dir, t) for t in ctests] + [os.path.join(tests_dir, 'test_suite.c')]
     ctestexec = testenv.Program(os.path.join('$BUILD_BASE', 'test_suite'), test_sources, 
                                 LINKFLAGS='--coverage' if testenv.GetOption('coverage') else None)
-    _libdir = os.path.dirname(ctestexec[0].path)
+    # Library is in build/opt/src/ or build/debug/src/
+    # Executable is at: build/opt/src/build/opt/test_suite
+    # Library is at: build/opt/src/libhammer.so.1
+    # We need to go up from build/opt/src/build/opt to build/opt/src
+    exe_path = ctestexec[0].path
+    # Go up two levels: build/opt/src/build/opt -> build/opt/src/build -> build/opt/src
+    _libdir = os.path.dirname(os.path.dirname(exe_path))
+    # If we're in a nested build directory, go up one more level
+    if os.path.basename(_libdir) == 'build':
+        _libdir = os.path.dirname(_libdir)
     _exe = ctestexec[0].path
     _run_and_summarize = (
         "tmp=$$(mktemp); env LD_LIBRARY_PATH=" + _libdir + " " + _exe +

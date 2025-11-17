@@ -278,7 +278,10 @@ static void test_pprint_basic(void) {
     h_pprint(tmp, res->ast, 0, 2);
     fseek(tmp, 0, SEEK_SET);
     char buf[256];
-    fgets(buf, sizeof(buf), tmp);
+    if (fgets(buf, sizeof(buf), tmp) == NULL) {
+        // Handle error case
+        buf[0] = '\0';
+    }
     fclose(tmp);
     
     // Test h_pprintln
