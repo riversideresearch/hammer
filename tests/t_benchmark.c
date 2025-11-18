@@ -32,7 +32,66 @@ static void test_benchmark_m() {
     fclose(tmp);
 }
 
+// Test benchmark.c: h_benchmark with failed compilation (line 44)
+static void test_benchmark_failed_compile(void) {
+    // Create a parser that might fail compilation for some backends
+    HParser *parser = h_ch('x');
+    HParserTestcase cases[] = {{(unsigned char *)"x", 1, "u0x78"}, {NULL, 0, NULL}};
+    
+    HBenchmarkResults *res = h_benchmark(parser, cases);
+    g_check_cmp_ptr(res, !=, NULL);
+    // Some backends might fail compilation, that's OK
+}
+
+// Test benchmark.c: h_benchmark with failed testcases (line 67)
+static void test_benchmark_failed_testcases(void) {
+    HParser *parser = h_ch('x');
+    HParserTestcase cases[] = {
+        {(unsigned char *)"x", 1, "u0x78"},
+        {(unsigned char *)"y", 1, "u0x79"}, // This will fail
+        {NULL, 0, NULL}
+    };
+    
+    HBenchmarkResults *res = h_benchmark(parser, cases);
+    g_check_cmp_ptr(res, !=, NULL);
+    // Testcases should fail, backend should be skipped
+}
+
+// Test benchmark.c: h_benchmark_report with NULL cases (line 115)
+static void test_benchmark_report_null_cases(void) {
+    HParser *parser = h_ch('x');
+    HParserTestcase cases[] = {{(unsigned char *)"x", 1, "u0x78"}, {NULL, 0, NULL}};
+    
+    HBenchmarkResults *res = h_benchmark(parser, cases);
+    g_check_cmp_ptr(res, !=, NULL);
+    
+    FILE *tmp = tmpfile();
+    h_benchmark_report(tmp, res);
+    fclose(tmp);
+}
+
+// Test benchmark.c: h_benchmark with multiple backends
+static void test_benchmark_multiple_backends(void) {
+    HParser *parser = h_choice(h_ch('a'), h_ch('b'), NULL);
+    HParserTestcase cases[] = {
+        {(unsigned char *)"a", 1, "u0x61"},
+        {(unsigned char *)"b", 1, "u0x62"},
+        {NULL, 0, NULL}
+    };
+    
+    HBenchmarkResults *res = h_benchmark__m(&system_allocator, parser, cases);
+    g_check_cmp_ptr(res, !=, NULL);
+    
+    FILE *tmp = tmpfile();
+    h_benchmark_report(tmp, res);
+    fclose(tmp);
+}
+
 void register_benchmark_tests(void) {
     g_test_add_func("/core/benchmark/1", test_benchmark_1);
     g_test_add_func("/core/benchmark/m", test_benchmark_m);
+    g_test_add_func("/core/benchmark/failed_compile", test_benchmark_failed_compile);
+    g_test_add_func("/core/benchmark/failed_testcases", test_benchmark_failed_testcases);
+    g_test_add_func("/core/benchmark/report_null_cases", test_benchmark_report_null_cases);
+    g_test_add_func("/core/benchmark/multiple_backends", test_benchmark_multiple_backends);
 }

@@ -38,15 +38,25 @@ extern void register_whitespace_tests();
 extern void register_xor_tests();
 extern void register_missing_tests();
 extern void register_packrat_tests();
+extern void register_hammer_tests();
+extern void register_glue_tests();
+extern void register_registry_tests();
 extern void register_desugar_tests();
 extern void register_internal_tests();
 extern void register_unimplemented_tests();
 extern void register_grammar_tests();
+extern void register_cfgrammar_tests();
+extern void register_platform_tests();
 extern void register_misc_tests();
 extern void register_mm_tests();
 extern void register_names_tests();
 extern void register_benchmark_tests();
 extern void register_regression_tests();
+extern void register_allocator_tests();
+extern void register_datastructures_tests();
+extern void register_pprint_tests();
+extern void register_sloballoc_tests();
+extern void register_system_allocator_tests();
 
 int main(int argc, char **argv) {
     g_test_init(&argc, &argv, NULL);
@@ -69,15 +79,25 @@ int main(int argc, char **argv) {
     register_xor_tests();
     register_missing_tests();
     register_packrat_tests();
+    register_hammer_tests();
+    register_glue_tests();
+    register_registry_tests();
     register_desugar_tests();
     register_internal_tests();
     register_unimplemented_tests();
     register_grammar_tests();
+    register_cfgrammar_tests();
+    register_platform_tests();
     register_misc_tests();
     register_mm_tests();
     register_names_tests();
     register_regression_tests();
     register_benchmark_tests(); // Always run for coverage
+    register_allocator_tests();
+    register_datastructures_tests();
+    register_pprint_tests();
+    register_sloballoc_tests();
+    register_system_allocator_tests();
 
     g_test_run();
 }
