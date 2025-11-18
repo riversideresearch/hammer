@@ -204,8 +204,7 @@ if GetOption('with_tests'):
     _exe = ctestexec[0].path
     _run_and_summarize = (
         "tmp=$$(mktemp); env LD_LIBRARY_PATH=" + _libdir + " " + _exe +
-        " > \"$$tmp\"; status=$$?; grep -v '^# TEST SUMMARY:' \"$$tmp\"; "
-        "printf '%s\\n' " + shlex.quote(_parser_test_summary) + "; rm \"$$tmp\"; exit $$status"
+        " > \"$$tmp\"; status=$$?; cat \"$$tmp\"; rm \"$$tmp\"; exit $$status"
     )
     ctest = Alias('testc', [ctestexec], _run_and_summarize)
     AlwaysBuild(ctest)
