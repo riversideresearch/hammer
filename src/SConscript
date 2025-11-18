@@ -102,6 +102,10 @@ combinator_tests = sorted(glob.glob(os.path.join(tests_dir, 'test_*.c')))
 parsers_tests_dir = os.path.join(tests_dir, 'parsers')
 if os.path.isdir(parsers_tests_dir):
     combinator_tests += sorted(glob.glob(os.path.join(parsers_tests_dir, '*.c')))
+# Also include backend tests living under tests/backends/
+backends_tests_dir = os.path.join(tests_dir, 'backends')
+if os.path.isdir(backends_tests_dir):
+    combinator_tests += sorted(glob.glob(os.path.join(backends_tests_dir, '*.c')))
 # Filter out test_suite.c if it exists and store paths relative to tests_dir
 combinator_tests = [os.path.relpath(t, tests_dir) for t in combinator_tests if 'test_suite.c' not in t]
 ctests.extend(combinator_tests)
