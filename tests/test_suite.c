@@ -36,6 +36,7 @@ extern void register_token_tests();
 extern void register_value_tests();
 extern void register_whitespace_tests();
 extern void register_xor_tests();
+extern void register_missing_tests();
 extern void register_desugar_tests();
 extern void register_internal_tests();
 extern void register_unimplemented_tests();
@@ -65,6 +66,7 @@ int main(int argc, char **argv) {
     register_value_tests();
     register_whitespace_tests();
     register_xor_tests();
+    register_missing_tests();
     register_desugar_tests();
     register_internal_tests();
     register_unimplemented_tests();
