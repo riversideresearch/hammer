@@ -48,6 +48,8 @@ sudo apt install lcov xdg-utils
 scons -c --variant=debug && scons --coverage --variant=debug test && mkdir -p coverage && lcov --directory build/debug --zerocounters && lcov --capture --initial --directory build/debug --output-file coverage/base.info && scons --coverage --variant=debug test && lcov --capture --directory build/debug --output-file coverage/test.info && lcov --add-tracefile coverage/base.info --add-tracefile coverage/test.info --output-file coverage/coverage.info && genhtml coverage/coverage.info --output-directory coverage/html && xdg-open coverage/html/index.html
 ```
 - For WSL, replace final `xdg-open` with `wslview` (from `wslu` package)
+- All coverage files (`.gcov`, `.gcno`, `.gcda`) and object files (`.o`) are generated in the `build/debug/` or `build/opt/` directory
+- To generate `.gcov` files manually, run `scons --coverage --variant=debug gcov` from the project root
 
 ## TODO Items (previously TODO)
 

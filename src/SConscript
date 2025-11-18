@@ -143,10 +143,6 @@ if os.path.exists(_tparser_path):
     except Exception:
         pass
 
-_num_parsers = len(_parser_names)
-_num_tested = len([n for n in _parser_names if n in _tested_names])
-_parser_test_summary = "Parser combinator tests: %d/%d" % (_num_tested, _num_parsers)
-
 static_library_name = 'hammer'
 build_shared_library=True
 
