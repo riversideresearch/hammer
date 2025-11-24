@@ -1,3 +1,17 @@
+libmicrohammer (1.1.0-1) unstable; urgency=medium
+
+  * Testing infrastructure overhaul
+  * Reorganized test suite: moved tests from src/ to tests/ directory
+  * Achieved ~100% code coverage for parsers and top-level source files
+  * Added code coverage support with lcov/gcov and --coverage build flag
+  * Split parser tests into focused files under tests/parsers/
+  * Added comprehensive tests for parsers, backends, allocators, and core library
+  * Removed deprecated params backend
+  * Moved build artifacts to build/ directory
+  * Added test coverage documentation in DEVELOPMENT.md
+
+ -- Mahmoud Elbasiouny <melbasiouny@riversideresearch.org>  Tue, 24 Nov 2025 16:00:00 -0500
+
 libmicrohammer (1.0.0-1) unstable; urgency=medium
 
   * Initial release of Microhammer, a slimmed-down subset of the Hammer parsing library.
