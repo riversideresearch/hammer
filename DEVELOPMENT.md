@@ -47,6 +47,23 @@ The project uses centralized version management via the `VERSION` file to ensure
   - Shared library: `libhammer.so.1.0.0`
   - pkg-config: Version field
 
+### Test Coverage (HTML via lcov)
+
+1. Install coverage dependencies:
+
+```bash
+sudo apt install lcov xdg-utils
+```
+
+2. Run tests with coverage and open the HTML report:
+
+```bash
+scons -c --variant=debug && scons --coverage --variant=debug test && mkdir -p coverage && lcov --directory build/debug/src --zerocounters && lcov --ignore-errors gcov --capture --initial --directory build/debug/src --output-file coverage/base.info && scons --coverage --variant=debug test && lcov --ignore-errors gcov --capture --directory build/debug/src --output-file coverage/test.info && lcov --add-tracefile coverage/base.info --add-tracefile coverage/test.info --output-file coverage/coverage.info && genhtml coverage/coverage.info --output-directory coverage/html && xdg-open coverage/html/index.html
+```
+- For WSL, replace final `xdg-open` with `wslview` (from `wslu` package)
+- All coverage files (`.gcov`, `.gcno`, `.gcda`) and object files (`.o`) are generated in the `build/debug/` or `build/opt/` directory
+- To generate `.gcov` files manually, run `scons --coverage --variant=debug gcov` from the project root
+
 ## TODO Items (previously TODO)
 
 - Make h_action functions be called only after parse is complete.

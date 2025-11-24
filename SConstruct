@@ -217,4 +217,29 @@ else:
 for testrun in testruns:
     env.Alias('test', testrun)
 
+# Add gcov target to generate coverage files in build directory
+if GetOption('coverage'):
+    build_base = env.subst('$BUILD_BASE')
+    # Create a command that runs gcov from the build directory
+    # This ensures .gcov files are generated in the build directory
+    gcov_script = '''
+import os
+import subprocess
+build_base = "%s"
+if os.path.exists(build_base):
+    for root, dirs, files in os.walk(build_base):
+        for file in files:
+            if file.endswith('.gcda'):
+                gcov_file = os.path.join(root, file)
+                gcov_dir = os.path.dirname(gcov_file)
+                # Run gcov from the directory containing the .gcda file
+                # This ensures .gcov files are created in the same directory
+                # Use -o to specify output directory and pass just the filename
+                subprocess.run(['gcov', '-o', gcov_dir, os.path.basename(gcov_file)], 
+                             cwd=gcov_dir, 
+                             stdout=subprocess.DEVNULL, 
+                             stderr=subprocess.DEVNULL)
+''' % build_base
+    env.Command('gcov', [], 'python -c %s' % repr(gcov_script))
+
 env.Alias('install', targets)

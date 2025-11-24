@@ -9,5 +9,9 @@ void *tdelete(const void *vkey, void **vrootp, int (*compar)(const void *, const
 void twalk(const void *vroot, void (*action)(const void *, VISIT, int));
 
 #else
+#if defined(__GNUC__) || defined(__clang__)
+#include_next <search.h>
+#else
 #include <search.h>
+#endif
 #endif
