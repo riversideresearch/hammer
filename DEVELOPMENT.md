@@ -66,7 +66,7 @@ scons -c --variant=debug && scons --coverage --variant=debug test && mkdir -p co
 
 To lint SCons files and other Python files, use `ruff`:
 
-- Install ruff via pipx:
+- Install `ruff` via `pipx`:
 
 ```shell
 pipx install ruff
@@ -81,7 +81,7 @@ ruff check $(find . -name "*.py" -o -name "SConstruct" -o -name "SConscript")
 
 ## TODO Items (previously TODO)
 
-- Make h_action functions be called only after parse is complete.
+- Make `h_action` functions be called only after parse is complete.
 - Allow alternative input streams (eg, zlib, base64)
   - Bonus points if layered...
 - Add consistency check to the bitreader
