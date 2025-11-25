@@ -79,7 +79,7 @@ misc_hammer_parts = [
     'system_allocator.c',
     'sloballoc.c']
 
-misc_hammer_parts += ['platform_bsdlike.c']
+misc_hammer_parts += ['platform.c']
 
 # Use repository root to avoid variant_dir path leakage
 project_root = Dir('#').abspath

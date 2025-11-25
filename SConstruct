@@ -116,28 +116,12 @@ env['CXX'] = os.getenv('CXX') or env['CXX']
 env['CFLAGS'] = os.getenv('CFLAGS') or env['CFLAGS']
 
 # Language standard and warnings
-if env['CC'] == 'cl':
-    env.MergeFlags('-W3 -WX')
-    env.Append(
-        CPPDEFINES=[
-            '_CRT_SECURE_NO_WARNINGS' # allow uses of sprintf
-        ],
-        CFLAGS=[
-            '-wd4018', # 'expression' : signed/unsigned mismatch
-            '-wd4244', # 'argument' : conversion from 'type1' to 'type2', possible loss of data
-            '-wd4267', # 'var' : conversion from 'size_t' to 'type', possible loss of data
-        ]
-    )
-else:
-    # Using -D_POSIX_C_SOURCE=200809L here, not on an ad-hoc basis when,
-    # #including, is important
-    env.MergeFlags('-std=c99 -D_POSIX_C_SOURCE=200809L -Wall -Wextra -Werror -Wno-unused-parameter -Wno-attributes -Wno-unused-variable')
+# Using -D_POSIX_C_SOURCE=200809L here, not on an ad-hoc basis when,
+# #including, is important
+env.MergeFlags('-std=c99 -D_POSIX_C_SOURCE=200809L -Wall -Wextra -Werror -Wno-unused-parameter -Wno-attributes -Wno-unused-variable')
 
 # Linker options
-if platform.system() == 'OpenBSD':
-    pass
-else:
-    env.MergeFlags('-lrt')
+env.MergeFlags('-lrt')
 
 if GetOption('coverage'):
     env.Append(CCFLAGS=['--coverage'],
@@ -149,10 +133,7 @@ if GetOption('coverage'):
         env.ParseConfig('llvm-config --ldflags')
 
 if GetOption('force_debug'):
-    if env['CC'] == 'cl':
-        env.Append(CCFLAGS=['/Z7'])
-    else:
-        env.Append(CCFLAGS=['-g'])
+    env.Append(CCFLAGS=['-g'])
 
 if GetOption('gprof'):
     if env['CC'] == 'gcc' and env['CXX'] == 'g++':
@@ -172,16 +153,10 @@ if GetOption('fpic'):
         Exit(1) 
 
 dbg = env.Clone(VARIANT='debug')
-if env['CC'] == 'cl':
-    dbg.Append(CCFLAGS=['/Z7'])
-else:
-    dbg.Append(CCFLAGS=['-g'])
+dbg.Append(CCFLAGS=['-g'])
 
 opt = env.Clone(VARIANT='opt')
-if env['CC'] == 'cl':
-    opt.Append(CCFLAGS=['/O2'])
-else:
-    opt.Append(CCFLAGS=['-O3'])
+opt.Append(CCFLAGS=['-O3'])
 
 if GetOption('variant') == 'debug':
     env = dbg

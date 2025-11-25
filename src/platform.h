@@ -21,8 +21,7 @@ int h_platform_vasprintf(char **strp, const char *fmt, va_list arg);
 
 /* Error Reporting */
 
-/* BSD errx function, seen in err.h */
-H_MSVC_DECLSPEC(noreturn)
+/* Error reporting function that prints a message and exits */
 void h_platform_errx(int err, const char *format, ...)
     H_GCC_ATTRIBUTE((noreturn, format(printf, 2, 3)));
 

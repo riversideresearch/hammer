@@ -6,7 +6,7 @@
 #include <string.h>
 #include <stdlib.h>
 
-// Test platform_bsdlike.c: h_platform_asprintf (line 21)
+// Test platform.c: h_platform_asprintf
 static void test_platform_asprintf(void) {
     char *str = NULL;
     int result = h_platform_asprintf(&str, "test %d", 42);
@@ -17,14 +17,14 @@ static void test_platform_asprintf(void) {
     }
 }
 
-// Test platform_bsdlike.c: h_platform_asprintf with NULL strp (edge case)
+// Test platform.c: h_platform_asprintf with NULL strp (edge case)
 // Note: This will likely crash, so we skip this test to avoid segfault
 static void test_platform_asprintf_null_strp(void) {
     // Skip - passing NULL to asprintf/vasprintf will cause segfault
     // This tests that the code compiles, but we can't safely test the NULL path
 }
 
-// Test platform_bsdlike.c: h_platform_vasprintf (line 29)
+// Test platform.c: h_platform_vasprintf
 // Note: Testing vasprintf directly is complex due to va_list requirements
 // We test it indirectly through h_platform_asprintf which uses vasprintf internally
 static void test_platform_vasprintf(void) {
@@ -39,7 +39,7 @@ static void test_platform_vasprintf(void) {
     }
 }
 
-// Test platform_bsdlike.c: gettime with NULL ts (line 44)
+// Test platform.c: gettime with NULL ts
 // Note: gettime is static, so we test it indirectly through stopwatch functions
 static void test_platform_gettime_null(void) {
     // gettime is static, so we can't call it directly
@@ -50,7 +50,7 @@ static void test_platform_gettime_null(void) {
     // Should not crash
 }
 
-// Test platform_bsdlike.c: h_platform_stopwatch_reset (line 75)
+// Test platform.c: h_platform_stopwatch_reset
 static void test_platform_stopwatch_reset(void) {
     struct HStopWatch stopwatch;
     h_platform_stopwatch_reset(&stopwatch);
@@ -58,7 +58,7 @@ static void test_platform_stopwatch_reset(void) {
     g_check_cmp_int(stopwatch.start.tv_sec, >=, 0);
 }
 
-// Test platform_bsdlike.c: h_platform_stopwatch_ns (line 77)
+// Test platform.c: h_platform_stopwatch_ns
 static void test_platform_stopwatch_ns(void) {
     struct HStopWatch stopwatch;
     h_platform_stopwatch_reset(&stopwatch);
@@ -68,7 +68,7 @@ static void test_platform_stopwatch_ns(void) {
     g_check_cmp_int64(ns, >=, 0);
 }
 
-// Test platform_bsdlike.c: h_platform_stopwatch_ns with negative time (edge case)
+// Test platform.c: h_platform_stopwatch_ns with negative time (edge case)
 static void test_platform_stopwatch_ns_negative(void) {
     struct HStopWatch stopwatch;
     // Set start to future time (shouldn't happen but tests branch)
@@ -80,22 +80,11 @@ static void test_platform_stopwatch_ns_negative(void) {
     (void)ns; // Suppress unused warning
 }
 
-// Test platform_bsdlike.c: NetBSD branch (line 58) - if running on NetBSD
-// Note: This test will only exercise the NetBSD branch if compiled on NetBSD
-static void test_platform_netbsd_branch(void) {
-    struct HStopWatch stopwatch;
-    h_platform_stopwatch_reset(&stopwatch);
-    
-    // Test that time calculation handles overflow case (line 65)
-    // This tests the branch where tv_nsec >= 1000000000
-    int64_t ns = h_platform_stopwatch_ns(&stopwatch);
-    g_check_cmp_int64(ns, >=, 0);
-}
 
-// Test platform_bsdlike.c: h_platform_errx - this will exit, so we can't test it normally
+// Test platform.c: h_platform_errx - this will exit, so we can't test it normally
 // But we can test that it compiles and the va_list handling works
 static void test_platform_errx_compiles(void) {
-    // This function calls verrx which exits, so we can't actually test it
+    // This function calls exit(), so we can't actually test it
     // But we verify the code compiles correctly
     // h_platform_errx(1, "test %s", "message");
     // If we reach here, compilation succeeded
@@ -109,6 +98,5 @@ void register_platform_tests(void) {
     g_test_add_func("/core/platform/stopwatch_reset", test_platform_stopwatch_reset);
     g_test_add_func("/core/platform/stopwatch_ns", test_platform_stopwatch_ns);
     g_test_add_func("/core/platform/stopwatch_ns_negative", test_platform_stopwatch_ns_negative);
-    g_test_add_func("/core/platform/netbsd_branch", test_platform_netbsd_branch);
     g_test_add_func("/core/platform/errx_compiles", test_platform_errx_compiles);
 }

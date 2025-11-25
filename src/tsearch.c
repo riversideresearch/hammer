@@ -1,5 +1,3 @@
-/*	$OpenBSD: tsearch.c,v 1.9 2015/08/20 21:49:29 deraadt Exp $	*/
-
 /*
  * Tree search generalized from Knuth (6.2.2) Algorithm T just like
  * the AT&T man page says.
@@ -105,8 +103,6 @@ void twalk(const void *vroot, void (*action)(const void *, VISIT, int)) {
     if (root != (node *)0 && action != (void (*)(const void *, VISIT, int))0)
         trecurse(root, action, 0);
 }
-
-/*	$OpenBSD: tfind.c,v 1.6 2014/03/16 18:38:30 guenther Exp $	*/
 
 /* find a node, or return 0 */
 void *tfind(const void *vkey, void *const *vrootp, int (*compar)(const void *, const void *)) {
