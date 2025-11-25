@@ -32,7 +32,7 @@ VALGRIND_SUPPRESSIONS="valgrind-glib.supp"
 
 for s in $VALGRIND_SUPPRESSIONS
 do
-  SUPPRESSION_FILE="$HAMMER_ROOT/testing/valgrind/$s"
+  SUPPRESSION_FILE="$HAMMER_ROOT/tools/valgrind/$s"
   if [ -f "$SUPPRESSION_FILE" ]; then
     VALGRIND_OPTS="$VALGRIND_OPTS --suppressions=$SUPPRESSION_FILE"
   else
