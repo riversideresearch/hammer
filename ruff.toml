@@ -1,0 +1,9 @@
+# https://docs.astral.sh/ruff/configuration/
+
+line-length = 100
+
+[lint]
+ignore = ["F821"]
+
+[format]
+docstring-code-format = true

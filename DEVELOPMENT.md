@@ -34,11 +34,9 @@ doxygen Doxyfile
 
 This will create HTML output in `docs/html/index.html`.
 
-## Version Management
+### Version Management
 
 The project uses centralized version management via the `VERSION` file to ensure consistency across GitHub releases, Debian packages, and pkg-config files.
-
-### How It Works
 
 - **VERSION file**: Contains semantic version (e.g., `1.0.0`)
 - **All components** automatically read from this file:
@@ -63,6 +61,23 @@ scons -c --variant=debug && scons --coverage --variant=debug test && mkdir -p co
 - For WSL, replace final `xdg-open` with `wslview` (from `wslu` package)
 - All coverage files (`.gcov`, `.gcno`, `.gcda`) and object files (`.o`) are generated in the `build/debug/` or `build/opt/` directory
 - To generate `.gcov` files manually, run `scons --coverage --variant=debug gcov` from the project root
+
+### Linting SCons Files (and other Python files)
+
+To lint SCons files and other Python files, use `ruff`:
+
+- Install ruff via pipx:
+
+```shell
+pipx install ruff
+```
+
+- Ruff setting are configured in `ruff.toml`
+- To lint all Python files in the project, run:
+
+```shell
+ruff check $(find . -name "*.py" -o -name "SConstruct" -o -name "SConscript")
+```
 
 ## TODO Items (previously TODO)
 

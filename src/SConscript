@@ -3,194 +3,205 @@
 from __future__ import absolute_import, division, print_function
 import glob
 import os
-import os.path
-import shlex
 import re
 
-Import('env testruns')
+Import("env testruns")
 
 # Read version from environment (exported from SConstruct)
-hammer_shlib_version = env['VERSION']
+hammer_shlib_version = env["VERSION"]
 
 dist_headers = [
-    'hammer.h',
-    'allocator.h',
-    'compiler_specifics.h',
-    'glue.h',
-    'internal.h',
-    'platform.h'
+    "hammer.h",
+    "allocator.h",
+    "compiler_specifics.h",
+    "glue.h",
+    "internal.h",
+    "platform.h",
 ]
 
-parsers_headers = [
-    'parsers/parser_internal.h'
+parsers_headers = ["parsers/parser_internal.h"]
+
+backends_headers = ["backends/missing.h"]
+
+parsers = [
+    "parsers/%s.c" % s
+    for s in [
+        "action",
+        "and",
+        "attr_bool",
+        "bind",
+        "bits",
+        "bytes",
+        "butnot",
+        "ch",
+        "charset",
+        "choice",
+        "difference",
+        "end",
+        "endianness",
+        "epsilon",
+        "ignore",
+        "ignoreseq",
+        "indirect",
+        "int_range",
+        "many",
+        "not",
+        "nothing",
+        "optional",
+        "permutation",
+        "sequence",
+        "token",
+        "unimplemented",
+        "whitespace",
+        "xor",
+        "value",
+        "seek",
+    ]
 ]
 
-backends_headers = [
-    'backends/missing.h'
-]
-
-parsers = ['parsers/%s.c'%s for s in
-           ['action',
-            'and',
-            'attr_bool',
-            'bind',
-            'bits',
-            'bytes',
-            'butnot',
-            'ch',
-            'charset',
-            'choice',
-            'difference',
-            'end',
-            'endianness',
-            'epsilon',
-            'ignore',
-            'ignoreseq',
-            'indirect',
-            'int_range',
-            'many',
-            'not',
-            'nothing',
-            'optional',
-            'permutation',
-            'sequence',
-            'token',
-            'unimplemented',
-            'whitespace',
-            'xor',
-            'value',
-            'seek']]
-
-backends = ['backends/%s.c' % s for s in
-            ['missing', 'packrat']]
+backends = ["backends/%s.c" % s for s in ["missing", "packrat"]]
 
 misc_hammer_parts = [
-    'allocator.c',
-    'benchmark.c',
-    'bitreader.c',
-    'bitwriter.c',
-    'cfgrammar.c',
-    'datastructures.c',
-    'desugar.c',
-    'glue.c',
-    'hammer.c',
-    'pprint.c',
-    'registry.c',
-    'system_allocator.c',
-    'sloballoc.c']
+    "allocator.c",
+    "benchmark.c",
+    "bitreader.c",
+    "bitwriter.c",
+    "cfgrammar.c",
+    "datastructures.c",
+    "desugar.c",
+    "glue.c",
+    "hammer.c",
+    "pprint.c",
+    "registry.c",
+    "system_allocator.c",
+    "sloballoc.c",
+]
 
-misc_hammer_parts += ['platform.c']
+misc_hammer_parts += ["platform.c"]
 
 # Use repository root to avoid variant_dir path leakage
-project_root = Dir('#').abspath
-tests_dir = os.path.join(project_root, 'tests')
-src_dir = os.path.join(project_root, 'src')
+project_root = Dir("#").abspath
+tests_dir = os.path.join(project_root, "tests")
+src_dir = os.path.join(project_root, "src")
 
-ctests = ['t_benchmark.c',
-          't_bitreader.c',
-          't_bitwriter.c',
-          't_parser.c',
-          't_grammar.c',
-          't_misc.c',
-          't_mm.c',
-          't_names.c',
-          't_regression.c']
+ctests = [
+    "t_benchmark.c",
+    "t_bitreader.c",
+    "t_bitwriter.c",
+    "t_parser.c",
+    "t_grammar.c",
+    "t_misc.c",
+    "t_mm.c",
+    "t_names.c",
+    "t_regression.c",
+]
 
 # Auto-discover test files matching pattern test_*.c
-combinator_tests = sorted(glob.glob(os.path.join(tests_dir, 'test_*.c')))
+combinator_tests = sorted(glob.glob(os.path.join(tests_dir, "test_*.c")))
 # Also include parser tests living under tests/parsers/
-parsers_tests_dir = os.path.join(tests_dir, 'parsers')
+parsers_tests_dir = os.path.join(tests_dir, "parsers")
 if os.path.isdir(parsers_tests_dir):
-    combinator_tests += sorted(glob.glob(os.path.join(parsers_tests_dir, '*.c')))
+    combinator_tests += sorted(glob.glob(os.path.join(parsers_tests_dir, "*.c")))
 # Also include backend tests living under tests/backends/
-backends_tests_dir = os.path.join(tests_dir, 'backends')
+backends_tests_dir = os.path.join(tests_dir, "backends")
 if os.path.isdir(backends_tests_dir):
-    combinator_tests += sorted(glob.glob(os.path.join(backends_tests_dir, '*.c')))
+    combinator_tests += sorted(glob.glob(os.path.join(backends_tests_dir, "*.c")))
 # Filter out test_suite.c if it exists and store paths relative to tests_dir
-combinator_tests = [os.path.relpath(t, tests_dir) for t in combinator_tests if 'test_suite.c' not in t]
+combinator_tests = [
+    os.path.relpath(t, tests_dir) for t in combinator_tests if "test_suite.c" not in t
+]
 ctests.extend(combinator_tests)
+
 
 # Calculate and report parser test coverage (by presence of test_<name>.c files)
 def _basename_no_ext(path):
     return os.path.splitext(os.path.basename(path))[0]
 
+
 # parser source filenames are like parsers/<name>.c → extract <name>
-_parser_names = sorted(_basename_no_ext(p).replace('parsers' + os.sep, '')
-                       for p in parsers)
+_parser_names = sorted(_basename_no_ext(p).replace("parsers" + os.sep, "") for p in parsers)
 
 # discovered test filenames are like test_<name>.c → extract <name>
-_tested_names = set(_basename_no_ext(t)[len('test_'):]
-                    for t in combinator_tests
-                    if _basename_no_ext(t).startswith('test_'))
+_tested_names = set(
+    _basename_no_ext(t)[len("test_") :]
+    for t in combinator_tests
+    if _basename_no_ext(t).startswith("test_")
+)
 
 # Also detect combinator tests registered inside tests/t_parser.c
-_tparser_path = os.path.join(tests_dir, 't_parser.c')
+_tparser_path = os.path.join(tests_dir, "t_parser.c")
 if os.path.exists(_tparser_path):
     try:
-        with open(_tparser_path, 'r') as _f:
+        with open(_tparser_path, "r") as _f:
             _tp = _f.read()
-        # Extract names from lines like: 
+        # Extract names from lines like:
         # g_test_add_data_func("/core/parser/packrat/<name>", ...)
         _names_from_tp = set(re.findall(r"/core/parser/packrat/([A-Za-z0-9_]+)", _tp))
         # Map special aliases from *_p to source filenames where applicable
         _alias_map = {
-            'epsilon_p': 'epsilon',
-            'end_p': 'end',
-            'nothing_p': 'nothing',
+            "epsilon_p": "epsilon",
+            "end_p": "end",
+            "nothing_p": "nothing",
         }
         for n in list(_names_from_tp):
             _tested_names.add(_alias_map.get(n, n))
     except Exception:
         pass
 
-static_library_name = 'hammer'
-build_shared_library=True
+static_library_name = "hammer"
+build_shared_library = True
 
-if GetOption('coverage'):
+if GetOption("coverage"):
     # Use static library when collecting coverage to ensure .gcda files are generated reliably
     build_shared_library = False
 
-if 'GPROF' in env and env['GPROF'] == 1:
+if "GPROF" in env and env["GPROF"] == 1:
     # Disable the shared library (it won't work with gprof) and rename the static one
-    build_shared_library=False
-    static_library_name = 'hammer_pg'
+    build_shared_library = False
+    static_library_name = "hammer_pg"
 
 # Markers for later
 libhammer_static = None
 libhammer_shared = None
 
 if build_shared_library:
-    libhammer_shared = env.SharedLibrary('hammer', parsers + backends + misc_hammer_parts, \
-                                     SHLIBVERSION=hammer_shlib_version)
+    libhammer_shared = env.SharedLibrary(
+        "hammer", parsers + backends + misc_hammer_parts, SHLIBVERSION=hammer_shlib_version
+    )
 libhammer_static = env.StaticLibrary(static_library_name, parsers + backends + misc_hammer_parts)
 
 if libhammer_shared is not None:
     Default(libhammer_shared, libhammer_static)
-    env.Install('$libpath', [libhammer_static, libhammer_shared])
+    env.Install("$libpath", [libhammer_static, libhammer_shared])
 else:
     Default(libhammer_static)
-    env.Install('$libpath', [libhammer_static])
+    env.Install("$libpath", [libhammer_static])
 
-env.Append(CPPPATH=[Dir('#').abspath, src_dir])
-env.Install('$incpath', dist_headers)
-env.Install('$parsersincpath', parsers_headers)
-env.Install('$backendsincpath', backends_headers)
-env.Install('$pkgconfigpath', '../../../libhammer.pc')
+env.Append(CPPPATH=[Dir("#").abspath, src_dir])
+env.Install("$incpath", dist_headers)
+env.Install("$parsersincpath", parsers_headers)
+env.Install("$backendsincpath", backends_headers)
+env.Install("$pkgconfigpath", "../../../libhammer.pc")
 
-if GetOption('with_tests'):
+if GetOption("with_tests"):
     testenv = env.Clone()
-    testenv.ParseConfig('pkg-config --cflags --libs glib-2.0')
+    testenv.ParseConfig("pkg-config --cflags --libs glib-2.0")
     # Add src/ to include path so tests can include hammer.h, internal.h, etc.
-    testenv.Prepend(CPPPATH=[src_dir, os.path.join(src_dir, 'parsers')])
+    testenv.Prepend(CPPPATH=[src_dir, os.path.join(src_dir, "parsers")])
     if libhammer_shared is not None:
-        testenv.Append(LIBS=['hammer'])
+        testenv.Append(LIBS=["hammer"])
     else:
         testenv.Append(LIBS=[static_library_name])
-    testenv.Prepend(LIBPATH=['.'])
+    testenv.Prepend(LIBPATH=["."])
     # Build test files from tests/ directory
-    test_sources = [os.path.join(tests_dir, t) for t in ctests] + [os.path.join(tests_dir, 'test_suite.c')]
-    ctestexec = testenv.Program(os.path.join('$BUILD_BASE', 'test_suite'), test_sources, 
-                                LINKFLAGS='--coverage' if testenv.GetOption('coverage') else None)
+    test_sources = [os.path.join(tests_dir, t) for t in ctests] + [
+        os.path.join(tests_dir, "test_suite.c")
+    ]
+    ctestexec = testenv.Program(
+        os.path.join("$BUILD_BASE", "test_suite"),
+        test_sources,
+        LINKFLAGS="--coverage" if testenv.GetOption("coverage") else None,
+    )
     # Library is in build/opt/src/ or build/debug/src/
     # Executable is at: build/opt/src/build/opt/test_suite
     # Library is at: build/opt/src/libhammer.so.1
@@ -199,18 +210,21 @@ if GetOption('with_tests'):
     # Go up two levels: build/opt/src/build/opt -> build/opt/src/build -> build/opt/src
     _libdir = os.path.dirname(os.path.dirname(exe_path))
     # If we're in a nested build directory, go up one more level
-    if os.path.basename(_libdir) == 'build':
+    if os.path.basename(_libdir) == "build":
         _libdir = os.path.dirname(_libdir)
     _exe = ctestexec[0].path
     _run_and_summarize = (
-        "tmp=$$(mktemp); env LD_LIBRARY_PATH=" + _libdir + " " + _exe +
-        " > \"$$tmp\"; status=$$?; cat \"$$tmp\"; rm \"$$tmp\"; exit $$status"
+        "tmp=$$(mktemp); env LD_LIBRARY_PATH="
+        + _libdir
+        + " "
+        + _exe
+        + ' > "$$tmp"; status=$$?; cat "$$tmp"; rm "$$tmp"; exit $$status'
     )
-    ctest = Alias('testc', [ctestexec], _run_and_summarize)
+    ctest = Alias("testc", [ctestexec], _run_and_summarize)
     AlwaysBuild(ctest)
     testruns.append(ctest)
 
 if libhammer_shared is not None:
-    Export('libhammer_static libhammer_shared')
+    Export("libhammer_static libhammer_shared")
 else:
-    Export('libhammer_static')
+    Export("libhammer_static")
