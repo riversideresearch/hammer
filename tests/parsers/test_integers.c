@@ -80,5 +80,3 @@ void register_integer_parser_tests(void) {
     g_test_add_data_func("/core/parser/packrat/int_range", GINT_TO_POINTER(PB_PACKRAT),
                          test_int_range);
 }
-
-

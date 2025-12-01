@@ -68,8 +68,6 @@ static void test_tt_h_get_name_for_backend_with_params(void) {
     h_free_backend_with_params(be_with_params);
 }
 
-/* test that we can request a backend with params from character
- * and compile a parser using it */
 static void test_tt_h_compile_for_backend_with_params(void) {
     HParserBackendWithParams *be_w_p = NULL;
 

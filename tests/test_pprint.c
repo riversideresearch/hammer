@@ -7,7 +7,8 @@
 #include <string.h>
 static void test_pprint_null(void) {
     FILE *f = tmpfile();
-    if (!f) return;
+    if (!f)
+        return;
     h_pprint(f, NULL, 0, 2);
     fclose(f);
 }
@@ -305,12 +306,13 @@ static void test_write_result_unamb_user(void) {
     }
     h_delete_arena(arena);
 }
+
 static void test_buffer_functions(void) {
     HArena *arena = h_new_arena(&system_allocator, 4096);
     HParsedToken *tok = h_arena_malloc(arena, sizeof(HParsedToken));
     tok->token_type = TT_SEQUENCE;
     tok->seq = h_carray_new(arena);
-    
+
     for (int i = 0; i < 50; i++) {
         HParsedToken *elem = h_arena_malloc(arena, sizeof(HParsedToken));
         elem->token_type = TT_UINT;
@@ -340,10 +342,14 @@ void register_pprint_tests(void) {
     g_test_add_func("/core/pprint/user", test_pprint_user);
     g_test_add_func("/core/pprint/pprintln", test_pprintln);
     g_test_add_func("/core/pprint/write_result_unamb_none", test_write_result_unamb_none);
-    g_test_add_func("/core/pprint/write_result_unamb_bytes_empty", test_write_result_unamb_bytes_empty);
-    g_test_add_func("/core/pprint/write_result_unamb_bytes_nonempty", test_write_result_unamb_bytes_nonempty);
-    g_test_add_func("/core/pprint/write_result_unamb_sint_negative", test_write_result_unamb_sint_negative);
-    g_test_add_func("/core/pprint/write_result_unamb_sint_positive", test_write_result_unamb_sint_positive);
+    g_test_add_func("/core/pprint/write_result_unamb_bytes_empty",
+                    test_write_result_unamb_bytes_empty);
+    g_test_add_func("/core/pprint/write_result_unamb_bytes_nonempty",
+                    test_write_result_unamb_bytes_nonempty);
+    g_test_add_func("/core/pprint/write_result_unamb_sint_negative",
+                    test_write_result_unamb_sint_negative);
+    g_test_add_func("/core/pprint/write_result_unamb_sint_positive",
+                    test_write_result_unamb_sint_positive);
     g_test_add_func("/core/pprint/write_result_unamb_uint", test_write_result_unamb_uint);
     g_test_add_func("/core/pprint/write_result_unamb_double", test_write_result_unamb_double);
     g_test_add_func("/core/pprint/write_result_unamb_float", test_write_result_unamb_float);

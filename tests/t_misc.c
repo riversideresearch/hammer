@@ -35,24 +35,31 @@ static void test_tt_registry(void) {
                       0);
 }
 
-// test out-of-memory handling with a selectively failing allocator
+// Helper function for out-of-memory test allocator
 static void *fail_alloc(HAllocator *mm__, size_t size) {
     if (size - 0xdead <= 0x30) // allow for overhead of arena link structure
         return NULL;
     return system_allocator.alloc(&system_allocator, size);
 }
+
+// Helper function for out-of-memory test realloc
 static void *fail_realloc(HAllocator *mm__, void *ptr, size_t size) {
     return system_allocator.realloc(&system_allocator, ptr, size);
 }
+
+// Helper function for out-of-memory test free
 static void fail_free(HAllocator *mm__, void *ptr) {
     return system_allocator.free(&system_allocator, ptr);
 }
 static HAllocator fail_allocator = {fail_alloc, fail_realloc, fail_free};
+
+// Helper function for out-of-memory test action
 static HParsedToken *act_oom(const HParseResult *r, void *user) {
     void *buf = h_arena_malloc(r->arena, 0xdead);
     assert(buf != NULL);
     return NULL; // succeed with null token
 }
+
 static void test_oom(void) {
     HParser *p = h_action(h_ch('x'), act_oom, NULL);
     // this should always fail, but never crash
@@ -69,14 +76,14 @@ static void test_oom(void) {
 
 static void test_glue_act_index(void) {
     HParser *p = h_sequence(h_ch('a'), h_ch('b'), h_ch('c'), NULL);
-    
+
     // Use H_ACT_APPLY to create wrapper actions
     H_ACT_APPLY(act_index_0, h_act_index, 0);
     H_ACT_APPLY(act_index_1, h_act_index, 1);
     H_ACT_APPLY(act_index_2, h_act_index, 2);
     H_ACT_APPLY(act_index_neg, h_act_index, -1);
     H_ACT_APPLY(act_index_large, h_act_index, 10);
-    
+
     HParser *act0 = h_action(p, act_index_0, NULL);
     HParser *act1 = h_action(p, act_index_1, NULL);
     HParser *act2 = h_action(p, act_index_2, NULL);
@@ -96,7 +103,7 @@ static void test_glue_act_index(void) {
         h_parse_result_free(res_neg);
         g_test_fail();
     }
-    
+
     HParseResult *res_large = h_parse(act_large, (const uint8_t *)"abc", 3);
     if (res_large != NULL && res_large->ast == NULL) {
         h_parse_result_free(res_large);
@@ -189,6 +196,7 @@ static void test_glue_make_functions(void) {
     h_parse_result_free(res);
 }
 
+// Helper function for flatten test
 static HParsedToken *flatten_action(const HParseResult *p, void *user) {
     return (HParsedToken *)h_seq_flatten(p->arena, p->ast);
 }
@@ -251,20 +259,20 @@ static void test_glue_seq_index_vpath(void) {
     HParser *outer = h_sequence(inner1, inner2, NULL);
 
     HParseResult *res = h_parse(outer, (const uint8_t *)"abcd", 4);
-    
+
     // Test h_seq_index_path (which uses va_list internally)
     HParsedToken *tok0 = h_seq_index_path(res->ast, 0, -1);
     g_check_cmp_int(tok0->token_type, ==, TT_SEQUENCE);
-    
+
     HParsedToken *tok01 = h_seq_index_path(res->ast, 0, 1, -1);
     g_check_cmp_int(tok01->token_type, ==, TT_UINT);
     g_check_cmp_int64(tok01->uint, ==, 0x62); // 'b'
-    
+
     // Test h_seq_index_vpath directly
     HParsedToken *tok_vpath = test_vpath_helper(res->ast, 0, 1, -1);
     g_check_cmp_int(tok_vpath->token_type, ==, TT_UINT);
     g_check_cmp_int64(tok_vpath->uint, ==, 0x62);
-    
+
     h_parse_result_free(res);
 }
 
@@ -272,7 +280,7 @@ static void test_pprint_basic(void) {
     // Test h_pprint with various token types
     HParser *p_bytes = h_bytes(3);
     HParseResult *res = h_parse(p_bytes, (const uint8_t *)"abc", 3);
-    
+
     // Test h_pprint with bytes
     FILE *tmp = tmpfile();
     h_pprint(tmp, res->ast, 0, 2);
@@ -283,14 +291,14 @@ static void test_pprint_basic(void) {
         buf[0] = '\0';
     }
     fclose(tmp);
-    
+
     // Test h_pprintln
     tmp = tmpfile();
     h_pprintln(tmp, res->ast);
     fclose(tmp);
-    
+
     h_parse_result_free(res);
-    
+
     // Test with sequence
     HParser *p_seq = h_sequence(h_ch('a'), h_ch('b'), NULL);
     res = h_parse(p_seq, (const uint8_t *)"ab", 2);
@@ -298,7 +306,7 @@ static void test_pprint_basic(void) {
     h_pprint(tmp, res->ast, 0, 2);
     fclose(tmp);
     h_parse_result_free(res);
-    
+
     // Test with integers
     HParser *p_int = h_int64();
     res = h_parse(p_int, (const uint8_t *)"\x00\x00\x00\x00\x00\x00\x00\x42", 8);
@@ -306,7 +314,7 @@ static void test_pprint_basic(void) {
     h_pprint(tmp, res->ast, 0, 2);
     fclose(tmp);
     h_parse_result_free(res);
-    
+
     // Test with null token
     tmp = tmpfile();
     h_pprint(tmp, NULL, 0, 2);
@@ -321,7 +329,7 @@ static void test_pprint_write_result_unamb(void) {
     g_check_string(unamb, ==, "<61.62>");
     (&system_allocator)->free(&system_allocator, unamb);
     h_parse_result_free(res);
-    
+
     // Test with sequence
     HParser *p_seq = h_sequence(h_ch('x'), h_ch('y'), NULL);
     res = h_parse(p_seq, (const uint8_t *)"xy", 2);
@@ -329,7 +337,7 @@ static void test_pprint_write_result_unamb(void) {
     g_check_string(unamb, ==, "(u0x78 u0x79)");
     (&system_allocator)->free(&system_allocator, unamb);
     h_parse_result_free(res);
-    
+
     // Test with integers
     HParser *p_uint = h_uint64();
     res = h_parse(p_uint, (const uint8_t *)"\x00\x00\x00\x00\x00\x00\x00\x2a", 8);
@@ -337,7 +345,7 @@ static void test_pprint_write_result_unamb(void) {
     g_check_string(unamb, ==, "u0x2a");
     (&system_allocator)->free(&system_allocator, unamb);
     h_parse_result_free(res);
-    
+
     // Test with signed integers (negative) - -2 in little-endian
     HParser *p_sint = h_int64();
     res = h_parse(p_sint, (const uint8_t *)"\xff\xff\xff\xff\xff\xff\xff\xfe", 8);
@@ -345,7 +353,7 @@ static void test_pprint_write_result_unamb(void) {
     g_check_string(unamb, ==, "s-0x2");
     (&system_allocator)->free(&system_allocator, unamb);
     h_parse_result_free(res);
-    
+
     // Test with doubles
     HParser *p_double = h_action(h_epsilon_p(), make_double_action2, NULL);
     res = h_parse(p_double, (const uint8_t *)"", 0);
@@ -354,7 +362,7 @@ static void test_pprint_write_result_unamb(void) {
     g_check_cmp_int(strlen(unamb), >, 0);
     (&system_allocator)->free(&system_allocator, unamb);
     h_parse_result_free(res);
-    
+
     // Test with floats
     HParser *p_float = h_action(h_epsilon_p(), make_float_action2, NULL);
     res = h_parse(p_float, (const uint8_t *)"", 0);
@@ -362,7 +370,7 @@ static void test_pprint_write_result_unamb(void) {
     g_check_cmp_int(strlen(unamb), >, 0);
     (&system_allocator)->free(&system_allocator, unamb);
     h_parse_result_free(res);
-    
+
     // Test with NULL
     unamb = h_write_result_unamb(NULL);
     g_check_string(unamb, ==, "NULL");

@@ -5,7 +5,6 @@
 
 #include <glib.h>
 
-// Test desugar for basic terminal parsers
 static void test_desugar_ch(void) {
     const HParser *p = h_ch('a');
     HCFChoice *desugared = h_desugar(&system_allocator, NULL, p);
@@ -44,7 +43,6 @@ static void test_desugar_nothing(void) {
     g_check_cmp_int(desugared->type, ==, HCF_CHOICE);
 }
 
-// Test desugar for charset parsers
 static void test_desugar_charset(void) {
     uint8_t options[3] = {'a', 'b', 'c'};
     const HParser *p = h_in(options, 3);
@@ -61,7 +59,6 @@ static void test_desugar_charset_not_in(void) {
     g_check_cmp_int(desugared->type, ==, HCF_CHARSET);
 }
 
-// Test desugar for bits parser
 static void test_desugar_bits(void) {
     const HParser *p = h_bits(8, false);
     HCFChoice *desugared = h_desugar(&system_allocator, NULL, p);
@@ -78,7 +75,6 @@ static void test_desugar_bits_signed(void) {
     g_check_cmp_int(desugared->type, ==, HCF_CHOICE);
 }
 
-// Test desugar for int_range parser
 static void test_desugar_int_range(void) {
     const HParser *p = h_int_range(h_uint8(), 0, 255);
     HCFChoice *desugared = h_desugar(&system_allocator, NULL, p);
@@ -87,7 +83,6 @@ static void test_desugar_int_range(void) {
     g_check_cmp_int(desugared->type, ==, HCF_CHARSET);
 }
 
-// Test desugar for composite parsers
 static void test_desugar_sequence(void) {
     const HParser *p = h_sequence(h_ch('a'), h_ch('b'), h_ch('c'), NULL);
     HCFChoice *desugared = h_desugar(&system_allocator, NULL, p);
@@ -123,7 +118,6 @@ static void test_desugar_optional(void) {
     g_check_cmp_int(desugared->type, ==, HCF_CHOICE);
 }
 
-// Test desugar for ignore parsers
 static void test_desugar_ignore(void) {
     HParser *p = h_ignore(h_ch('a'));
     HCFChoice *desugared = h_desugar(&system_allocator, NULL, p);
@@ -139,7 +133,6 @@ static void test_desugar_ignoreseq(void) {
     g_check_cmp_int(desugared->type, ==, HCF_CHOICE);
 }
 
-// Test desugar for indirect parser
 static void test_desugar_indirect(void) {
     HParser *p = h_indirect();
     h_bind_indirect(p, h_ch('a'));
@@ -163,7 +156,6 @@ static void test_desugar_action(void) {
     g_check_cmp_int(desugared->type, ==, HCF_CHOICE);
 }
 
-// Test desugar for attr_bool parser
 static bool test_predicate(HParseResult *p, void *user_data) {
     (void)user_data;
     return p->ast != NULL;
@@ -176,7 +168,6 @@ static void test_desugar_attr_bool(void) {
     g_check_cmp_int(desugared->type, ==, HCF_CHOICE);
 }
 
-// Test desugar for whitespace parser
 static void test_desugar_whitespace(void) {
     const HParser *p = h_whitespace(h_ch('a'));
     HCFChoice *desugared = h_desugar(&system_allocator, NULL, p);
@@ -184,7 +175,6 @@ static void test_desugar_whitespace(void) {
     g_check_cmp_int(desugared->type, ==, HCF_CHOICE);
 }
 
-// Test desugar for nested/complex parsers
 static void test_desugar_nested_sequence(void) {
     const HParser *p = h_sequence(h_sequence(h_ch('a'), h_ch('b'), NULL), h_ch('c'), NULL);
     HCFChoice *desugared = h_desugar(&system_allocator, NULL, p);
@@ -213,7 +203,6 @@ static void test_desugar_many1_with_sep(void) {
     g_check_cmp_int(desugared->type, ==, HCF_CHOICE);
 }
 
-// Test that desugared parsers can be used to create CFG
 static void test_desugar_to_cfg(void) {
     const HParser *p = h_sequence(h_ch('a'), h_ch('b'), NULL);
     HCFGrammar *g = h_cfgrammar(&system_allocator, p);

@@ -1,10 +1,11 @@
-#include "hammer.h"
 #include "glue.h"
+#include "hammer.h"
 #include "internal.h"
 #include "test_suite.h"
 
 #include <glib.h>
 
+// Helper function for whitespace tests
 static HParser *simple_bind_cont(HAllocator *mm__, const HParsedToken *token, void *user_data) {
     (void)mm__;
     (void)user_data;
@@ -63,10 +64,10 @@ static void test_whitespace_isValidCF(gconstpointer backend) {
 }
 
 void register_whitespace_tests(void) {
-    g_test_add_data_func("/core/parser/packrat/whitespace_want_suspend", GINT_TO_POINTER(PB_PACKRAT),
-                         test_whitespace_want_suspend);
-    g_test_add_data_func("/core/parser/packrat/whitespace_isValidRegular", GINT_TO_POINTER(PB_PACKRAT),
-                         test_whitespace_isValidRegular);
+    g_test_add_data_func("/core/parser/packrat/whitespace_want_suspend",
+                         GINT_TO_POINTER(PB_PACKRAT), test_whitespace_want_suspend);
+    g_test_add_data_func("/core/parser/packrat/whitespace_isValidRegular",
+                         GINT_TO_POINTER(PB_PACKRAT), test_whitespace_isValidRegular);
     g_test_add_data_func("/core/parser/packrat/whitespace_isValidCF", GINT_TO_POINTER(PB_PACKRAT),
                          test_whitespace_isValidCF);
 }

@@ -1,5 +1,5 @@
-#include "hammer.h"
 #include "glue.h"
+#include "hammer.h"
 #include "internal.h"
 #include "test_suite.h"
 
@@ -73,8 +73,8 @@ static void test_permutation_a(gconstpointer backend) {
 }
 
 void register_permutation_tests(void) {
-    g_test_add_data_func("/core/parser/packrat/permutation_want_suspend", GINT_TO_POINTER(PB_PACKRAT),
-                         test_permutation_want_suspend);
+    g_test_add_data_func("/core/parser/packrat/permutation_want_suspend",
+                         GINT_TO_POINTER(PB_PACKRAT), test_permutation_want_suspend);
     g_test_add_data_func("/core/parser/packrat/permutation_m", GINT_TO_POINTER(PB_PACKRAT),
                          test_permutation_m);
     g_test_add_data_func("/core/parser/packrat/permutation_v", GINT_TO_POINTER(PB_PACKRAT),

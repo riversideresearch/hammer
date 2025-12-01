@@ -3,11 +3,12 @@
 #include "test_suite.h"
 
 #include <glib.h>
-#include <stdint.h>
-#include <signal.h>
 #include <setjmp.h>
+#include <signal.h>
+#include <stdint.h>
 
 static jmp_buf abort_jmp_buf;
+// Signal handler for testing abort conditions
 static void abort_handler(int sig) {
     (void)sig;
     longjmp(abort_jmp_buf, 1);

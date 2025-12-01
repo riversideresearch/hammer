@@ -256,6 +256,7 @@ static void test_middle(gconstpointer backend) {
 
 #include <ctype.h>
 
+// Helper function for action parser test
 HParsedToken *upcase(const HParseResult *p, void *user_data) {
     switch (p->ast->token_type) {
     case TT_SEQUENCE: {
@@ -884,6 +885,7 @@ static HParser *k_test_bind(HAllocator *mm__, const HParsedToken *p, void *env) 
     else
         return h_ch__m(mm__, one - 1 + v);
 }
+
 static void test_bind(gconstpointer backend) {
     HParserBackend be = (HParserBackend)GPOINTER_TO_INT(backend);
     const HParser *digit = h_ch_range('0', '9');

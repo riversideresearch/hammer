@@ -3,8 +3,8 @@
 
 #include <glib.h>
 #include <stdarg.h>
-#include <string.h>
 #include <stdlib.h>
+#include <string.h>
 
 // Test platform.c: h_platform_asprintf
 static void test_platform_asprintf(void) {
@@ -62,7 +62,7 @@ static void test_platform_stopwatch_reset(void) {
 static void test_platform_stopwatch_ns(void) {
     struct HStopWatch stopwatch;
     h_platform_stopwatch_reset(&stopwatch);
-    
+
     // Wait a tiny bit (or just measure immediately)
     int64_t ns = h_platform_stopwatch_ns(&stopwatch);
     g_check_cmp_int64(ns, >=, 0);
@@ -74,12 +74,11 @@ static void test_platform_stopwatch_ns_negative(void) {
     // Set start to future time (shouldn't happen but tests branch)
     stopwatch.start.tv_sec = 999999999;
     stopwatch.start.tv_nsec = 0;
-    
+
     int64_t ns = h_platform_stopwatch_ns(&stopwatch);
     // Result depends on current time, but should handle gracefully
     (void)ns; // Suppress unused warning
 }
-
 
 // Test platform.c: h_platform_errx - this will exit, so we can't test it normally
 // But we can test that it compiles and the va_list handling works

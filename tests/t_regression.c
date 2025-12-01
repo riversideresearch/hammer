@@ -56,7 +56,10 @@ static void test_seq_index_path(void) {
 }
 
 #define MK_INPUT_STREAM(buf, len, endianness_)                                                     \
-    {.input = (uint8_t *)buf, .length = len, .index = 0, .bit_offset = 0, .endianness = endianness_}
+    {                                                                                              \
+        .input = (uint8_t *)buf, .length = len, .index = 0, .bit_offset = 0,                       \
+        .endianness = endianness_                                                                  \
+    }
 
 static void test_read_bits_48(void) {
     {
@@ -119,6 +122,7 @@ static void test_llk_zero_end(void) {
     g_check_parse_failed(aze, be, "a", 1);
 }
 
+// Helper function for wrong bit length test
 HParser *k_test_wrong_bit_length(HAllocator *mm__, const HParsedToken *tok, void *env) {
     return h_ch__m(mm__, 'b');
 }
@@ -147,11 +151,14 @@ static void test_cfg_many_seq(void) {
 }
 
 static uint8_t test_charset_bits__buf[256];
+
+// Helper function for charset bits test allocator
 static void *test_charset_bits__alloc(HAllocator *allocator, size_t size) {
     g_check_cmp_uint64(size, ==, 256 / 8);
     assert(size <= 256);
     return test_charset_bits__buf;
 }
+
 static void test_charset_bits(void) {
     // charset would allocate 256 bytes instead of 256 bits (= 32 bytes)
 
@@ -192,6 +199,7 @@ static void test_charset_bits(void) {
 //
 // † Can you hear it, Mr. Toot?
 
+// Helper function for deadbeefing allocator malloc
 static void *deadbeefing_malloc(HAllocator *allocator, size_t size) {
     char *block = malloc(size);
     if (block)
@@ -200,10 +208,13 @@ static void *deadbeefing_malloc(HAllocator *allocator, size_t size) {
 }
 
 // Don't deadbeef on realloc because it isn't necessary to reproduce this bug.
+
+// Helper function for deadbeefing allocator realloc
 static void *deadbeefing_realloc(HAllocator *allocator, void *uptr, size_t size) {
     return realloc(uptr, size);
 }
 
+// Helper function for deadbeefing allocator free
 static void deadbeefing_free(HAllocator *allocator, void *uptr) { free(uptr); }
 
 static HAllocator deadbeefing_allocator = {
@@ -356,7 +367,6 @@ static void test_issue91() {
     g_check_cmp_int(r, ==, 0); // Packrat should compile successfully
 }
 
-// a different instance of issue 91
 static void test_issue87() {
     HParser *a = h_ch('a');
     HParser *a2 = h_ch_range('a', 'a');

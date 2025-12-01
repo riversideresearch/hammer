@@ -1,11 +1,11 @@
-#include "hammer.h"
 #include "glue.h"
+#include "hammer.h"
 #include "internal.h"
 #include "test_suite.h"
 
 #include <glib.h>
 
-// Test missing.c: h_missing_parse (lines 11, 14)
+// Test missing.c: h_missing_parse
 static void test_missing_parse(gconstpointer backend) {
     (void)backend;
 

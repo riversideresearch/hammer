@@ -12,7 +12,7 @@ static void test_registry_allocate_token_new_with_unamb(void) {
 
     HTokenType id = h_allocate_token_new("test.registry.unamb", unamb_sub, NULL);
     g_check_cmp_int(id, >=, TT_USER);
-    
+
     const HTTEntry *entry = h_get_token_type_entry(id);
     g_check_cmp_ptr(entry, !=, NULL);
     if (entry) {
@@ -23,7 +23,7 @@ static void test_registry_allocate_token_new_with_unamb(void) {
 static void test_registry_allocate_token_new_default_unamb(void) {
     HTokenType id = h_allocate_token_new("test.registry.default_unamb", NULL, NULL);
     g_check_cmp_int(id, >=, TT_USER);
-    
+
     const HTTEntry *entry = h_get_token_type_entry(id);
     g_check_cmp_ptr(entry, !=, NULL);
     if (entry) {
@@ -40,16 +40,16 @@ static void test_registry_allocate_token_duplicate(void) {
 
 static void test_registry_get_token_type_entry(void) {
     HTokenType id = h_allocate_token_type("test.registry.entry");
-    
+
     const HTTEntry *entry = h_get_token_type_entry(id);
     g_check_cmp_ptr(entry, !=, NULL);
     if (entry) {
         g_check_string(entry->name, ==, "test.registry.entry");
     }
-    
+
     const HTTEntry *invalid = h_get_token_type_entry(0);
     g_check_cmp_ptr(invalid, ==, NULL);
-    
+
     const HTTEntry *out_of_range = h_get_token_type_entry((HTokenType)99999);
     g_check_cmp_ptr(out_of_range, ==, NULL);
 }
@@ -68,7 +68,7 @@ static void test_registry_get_token_type_name_valid(void) {
 static void test_registry_get_token_type_name_invalid(void) {
     const char *name = h_get_token_type_name(TT_INVALID);
     g_check_cmp_ptr(name, ==, NULL);
-    
+
     const char *name2 = h_get_token_type_name((HTokenType)99999);
     g_check_cmp_ptr(name2, ==, NULL);
 }
@@ -100,15 +100,25 @@ static void test_registry_allocate_token_new_realloc_path(void) {
 }
 
 void register_registry_tests(void) {
-    g_test_add_func("/core/registry/allocate_token_new_with_unamb", test_registry_allocate_token_new_with_unamb);
-    g_test_add_func("/core/registry/allocate_token_new_default_unamb", test_registry_allocate_token_new_default_unamb);
-    g_test_add_func("/core/registry/allocate_token_duplicate", test_registry_allocate_token_duplicate);
+    g_test_add_func("/core/registry/allocate_token_new_with_unamb",
+                    test_registry_allocate_token_new_with_unamb);
+    g_test_add_func("/core/registry/allocate_token_new_default_unamb",
+                    test_registry_allocate_token_new_default_unamb);
+    g_test_add_func("/core/registry/allocate_token_duplicate",
+                    test_registry_allocate_token_duplicate);
     g_test_add_func("/core/registry/get_token_type_entry", test_registry_get_token_type_entry);
-    g_test_add_func("/core/registry/get_token_type_entry_invalid", test_registry_get_token_type_entry_invalid);
-    g_test_add_func("/core/registry/get_token_type_name_valid", test_registry_get_token_type_name_valid);
-    g_test_add_func("/core/registry/get_token_type_name_invalid", test_registry_get_token_type_name_invalid);
-    g_test_add_func("/core/registry/get_token_type_number_existing", test_registry_get_token_type_number_existing);
-    g_test_add_func("/core/registry/get_token_type_number_nonexisting", test_registry_get_token_type_number_nonexisting);
-    g_test_add_func("/core/registry/allocate_token_new_initial_allocation", test_registry_allocate_token_new_initial_allocation);
-    g_test_add_func("/core/registry/allocate_token_new_realloc_path", test_registry_allocate_token_new_realloc_path);
+    g_test_add_func("/core/registry/get_token_type_entry_invalid",
+                    test_registry_get_token_type_entry_invalid);
+    g_test_add_func("/core/registry/get_token_type_name_valid",
+                    test_registry_get_token_type_name_valid);
+    g_test_add_func("/core/registry/get_token_type_name_invalid",
+                    test_registry_get_token_type_name_invalid);
+    g_test_add_func("/core/registry/get_token_type_number_existing",
+                    test_registry_get_token_type_number_existing);
+    g_test_add_func("/core/registry/get_token_type_number_nonexisting",
+                    test_registry_get_token_type_number_nonexisting);
+    g_test_add_func("/core/registry/allocate_token_new_initial_allocation",
+                    test_registry_allocate_token_new_initial_allocation);
+    g_test_add_func("/core/registry/allocate_token_new_realloc_path",
+                    test_registry_allocate_token_new_realloc_path);
 }

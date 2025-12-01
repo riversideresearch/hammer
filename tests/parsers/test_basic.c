@@ -84,5 +84,3 @@ void register_basic_parser_tests(void) {
     g_test_add_data_func("/core/parser/packrat/bits", GINT_TO_POINTER(PB_PACKRAT), test_bits);
     g_test_add_data_func("/core/parser/packrat/bytes", GINT_TO_POINTER(PB_PACKRAT), test_bytes);
 }
-
-

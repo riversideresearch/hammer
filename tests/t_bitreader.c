@@ -6,7 +6,10 @@
 #include <stdint.h>
 
 #define MK_INPUT_STREAM(buf, len, endianness_)                                                     \
-    {.input = (uint8_t *)buf, .length = len, .index = 0, .bit_offset = 0, .endianness = endianness_}
+    {                                                                                              \
+        .input = (uint8_t *)buf, .length = len, .index = 0, .bit_offset = 0,                       \
+        .endianness = endianness_                                                                  \
+    }
 
 static void test_bitreader_ints(void) {
     HInputStream is =
@@ -20,6 +23,7 @@ static void test_bitreader_be(void) {
     g_check_cmp_int32(h_read_bits(&is, 8, false), ==, 0x52);
     g_check_cmp_int32(h_read_bits(&is, 5, false), ==, 0x1A);
 }
+
 static void test_bitreader_le(void) {
     HInputStream is = MK_INPUT_STREAM("\x6A\x5A", 2, BIT_LITTLE_ENDIAN | BYTE_LITTLE_ENDIAN);
     g_check_cmp_int32(h_read_bits(&is, 3, false), ==, 0x02);
@@ -214,8 +218,10 @@ void register_bitreader_tests(void) {
     g_test_add_func("/core/bitreader/signed", test_read_bits_signed);
     g_test_add_func("/core/bitreader/margin", test_read_bits_margin);
     g_test_add_func("/core/bitreader/fast_path", test_read_bits_fast_path);
-    g_test_add_func("/core/bitreader/bit_big_endian_partial", test_read_bits_bit_big_endian_partial);
-    g_test_add_func("/core/bitreader/bit_little_endian_partial", test_read_bits_bit_little_endian_partial);
+    g_test_add_func("/core/bitreader/bit_big_endian_partial",
+                    test_read_bits_bit_big_endian_partial);
+    g_test_add_func("/core/bitreader/bit_little_endian_partial",
+                    test_read_bits_bit_little_endian_partial);
     g_test_add_func("/core/bitreader/skip_zero", test_skip_bits_zero);
     g_test_add_func("/core/bitreader/skip_overrun", test_skip_bits_overrun);
     g_test_add_func("/core/bitreader/skip_at_end", test_skip_bits_at_end);
@@ -228,3 +234,4 @@ void register_bitreader_tests(void) {
     g_test_add_func("/core/bitreader/byte_le_fast_path", test_read_bits_byte_le_fast_path);
     g_test_add_func("/core/bitreader/byte_le_slow_path", test_read_bits_byte_le_slow_path);
 }
+

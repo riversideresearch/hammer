@@ -1,11 +1,10 @@
-#include "hammer.h"
+#include "../../src/parsers/parser_internal.h"
 #include "glue.h"
+#include "hammer.h"
 #include "internal.h"
 #include "test_suite.h"
 
 #include <glib.h>
-
-#include "../../src/parsers/parser_internal.h"
 
 // Test parser_internal.h: token_length with NULL (line 29)
 static void test_token_length_null(gconstpointer backend) {

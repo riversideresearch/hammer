@@ -3,9 +3,9 @@
 #include "internal.h"
 #include "test_suite.h"
 
+#include <ctype.h>
 #include <glib.h>
 #include <stdio.h>
-#include <ctype.h>
 
 // Test cfgrammar.c: h_cfgrammar with NULL parser (line 64)
 // Note: This will segfault if NULL parser is dereferenced, so we skip this test
@@ -20,7 +20,7 @@ static void test_cfgrammar_invalid_cf(void) {
     // This tests the isValidCF check
     HParser *p = h_ch('a');
     h_compile(p, PB_PACKRAT, NULL);
-    
+
     // If the parser's backend doesn't support CF, this should return NULL
     // Note: PB_PACKRAT should support CF, so this might not return NULL
     // But we test the branch anyway
@@ -36,7 +36,7 @@ static void test_cfgrammar_terminal(void) {
     HParser *p = h_ch('a');
     h_compile(p, PB_PACKRAT, NULL);
     HCFChoice *desugared = h_desugar(&system_allocator, NULL, p);
-    
+
     if (desugared) {
         HCFGrammar *g = h_cfgrammar_(&system_allocator, desugared);
         g_check_cmp_ptr(g, !=, NULL);
@@ -67,7 +67,7 @@ static void test_derives_epsilon_terminal(void) {
     HParser *p = h_ch('a');
     h_compile(p, PB_PACKRAT, NULL);
     HCFGrammar *g = h_cfgrammar(&system_allocator, p);
-    
+
     if (g) {
         HCFChoice *desugared = h_desugar(&system_allocator, NULL, p);
         if (desugared) {
@@ -83,7 +83,7 @@ static void test_derives_epsilon_end(void) {
     HParser *p = h_end_p();
     h_compile(p, PB_PACKRAT, NULL);
     HCFGrammar *g = h_cfgrammar(&system_allocator, p);
-    
+
     if (g) {
         HCFChoice *desugared = h_desugar(&system_allocator, NULL, p);
         if (desugared) {
@@ -99,7 +99,7 @@ static void test_derives_epsilon_charset(void) {
     HParser *p = h_ch_range('a', 'c');
     h_compile(p, PB_PACKRAT, NULL);
     HCFGrammar *g = h_cfgrammar(&system_allocator, p);
-    
+
     if (g) {
         HCFChoice *desugared = h_desugar(&system_allocator, NULL, p);
         if (desugared) {
@@ -116,7 +116,7 @@ static void test_derives_epsilon_seq_empty(void) {
     HParser *p = h_epsilon_p();
     h_compile(p, PB_PACKRAT, NULL);
     HCFGrammar *g = h_cfgrammar(mm__, p);
-    
+
     if (g) {
         // Test with empty sequence (NULL-terminated array with NULL as first element)
         // Empty sequence derives epsilon
@@ -134,7 +134,7 @@ static void test_derives_epsilon_seq_nonempty(void) {
     HParser *p = h_many(h_ch('a'));
     h_compile(p, PB_PACKRAT, NULL);
     HCFGrammar *g = h_cfgrammar(&system_allocator, p);
-    
+
     if (g) {
         HCFChoice *desugared = h_desugar(&system_allocator, NULL, p);
         if (desugared && desugared->type == HCF_CHOICE && desugared->seq && desugared->seq[0]) {
@@ -187,7 +187,7 @@ static void test_stringmap_put_char(void) {
     HStringMap *m = h_stringmap_new(arena);
     void *value = (void *)0x9ABC;
     h_stringmap_put_char(m, 'x', value);
-    
+
     HStringMap *node = h_stringmap_get_char(m, 'x');
     g_check_cmp_ptr(node, !=, NULL);
     if (node) {
@@ -200,14 +200,14 @@ static void test_stringmap_put_char(void) {
 static void test_stringmap_present_epsilon(void) {
     HArena *arena = h_new_arena(&system_allocator, 0);
     HStringMap *m = h_stringmap_new(arena);
-    
+
     bool result = h_stringmap_present_epsilon(m);
     g_check_cmp_int(result, ==, false);
-    
+
     h_stringmap_put_epsilon(m, (void *)0x1234);
     result = h_stringmap_present_epsilon(m);
     g_check_cmp_int(result, ==, true);
-    
+
     h_delete_arena(arena);
 }
 
@@ -215,14 +215,14 @@ static void test_stringmap_present_epsilon(void) {
 static void test_stringmap_empty(void) {
     HArena *arena = h_new_arena(&system_allocator, 0);
     HStringMap *m = h_stringmap_new(arena);
-    
+
     bool result = h_stringmap_empty(m);
     g_check_cmp_int(result, ==, true);
-    
+
     h_stringmap_put_epsilon(m, (void *)0x1234);
     result = h_stringmap_empty(m);
     g_check_cmp_int(result, ==, false);
-    
+
     h_delete_arena(arena);
 }
 
@@ -231,11 +231,11 @@ static void test_stringmap_replace_null_old(void) {
     HArena *arena = h_new_arena(&system_allocator, 0);
     HStringMap *m = h_stringmap_new(arena);
     void *new_val = (void *)0x1234;
-    
+
     h_stringmap_put_epsilon(m, (void *)0x5678);
     h_stringmap_replace(m, NULL, new_val);
     g_check_cmp_ptr(m->epsilon_branch, ==, new_val);
-    
+
     h_delete_arena(arena);
 }
 
@@ -245,11 +245,11 @@ static void test_stringmap_replace_specific_old(void) {
     HStringMap *m = h_stringmap_new(arena);
     void *old_val = (void *)0x1234;
     void *new_val = (void *)0x5678;
-    
+
     h_stringmap_put_epsilon(m, old_val);
     h_stringmap_replace(m, old_val, new_val);
     g_check_cmp_ptr(m->epsilon_branch, ==, new_val);
-    
+
     h_delete_arena(arena);
 }
 
@@ -258,14 +258,14 @@ static void test_stringmap_update(void) {
     HArena *arena = h_new_arena(&system_allocator, 0);
     HStringMap *m1 = h_stringmap_new(arena);
     HStringMap *m2 = h_stringmap_new(arena);
-    
+
     h_stringmap_put_epsilon(m2, (void *)0x1234);
     h_stringmap_put_end(m2, (void *)0x5678);
-    
+
     h_stringmap_update(m1, m2);
     g_check_cmp_ptr(m1->epsilon_branch, ==, m2->epsilon_branch);
     g_check_cmp_ptr(m1->end_branch, ==, m2->end_branch);
-    
+
     h_delete_arena(arena);
 }
 
@@ -275,14 +275,14 @@ static void test_stringmap_copy(void) {
     HStringMap *m = h_stringmap_new(arena);
     h_stringmap_put_epsilon(m, (void *)0x1234);
     h_stringmap_put_end(m, (void *)0x5678);
-    
+
     HStringMap *copy = h_stringmap_copy(arena, m);
     g_check_cmp_ptr(copy, !=, NULL);
     if (copy) {
         g_check_cmp_ptr(copy->epsilon_branch, ==, m->epsilon_branch);
         g_check_cmp_ptr(copy->end_branch, ==, m->end_branch);
     }
-    
+
     h_delete_arena(arena);
 }
 
@@ -292,11 +292,11 @@ static void test_stringmap_put_after(void) {
     HStringMap *m = h_stringmap_new(arena);
     HStringMap *ends = h_stringmap_new(arena);
     h_stringmap_put_epsilon(ends, (void *)0x1234);
-    
+
     h_stringmap_put_after(m, 'x', ends);
     HStringMap *node = h_stringmap_get_char(m, 'x');
     g_check_cmp_ptr(node, ==, ends);
-    
+
     h_delete_arena(arena);
 }
 
@@ -305,10 +305,10 @@ static void test_stringmap_present(void) {
     HArena *arena = h_new_arena(&system_allocator, 0);
     HStringMap *m = h_stringmap_new(arena);
     const uint8_t str[] = {'a', 'b', 'c'};
-    
+
     bool result = h_stringmap_present(m, str, 3, false);
     g_check_cmp_int(result, ==, false);
-    
+
     h_stringmap_put_char(m, 'a', (void *)0x1234);
     HStringMap *node = h_stringmap_get_char(m, 'a');
     if (node) {
@@ -318,10 +318,10 @@ static void test_stringmap_present(void) {
             h_stringmap_put_char(node2, 'c', (void *)0x9ABC);
         }
     }
-    
+
     result = h_stringmap_present(m, str, 3, false);
     g_check_cmp_int(result, ==, true);
-    
+
     h_delete_arena(arena);
 }
 
@@ -330,7 +330,7 @@ static void test_first_k_zero(void) {
     HParser *p = h_ch('a');
     h_compile(p, PB_PACKRAT, NULL);
     HCFGrammar *g = h_cfgrammar(&system_allocator, p);
-    
+
     if (g) {
         HCFChoice *desugared = h_desugar(&system_allocator, NULL, p);
         if (desugared) {
@@ -347,7 +347,7 @@ static void test_follow_k_zero(void) {
     HParser *p = h_sequence(h_ch('a'), h_ch('b'), NULL);
     h_compile(p, PB_PACKRAT, NULL);
     HCFGrammar *g = h_cfgrammar(&system_allocator, p);
-    
+
     if (g) {
         HCFChoice *desugared = h_desugar(&system_allocator, NULL, p);
         if (desugared) {
@@ -366,12 +366,12 @@ static void test_mentions_symbol(void) {
     HParser *p = h_sequence(p1, p2, NULL);
     h_compile(p, PB_PACKRAT, NULL);
     HCFGrammar *g = h_cfgrammar(&system_allocator, p);
-    
+
     if (g) {
         HCFChoice *desugared = h_desugar(&system_allocator, NULL, p);
         HCFChoice *desugared1 = h_desugar(&system_allocator, NULL, p1);
         HCFChoice *desugared2 = h_desugar(&system_allocator, NULL, p2);
-        
+
         if (desugared && desugared->type == HCF_CHOICE && desugared->seq && desugared->seq[0]) {
             // Test that mentions_symbol finds p1 in the sequence
             // This is tested indirectly through remove_productions_with
@@ -389,7 +389,7 @@ static void test_eliminate_dead_rules(void) {
     HParser *p = h_sequence(h_ch('a'), h_ch('b'), NULL);
     h_compile(p, PB_PACKRAT, NULL);
     h_compile(dead, PB_PACKRAT, NULL);
-    
+
     HCFGrammar *g = h_cfgrammar(&system_allocator, p);
     // eliminate_dead_rules is called during h_cfgrammar_ construction
     if (g) {
@@ -403,11 +403,11 @@ static void test_eliminate_dead_rules(void) {
 static void test_stringmap_get_lookahead(void) {
     HArena *arena = h_new_arena(&system_allocator, 0);
     HStringMap *m = h_stringmap_new(arena);
-    
+
     // Test epsilon_branch path
     void *value = (void *)0x1234;
     h_stringmap_put_epsilon(m, value);
-    
+
     // Create a simple input stream for lookahead
     const uint8_t input[] = {'a'};
     HInputStream lookahead;
@@ -420,15 +420,15 @@ static void test_stringmap_get_lookahead(void) {
     lookahead.endianness = 0;
     lookahead.overrun = false;
     lookahead.last_chunk = true;
-    
+
     void *result = h_stringmap_get_lookahead(m, lookahead);
     g_check_cmp_ptr(result, ==, value);
-    
+
     // Test end_branch path
     HStringMap *m2 = h_stringmap_new(arena);
     void *end_value = (void *)0x5678;
     h_stringmap_put_end(m2, end_value);
-    
+
     HInputStream lookahead2;
     lookahead2.input = input;
     lookahead2.pos = 0;
@@ -439,14 +439,14 @@ static void test_stringmap_get_lookahead(void) {
     lookahead2.endianness = 0;
     lookahead2.overrun = true;
     lookahead2.last_chunk = true;
-    
+
     result = h_stringmap_get_lookahead(m2, lookahead2);
     g_check_cmp_ptr(result, ==, end_value);
-    
+
     // Test NEED_INPUT path
     HStringMap *m3 = h_stringmap_new(arena);
     h_stringmap_put_char(m3, 'a', (void *)0x9ABC);
-    
+
     HInputStream lookahead3;
     lookahead3.input = input;
     lookahead3.pos = 0;
@@ -457,10 +457,10 @@ static void test_stringmap_get_lookahead(void) {
     lookahead3.endianness = 0;
     lookahead3.overrun = true;
     lookahead3.last_chunk = false;
-    
+
     result = h_stringmap_get_lookahead(m3, lookahead3);
     g_check_cmp_ptr(result, ==, NEED_INPUT);
-    
+
     // Test NULL return path
     HStringMap *m4 = h_stringmap_new(arena);
     HInputStream lookahead4;
@@ -473,10 +473,10 @@ static void test_stringmap_get_lookahead(void) {
     lookahead4.endianness = 0;
     lookahead4.overrun = false;
     lookahead4.last_chunk = true;
-    
+
     result = h_stringmap_get_lookahead(m4, lookahead4);
     g_check_cmp_ptr(result, ==, NULL);
-    
+
     h_delete_arena(arena);
 }
 
@@ -485,21 +485,21 @@ static void test_stringmap_equal(void) {
     HArena *arena = h_new_arena(&system_allocator, 0);
     HStringMap *m1 = h_stringmap_new(arena);
     HStringMap *m2 = h_stringmap_new(arena);
-    
+
     // Test equal maps
     h_stringmap_put_epsilon(m1, (void *)0x1234);
     h_stringmap_put_epsilon(m2, (void *)0x1234);
     h_stringmap_put_end(m1, (void *)0x5678);
     h_stringmap_put_end(m2, (void *)0x5678);
-    
+
     bool result = h_stringmap_equal(m1, m2);
     g_check_cmp_int(result, ==, true);
-    
+
     // Test unequal maps
     h_stringmap_put_epsilon(m2, (void *)0x9999);
     result = h_stringmap_equal(m1, m2);
     g_check_cmp_int(result, ==, false);
-    
+
     h_delete_arena(arena);
 }
 
@@ -508,7 +508,7 @@ static void test_predict(void) {
     HParser *p = h_sequence(h_ch('a'), h_ch('b'), NULL);
     h_compile(p, PB_PACKRAT, NULL);
     HCFGrammar *g = h_cfgrammar(&system_allocator, p);
-    
+
     if (g) {
         HCFChoice *desugared = h_desugar(&system_allocator, NULL, p);
         if (desugared && desugared->type == HCF_CHOICE && desugared->seq && desugared->seq[0]) {
@@ -525,7 +525,7 @@ static void test_follow_via_predict(void) {
     HParser *p = h_sequence(h_ch('a'), h_ch('b'), NULL);
     h_compile(p, PB_PACKRAT, NULL);
     HCFGrammar *g = h_cfgrammar(&system_allocator, p);
-    
+
     if (g) {
         HCFChoice *desugared = h_desugar(&system_allocator, NULL, p);
         if (desugared && desugared->type == HCF_CHOICE && desugared->seq && desugared->seq[0]) {
@@ -540,8 +540,9 @@ static void test_follow_via_predict(void) {
 // Test cfgrammar.c: h_pprint_char (line 833) - all cases
 static void test_pprint_char(void) {
     FILE *f = tmpfile();
-    if (!f) return;
-    
+    if (!f)
+        return;
+
     // Test special characters
     h_pprint_char(f, '"');
     h_pprint_char(f, '\\');
@@ -549,13 +550,13 @@ static void test_pprint_char(void) {
     h_pprint_char(f, '\t');
     h_pprint_char(f, '\n');
     h_pprint_char(f, '\r');
-    
+
     // Test printable character
     h_pprint_char(f, 'a');
-    
+
     // Test non-printable character (default case)
     h_pprint_char(f, 0x01);
-    
+
     fclose(f);
     g_check_cmp_int(1, ==, 1); // Test that it doesn't crash
 }
@@ -563,12 +564,13 @@ static void test_pprint_char(void) {
 // Test cfgrammar.c: pprint_charset_char (line 862)
 static void test_pprint_charset_char(void) {
     FILE *f = tmpfile();
-    if (!f) return;
-    
+    if (!f)
+        return;
+
     HParser *p = h_ch_range('a', 'z');
     h_compile(p, PB_PACKRAT, NULL);
     HCFGrammar *g = h_cfgrammar(&system_allocator, p);
-    
+
     if (g) {
         HCFChoice *desugared = h_desugar(&system_allocator, NULL, p);
         if (desugared && desugared->type == HCF_CHARSET) {
@@ -577,19 +579,20 @@ static void test_pprint_charset_char(void) {
         }
         h_cfgrammar_free(g);
     }
-    
+
     fclose(f);
 }
 
 // Test cfgrammar.c: pprint_charset (line 878)
 static void test_pprint_charset(void) {
     FILE *f = tmpfile();
-    if (!f) return;
-    
+    if (!f)
+        return;
+
     HParser *p = h_ch_range('a', 'c');
     h_compile(p, PB_PACKRAT, NULL);
     HCFGrammar *g = h_cfgrammar(&system_allocator, p);
-    
+
     if (g) {
         HCFChoice *desugared = h_desugar(&system_allocator, NULL, p);
         if (desugared) {
@@ -597,7 +600,7 @@ static void test_pprint_charset(void) {
         }
         h_cfgrammar_free(g);
     }
-    
+
     fclose(f);
 }
 
@@ -606,7 +609,7 @@ static void test_nonterminal_name(void) {
     HParser *p = h_sequence(h_ch('a'), h_ch('b'), NULL);
     h_compile(p, PB_PACKRAT, NULL);
     HCFGrammar *g = h_cfgrammar(&system_allocator, p);
-    
+
     if (g) {
         // nonterminal_name is called via h_pprint_symbol for HCF_CHOICE
         FILE *f = tmpfile();
@@ -624,12 +627,13 @@ static void test_nonterminal_name(void) {
 // Test cfgrammar.c: pprint_string (line 915)
 static void test_pprint_string(void) {
     FILE *f = tmpfile();
-    if (!f) return;
-    
+    if (!f)
+        return;
+
     HParser *p = h_sequence(h_ch('a'), h_ch('b'), h_ch('c'), NULL);
     h_compile(p, PB_PACKRAT, NULL);
     HCFGrammar *g = h_cfgrammar(&system_allocator, p);
-    
+
     if (g) {
         // pprint_string is called via h_pprint_sequence for CHAR sequences
         HCFChoice *desugared = h_desugar(&system_allocator, NULL, p);
@@ -638,63 +642,69 @@ static void test_pprint_string(void) {
         }
         h_cfgrammar_free(g);
     }
-    
+
     fclose(f);
 }
 
 // Test cfgrammar.c: h_pprint_symbol (line 927) - all types
 static void test_pprint_symbol(void) {
     FILE *f = tmpfile();
-    if (!f) return;
-    
+    if (!f)
+        return;
+
     // Test HCF_CHAR
     HParser *p1 = h_ch('a');
     h_compile(p1, PB_PACKRAT, NULL);
     HCFGrammar *g1 = h_cfgrammar(&system_allocator, p1);
     if (g1) {
         HCFChoice *d1 = h_desugar(&system_allocator, NULL, p1);
-        if (d1) h_pprint_symbol(f, g1, d1);
+        if (d1)
+            h_pprint_symbol(f, g1, d1);
         h_cfgrammar_free(g1);
     }
-    
+
     // Test HCF_END
     HParser *p2 = h_end_p();
     h_compile(p2, PB_PACKRAT, NULL);
     HCFGrammar *g2 = h_cfgrammar(&system_allocator, p2);
     if (g2) {
         HCFChoice *d2 = h_desugar(&system_allocator, NULL, p2);
-        if (d2) h_pprint_symbol(f, g2, d2);
+        if (d2)
+            h_pprint_symbol(f, g2, d2);
         h_cfgrammar_free(g2);
     }
-    
+
     // Test HCF_CHARSET
     HParser *p3 = h_ch_range('a', 'z');
     h_compile(p3, PB_PACKRAT, NULL);
     HCFGrammar *g3 = h_cfgrammar(&system_allocator, p3);
     if (g3) {
         HCFChoice *d3 = h_desugar(&system_allocator, NULL, p3);
-        if (d3) h_pprint_symbol(f, g3, d3);
+        if (d3)
+            h_pprint_symbol(f, g3, d3);
         h_cfgrammar_free(g3);
     }
-    
+
     // Test HCF_CHOICE (default case)
     HParser *p4 = h_choice(h_ch('a'), h_ch('b'), NULL);
     h_compile(p4, PB_PACKRAT, NULL);
     HCFGrammar *g4 = h_cfgrammar(&system_allocator, p4);
     if (g4) {
         HCFChoice *d4 = h_desugar(&system_allocator, NULL, p4);
-        if (d4) h_pprint_symbol(f, g4, d4);
+        if (d4)
+            h_pprint_symbol(f, g4, d4);
         h_cfgrammar_free(g4);
     }
-    
+
     fclose(f);
 }
 
 // Test cfgrammar.c: h_pprint_sequence (line 945)
 static void test_pprint_sequence(void) {
     FILE *f = tmpfile();
-    if (!f) return;
-    
+    if (!f)
+        return;
+
     // Test empty sequence
     HParser *p1 = h_epsilon_p();
     h_compile(p1, PB_PACKRAT, NULL);
@@ -706,7 +716,7 @@ static void test_pprint_sequence(void) {
         }
         h_cfgrammar_free(g1);
     }
-    
+
     // Test non-empty sequence
     HParser *p2 = h_sequence(h_ch('a'), h_ch('b'), NULL);
     h_compile(p2, PB_PACKRAT, NULL);
@@ -718,15 +728,16 @@ static void test_pprint_sequence(void) {
         }
         h_cfgrammar_free(g2);
     }
-    
+
     fclose(f);
 }
 
 // Test cfgrammar.c: pprint_ntrules (line 973)
 static void test_pprint_ntrules(void) {
     FILE *f = tmpfile();
-    if (!f) return;
-    
+    if (!f)
+        return;
+
     // Test with empty choice (h_nothing_p)
     HParser *p1 = h_nothing_p();
     h_compile(p1, PB_PACKRAT, NULL);
@@ -735,7 +746,7 @@ static void test_pprint_ntrules(void) {
         h_pprint_grammar(f, g1, 0);
         h_cfgrammar_free(g1);
     }
-    
+
     // Test with multiple productions
     HParser *p2 = h_choice(h_ch('a'), h_ch('b'), NULL);
     h_compile(p2, PB_PACKRAT, NULL);
@@ -744,22 +755,23 @@ static void test_pprint_ntrules(void) {
         h_pprint_grammar(f, g2, 0);
         h_cfgrammar_free(g2);
     }
-    
+
     fclose(f);
 }
 
 // Test cfgrammar.c: h_pprint_grammar (line 1004)
 static void test_pprint_grammar(void) {
     FILE *f = tmpfile();
-    if (!f) return;
-    
+    if (!f)
+        return;
+
     // Test with empty grammar (should return early)
     HCFGrammar *g_empty = h_cfgrammar_new(&system_allocator);
     if (g_empty) {
         h_pprint_grammar(f, g_empty, 0);
         h_cfgrammar_free(g_empty);
     }
-    
+
     // Test with non-empty grammar
     HParser *p = h_sequence(h_ch('a'), h_ch('b'), NULL);
     h_compile(p, PB_PACKRAT, NULL);
@@ -768,41 +780,43 @@ static void test_pprint_grammar(void) {
         h_pprint_grammar(f, g, 0);
         h_cfgrammar_free(g);
     }
-    
+
     fclose(f);
 }
 
 // Test cfgrammar.c: h_pprint_symbolset (line 1041)
 static void test_pprint_symbolset(void) {
     FILE *f = tmpfile();
-    if (!f) return;
-    
+    if (!f)
+        return;
+
     HParser *p = h_choice(h_ch('a'), h_ch('b'), NULL);
     h_compile(p, PB_PACKRAT, NULL);
     HCFGrammar *g = h_cfgrammar(&system_allocator, p);
-    
+
     if (g) {
         h_pprint_symbolset(f, g, g->nts, 0);
         h_cfgrammar_free(g);
     }
-    
+
     fclose(f);
 }
 
 // Test cfgrammar.c: pprint_stringmap_elems (line 1072)
 static void test_pprint_stringmap_elems(void) {
     FILE *f = tmpfile();
-    if (!f) return;
-    
+    if (!f)
+        return;
+
     HArena *arena = h_new_arena(&system_allocator, 0);
     HStringMap *m = h_stringmap_new(arena);
-    
+
     // Test epsilon_branch
     h_stringmap_put_epsilon(m, (void *)0x1234);
-    
+
     // Test end_branch
     h_stringmap_put_end(m, (void *)0x5678);
-    
+
     // Test char_branches with special characters
     h_stringmap_put_char(m, '$', (void *)0x9ABC);
     h_stringmap_put_char(m, '"', (void *)0xDEF0);
@@ -813,10 +827,10 @@ static void test_pprint_stringmap_elems(void) {
     h_stringmap_put_char(m, '\r', (void *)0x5555);
     h_stringmap_put_char(m, 'a', (void *)0x6666);
     h_stringmap_put_char(m, 0x01, (void *)0x7777); // non-printable
-    
+
     // pprint_stringmap_elems is called via h_pprint_stringmap
     h_pprint_stringmap(f, ',', NULL, NULL, m);
-    
+
     h_delete_arena(arena);
     fclose(f);
 }
@@ -824,16 +838,17 @@ static void test_pprint_stringmap_elems(void) {
 // Test cfgrammar.c: h_pprint_stringmap (line 1173)
 static void test_pprint_stringmap(void) {
     FILE *f = tmpfile();
-    if (!f) return;
-    
+    if (!f)
+        return;
+
     HArena *arena = h_new_arena(&system_allocator, 0);
     HStringMap *m = h_stringmap_new(arena);
     h_stringmap_put_epsilon(m, (void *)0x1234);
     h_stringmap_put_end(m, (void *)0x5678);
     h_stringmap_put_char(m, 'a', (void *)0x9ABC);
-    
+
     h_pprint_stringmap(f, ',', NULL, NULL, m);
-    
+
     h_delete_arena(arena);
     fclose(f);
 }
@@ -841,16 +856,17 @@ static void test_pprint_stringmap(void) {
 // Test cfgrammar.c: h_pprint_stringset (line 1179)
 static void test_pprint_stringset(void) {
     FILE *f = tmpfile();
-    if (!f) return;
-    
+    if (!f)
+        return;
+
     HArena *arena = h_new_arena(&system_allocator, 0);
     HStringMap *m = h_stringmap_new(arena);
     h_stringmap_put_epsilon(m, (void *)0x1234);
     h_stringmap_put_end(m, (void *)0x5678);
     h_stringmap_put_char(m, 'a', (void *)0x9ABC);
-    
+
     h_pprint_stringset(f, m, 0);
-    
+
     h_delete_arena(arena);
     fclose(f);
 }
@@ -864,7 +880,8 @@ void register_cfgrammar_tests(void) {
     g_test_add_func("/core/cfgrammar/derives_epsilon_end", test_derives_epsilon_end);
     g_test_add_func("/core/cfgrammar/derives_epsilon_charset", test_derives_epsilon_charset);
     g_test_add_func("/core/cfgrammar/derives_epsilon_seq_empty", test_derives_epsilon_seq_empty);
-    g_test_add_func("/core/cfgrammar/derives_epsilon_seq_nonempty", test_derives_epsilon_seq_nonempty);
+    g_test_add_func("/core/cfgrammar/derives_epsilon_seq_nonempty",
+                    test_derives_epsilon_seq_nonempty);
     g_test_add_func("/core/cfgrammar/stringmap_new", test_stringmap_new);
     g_test_add_func("/core/cfgrammar/stringmap_put_end", test_stringmap_put_end);
     g_test_add_func("/core/cfgrammar/stringmap_put_epsilon", test_stringmap_put_epsilon);
@@ -874,7 +891,8 @@ void register_cfgrammar_tests(void) {
     g_test_add_func("/core/cfgrammar/stringmap_present", test_stringmap_present);
     g_test_add_func("/core/cfgrammar/stringmap_empty", test_stringmap_empty);
     g_test_add_func("/core/cfgrammar/stringmap_replace_null_old", test_stringmap_replace_null_old);
-    g_test_add_func("/core/cfgrammar/stringmap_replace_specific_old", test_stringmap_replace_specific_old);
+    g_test_add_func("/core/cfgrammar/stringmap_replace_specific_old",
+                    test_stringmap_replace_specific_old);
     g_test_add_func("/core/cfgrammar/stringmap_update", test_stringmap_update);
     g_test_add_func("/core/cfgrammar/stringmap_copy", test_stringmap_copy);
     g_test_add_func("/core/cfgrammar/first_k_zero", test_first_k_zero);

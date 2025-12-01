@@ -1,5 +1,5 @@
-#include "hammer.h"
 #include "glue.h"
+#include "hammer.h"
 #include "internal.h"
 #include "test_suite.h"
 

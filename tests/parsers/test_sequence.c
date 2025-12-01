@@ -1,11 +1,12 @@
-#include "hammer.h"
 #include "glue.h"
+#include "hammer.h"
 #include "internal.h"
 #include "test_suite.h"
 
 #include <glib.h>
 #include <stdarg.h>
 
+// Helper function for sequence tests
 static HParser *simple_bind_cont(HAllocator *mm__, const HParsedToken *token, void *user_data) {
     (void)mm__;
     (void)user_data;
@@ -187,10 +188,10 @@ static void test_drop_from_ma(gconstpointer backend) {
 }
 
 void register_sequence_tests(void) {
-    g_test_add_data_func("/core/parser/packrat/sequence_isValidRegular", GINT_TO_POINTER(PB_PACKRAT),
-                         test_sequence_isValidRegular);
-    g_test_add_data_func("/core/parser/packrat/sequence_isValidCF_false", GINT_TO_POINTER(PB_PACKRAT),
-                         test_sequence_isValidCF_false);
+    g_test_add_data_func("/core/parser/packrat/sequence_isValidRegular",
+                         GINT_TO_POINTER(PB_PACKRAT), test_sequence_isValidRegular);
+    g_test_add_data_func("/core/parser/packrat/sequence_isValidCF_false",
+                         GINT_TO_POINTER(PB_PACKRAT), test_sequence_isValidCF_false);
     g_test_add_data_func("/core/parser/packrat/reshape_sequence", GINT_TO_POINTER(PB_PACKRAT),
                          test_reshape_sequence);
     g_test_add_data_func("/core/parser/packrat/sequence_m", GINT_TO_POINTER(PB_PACKRAT),
