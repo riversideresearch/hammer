@@ -1,5 +1,5 @@
 /* Internals for Hammer.
- * Copyright (c) 2025 Riverside Research
+ * Copyright (c) 2026 Riverside Research
  * Copyright (C) 2012  Meredith L. Patterson, Dan "TQ" Hirsch
  *
  * This program is free software; you can redistribute it and/or
