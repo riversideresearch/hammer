@@ -1,5 +1,4 @@
-NOTES
-=====
+# NOTES
 
 Regarding parse_result_t:
 If a parse fails, the parse_result_t will be NULL.
@@ -9,7 +8,6 @@ Regarding input location:
 If parse is successful, input is left at beginning of next thing to be read.
 If parse fails, location is UNPREDICTABLE.
 
-
 If CONSISTENCY_CHECK is defined, enable a bunch of additional internal
 consistency checks.
 
@@ -18,7 +16,6 @@ TODO: Add consistency check to the bitreader
 TODO: We should support the use of parse-table-based parse methods; add a
       parse_compile method that must be called before the newly-created
       parser is used.
-
 
 Regarding butnot and difference:
 
@@ -31,7 +28,6 @@ stop, returning the result of p2 if p2's result is shorter than p1's
 or the result of p1 otherwise, though the comments say it should
 succeed if p2's result is shorter than p1's. Whatever; we're doing
 what the comments say.
-
 
 TODO: implement datastructure linearization func
 TODO: implement free func for parsers
