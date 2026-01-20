@@ -69,9 +69,13 @@ Just `#include <hammer/hammer.h>` (also `#include <hammer/glue.h>` if you plan t
 
 If you've installed Hammer system-wide, you can use `pkg-config` in the usual way.
 
-To learn about hammer check
+## Documentation
 
-* the [user guide](https://github.com/UpstandingHackers/hammer/wiki/User-guide)
+* [User Guide](docs/User-guide.md)
+* [Developer Guide](docs/Developer-guide.md)
+
+Additional resources:
+
 * [Hammer Primer](https://github.com/sergeybratus/HammerPrimer) (outdated in terms of code, but good to get the general thinking)
 * [Try Hammer](https://github.com/sboesen/TryHammer)
 
