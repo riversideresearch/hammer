@@ -20,6 +20,7 @@ src/test_suite
 *.gcda
 *.gcno
 gmon.out
+coverage/
 
 # editor leftovers
 *~
