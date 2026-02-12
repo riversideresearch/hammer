@@ -1,0 +1,5 @@
+# TODO
+
+- Make h_action functions be called only after parse is complete.
+- Allow alternative input streams (eg, zlib, base64)
+  - Bonus points if layered...
