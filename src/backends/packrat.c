@@ -210,13 +210,13 @@ static void trace_end(HParseResult *res, HParseState *state) {
 
     if (in->index < in->length) {
         uint8_t c = in->input[in->index];
-        char disp[2] = { isprint(c) ? (char)c : '\0' };
-        fprintf(stdout, "error: unexpected character: '0x%02x' (%s)", c, disp);
+        char disp[2] = { isprint(c) ? (char)c : '\0', '\0' };
+        fprintf(stdout, "error: unexpected character: '%s' (0x%02x = %d)", disp, c, c);
     } else {
         fprintf(stdout, "error: unexpected end of input");
     }
 
-    fprintf(stdout, " at position %zu", (size_t)(in->pos + in->index));
+    fprintf(stdout, " at index %zu", (size_t)(in->pos + in->index));
     if (in->bit_offset)
         fprintf(stdout, ".%db", in->bit_offset);
     fprintf(stdout, "\n");
@@ -573,10 +573,10 @@ HParseResult *h_packrat_parse(HAllocator *mm__, const HParser *parser, HInputStr
     h_hashtable_free(parse_state->recursion_heads);
     // tear down the parse state
     h_hashtable_free(parse_state->cache);
+    TRACE_END(res, parse_state);
     if (!res)
         h_delete_arena(parse_state->arena);
 
-    TRACE_END(res, parse_state);
     return res;
 }
 
