@@ -34,6 +34,10 @@
 #include <unistd.h>
 
 static int h_trace_depth = 0;
+static size_t max_pos = 0;
+static size_t max_index = 0;
+static char max_char = 0;
+static char max_bitoffset = 0;
 
 static const char *trace_tt_name(HTokenType t) {
     switch (t) {
@@ -56,7 +60,17 @@ static void trace_indent(void) {
 
 static void trace_pos(HParseState *state) {
     HInputStream *in = &state->input_stream;
-    fprintf(stderr, "@%zu", (size_t)(in->pos + in->index));
+    size_t abs = in->pos + in->index;
+    size_t max_abs = max_pos + max_index;
+    if (abs > max_abs) {
+        max_pos = in->pos;
+        max_index = in->index;
+        max_bitoffset = in->bit_offset;
+        max_char = in->input[in->index];
+    } else if (abs == max_abs && in->bit_offset > max_bitoffset) {
+        max_bitoffset = in->bit_offset;
+    }
+    fprintf(stderr, "@%zu", max_abs);
     if (in->bit_offset)
         fprintf(stderr, ".%db", in->bit_offset);
 }
@@ -208,17 +222,17 @@ static void trace_end(HParseResult *res, HParseState *state) {
 
     HInputStream *in = &state->input_stream;
 
-    if (in->index < in->length) {
-        uint8_t c = in->input[in->index];
+    if (max_index < in->length) {
+        uint8_t c = (uint8_t)max_char;
         char disp[2] = { isprint(c) ? (char)c : '\0', '\0' };
         fprintf(stdout, "error: unexpected character: '%s' (0x%02x = %d)", disp, c, c);
     } else {
         fprintf(stdout, "error: unexpected end of input");
     }
 
-    fprintf(stdout, " at index %zu", (size_t)(in->pos + in->index));
-    if (in->bit_offset)
-        fprintf(stdout, ".%db", in->bit_offset);
+    fprintf(stdout, " at index %zu", (size_t)(max_pos + max_index));
+    if (max_bitoffset)
+        fprintf(stdout, ".%db", max_bitoffset);
     fprintf(stdout, "\n");
 }
 
