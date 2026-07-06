@@ -26,6 +26,7 @@
 #if HAMMER_TRACE_AST
 #include <dlfcn.h> // dladdr()
 #include <elf.h>   // Elf64_* for reading .symtab
+#include <ctype.h>   // for isprint
 #include <fcntl.h>
 #include <stdlib.h>
 #include <sys/mman.h>
@@ -200,6 +201,27 @@ static void trace_exit(HParseResult *res, const char *note) {
     fputc('\n', stderr);
 }
 
+static void trace_end(HParseResult *res, HParseState *state) {
+    fprintf(stderr, "=== h_packrat_parse: end (%s) ===\n", res ? "SUCCESS" : "FAILURE");
+    if (res)
+        return;
+
+    HInputStream *in = &state->input_stream;
+
+    if (in->index < in->length) {
+        uint8_t c = in->input[in->index];
+        char disp[2] = { isprint(c) ? (char)c : '\0' };
+        fprintf(stdout, "error: unexpected character: '0x%02x' (%s)", c, disp);
+    } else {
+        fprintf(stdout, "error: unexpected end of input");
+    }
+
+    fprintf(stdout, " at position %zu", (size_t)(in->pos + in->index));
+    if (in->bit_offset)
+        fprintf(stdout, ".%db", in->bit_offset);
+    fprintf(stdout, "\n");
+}
+
 #define TRACE_ENTER(p, s)     trace_enter((p), (s))
 #define TRACE_EXIT(res, note) trace_exit((res), (note))
 #define TRACE_BEGIN(len)                                                                           \
@@ -207,13 +229,12 @@ static void trace_exit(HParseResult *res, const char *note) {
         h_trace_depth = 0;                                                                         \
         fprintf(stderr, "\n=== h_packrat_parse: begin (%zu bytes of input) ===\n", (size_t)(len)); \
     } while (0)
-#define TRACE_END(res)                                                                             \
-    fprintf(stderr, "=== h_packrat_parse: end (%s) ===\n", (res) ? "SUCCESS" : "FAILURE")
+#define TRACE_END(res, state) trace_end (res, state)
 #else
 #define TRACE_ENTER(p, s)     ((void)0)
 #define TRACE_EXIT(res, note) ((void)0)
 #define TRACE_BEGIN(len)      ((void)0)
-#define TRACE_END(res)        ((void)0)
+#define TRACE_END(res, state)        ((void)0)
 #endif
 
 /* #define DETAILED_PACKRAT_STATISTICS */
@@ -555,7 +576,7 @@ HParseResult *h_packrat_parse(HAllocator *mm__, const HParser *parser, HInputStr
     if (!res)
         h_delete_arena(parse_state->arena);
 
-    TRACE_END(res);
+    TRACE_END(res, parse_state);
     return res;
 }
 
