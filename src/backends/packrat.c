@@ -67,8 +67,9 @@ static void trace_pos(HParseState *state) {
         max_index = in->index;
         max_bitoffset = in->bit_offset;
         max_char = in->input[in->index];
-    } else if (abs == max_abs && in->bit_offset > max_bitoffset) {
+    } else if (abs == max_abs && in->bit_offset >= max_bitoffset) {
         max_bitoffset = in->bit_offset;
+        max_char = in->input[in->index];
     }
     fprintf(stderr, "@%zu", max_abs);
     if (in->bit_offset)
@@ -221,7 +222,6 @@ static void trace_end(HParseResult *res, HParseState *state) {
         return;
 
     HInputStream *in = &state->input_stream;
-
     if (max_index < in->length) {
         uint8_t c = (uint8_t)max_char;
         char disp[2] = { isprint(c) ? (char)c : '\0', '\0' };
@@ -229,7 +229,6 @@ static void trace_end(HParseResult *res, HParseState *state) {
     } else {
         fprintf(stdout, "error: unexpected end of input");
     }
-
     fprintf(stdout, " at index %zu", (size_t)(max_pos + max_index));
     if (max_bitoffset)
         fprintf(stdout, ".%db", max_bitoffset);
