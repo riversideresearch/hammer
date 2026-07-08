@@ -21,6 +21,7 @@
  * and the matching "<= OK/FAIL" line shows the token it produced (or failure),
  * including cache ("memoized") hits.
  * ------------------------------------------------------------------------- */
+static bool display_trace = true;
 #define HAMMER_TRACE_AST 1
 
 #if HAMMER_TRACE_AST
@@ -33,11 +34,16 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-static int h_trace_depth = 0;
-static size_t max_pos = 0;
-static size_t max_index = 0;
-static char max_char = 0;
-static char max_bitoffset = 0;
+int h_trace_depth = 0;
+
+typedef struct {
+    size_t abs_pos;
+    uint8_t ch;
+    uint8_t bit_offset;
+    const char *deepest_parser;
+} TraceMaxState;
+
+TraceMaxState trace_max;
 
 static const char *trace_tt_name(HTokenType t) {
     switch (t) {
@@ -57,50 +63,6 @@ static void trace_indent(void) {
     for (int i = 0; i < h_trace_depth; i++)
         fputs("  ", stderr);
 }
-
-static void trace_pos(HParseState *state) {
-    HInputStream *in = &state->input_stream;
-    size_t abs = in->pos + in->index;
-    size_t max_abs = max_pos + max_index;
-    if (abs > max_abs) {
-        max_pos = in->pos;
-        max_index = in->index;
-        max_bitoffset = in->bit_offset;
-        max_char = in->input[in->index];
-    } else if (abs == max_abs && in->bit_offset >= max_bitoffset) {
-        max_bitoffset = in->bit_offset;
-        max_char = in->input[in->index];
-    }
-    fprintf(stderr, "@%zu", max_abs);
-    if (in->bit_offset)
-        fprintf(stderr, ".%db", in->bit_offset);
-}
-
-// print a one-line summary of the token an HParseResult carries
-static void trace_token(const HParsedToken *tok) {
-    if (!tok) {
-        fputs("(null ast)", stderr);
-        return;
-    }
-    switch (tok->token_type) {
-    case TT_UINT:
-        fprintf(stderr, "UINT %" PRIu64 " (0x%02" PRIx64 ")", tok->uint, tok->uint);
-        break;
-    case TT_SINT:
-        fprintf(stderr, "SINT %" PRId64, tok->sint);
-        break;
-    case TT_BYTES:
-        fprintf(stderr, "BYTES[%zu]", tok->bytes.len);
-        break;
-    case TT_SEQUENCE:
-        fprintf(stderr, "SEQUENCE[%zu children]", tok->seq ? tok->seq->used : (size_t)0);
-        break;
-    default:
-        fputs(trace_tt_name(tok->token_type), stderr);
-        break;
-    }
-}
-
 /* --- function-pointer -> name via dladdr() + ELF .symtab -----------------
  * We want the name of each combinator's parse function (parse_choice, ...).
  * Those functions are `static`, so they are absent from the dynamic symbol
@@ -166,7 +128,6 @@ static char *resolve_fn_name(void *addr) {
     return result;
 }
 
-// cache: vtable pointer -> resolved parse-function name (looked up once each)
 static struct {
     const HParserVtable *vt;
     const char *name;
@@ -190,12 +151,61 @@ static const char *trace_vt_name(const HParserVtable *vt) {
     }
     return stored;
 }
+static void trace_pos(const HParser *parser, HParseState *state) {
+    HInputStream *in = &state->input_stream;
+    size_t abs = in->pos + in->index;
+
+    if (abs > trace_max.abs_pos) {
+        trace_max.abs_pos = abs;
+        trace_max.bit_offset = in->bit_offset;
+        trace_max.ch = in->input[in->index];
+        trace_max.deepest_parser = trace_vt_name(parser->vtable);
+    } else if (abs == trace_max.abs_pos &&
+               in->bit_offset >= trace_max.bit_offset) {
+        trace_max.bit_offset = in->bit_offset;
+        trace_max.ch = in->input[in->index];
+        trace_max.deepest_parser = trace_vt_name(parser->vtable);
+    }
+
+    fprintf(stderr, "@%zu", trace_max.abs_pos);
+    if (trace_max.bit_offset)
+        fprintf(stderr, ".%db", trace_max.bit_offset);
+}
+
+// print a one-line summary of the token an HParseResult carries
+static void trace_token(const HParsedToken *tok) {
+    if (!tok) {
+        fputs("(null ast)", stderr);
+        return;
+    }
+    switch (tok->token_type) {
+    case TT_UINT:
+        fprintf(stderr, "UINT %" PRIu64 " (0x%02" PRIx64 ")", tok->uint, tok->uint);
+        break;
+    case TT_SINT:
+        fprintf(stderr, "SINT %" PRId64, tok->sint);
+        break;
+    case TT_BYTES:
+        fprintf(stderr, "BYTES[%zu]", tok->bytes.len);
+        break;
+    case TT_SEQUENCE:
+        fprintf(stderr, "SEQUENCE[%zu children]", tok->seq ? tok->seq->used : (size_t)0);
+        break;
+    default:
+        fputs(trace_tt_name(tok->token_type), stderr);
+        break;
+    }
+}
+
+
+
+
 
 static void trace_enter(const HParser *parser, HParseState *state) {
     trace_indent();
     fprintf(stderr, "-> %-20s %-9s ", trace_vt_name(parser->vtable),
             parser->vtable->higher ? "higher" : "primitive");
-    trace_pos(state);
+    trace_pos(parser, state);
     fputc('\n', stderr);
     h_trace_depth++;
 }
@@ -217,32 +227,53 @@ static void trace_exit(HParseResult *res, const char *note) {
 }
 
 static void trace_end(HParseResult *res, HParseState *state) {
-    fprintf(stderr, "=== h_packrat_parse: end (%s) ===\n", res ? "SUCCESS" : "FAILURE");
+    fprintf(stderr, "=== h_packrat_parse: end (%s) ===\n",
+            res ? "SUCCESS" : "FAILURE");
+
     if (res)
         return;
 
     HInputStream *in = &state->input_stream;
-    if (max_index < in->length) {
-        uint8_t c = (uint8_t)max_char;
+
+    if (trace_max.abs_pos < in->length) {
+        uint8_t c = trace_max.ch;
         char disp[2] = { isprint(c) ? (char)c : '\0', '\0' };
-        fprintf(stdout, "error: unexpected character: '%s' (0x%02x = %d)", disp, c, c);
+
+        fprintf(stdout,"error: unexpected byte: '%s' (0x%02x = %d)", disp, c, c);
     } else {
         fprintf(stdout, "error: unexpected end of input");
     }
-    fprintf(stdout, " at index %zu", (size_t)(max_pos + max_index));
-    if (max_bitoffset)
-        fprintf(stdout, ".%db", max_bitoffset);
+
+    fprintf(stdout, " at index %zu", trace_max.abs_pos);
+
+    if (trace_max.bit_offset)
+        fprintf(stdout, ".%db", trace_max.bit_offset);
+
+    if (trace_max.deepest_parser)
+        fprintf(stdout, " while running [%s]",trace_max.deepest_parser);
+
     fprintf(stdout, "\n");
 }
 
-#define TRACE_ENTER(p, s)     trace_enter((p), (s))
-#define TRACE_EXIT(res, note) trace_exit((res), (note))
-#define TRACE_BEGIN(len)                                                                           \
-    do {                                                                                           \
-        h_trace_depth = 0;                                                                         \
-        fprintf(stderr, "\n=== h_packrat_parse: begin (%zu bytes of input) ===\n", (size_t)(len)); \
+#define TRACE_ENTER(p, s) \
+    if (display_trace) trace_enter((p), (s))
+
+#define TRACE_EXIT(res, note) \
+    if (display_trace) trace_exit((res), (note))
+
+#define TRACE_BEGIN(len) \
+    do { \
+        if (display_trace) { \
+            h_trace_depth = 0; \
+            memset(&trace_max, 0, sizeof(trace_max)); \
+            fprintf(stderr, \
+                    "\n=== h_packrat_parse: begin (%zu bytes of input) ===\n", \
+                    (size_t)(len)); \
+        } \
     } while (0)
-#define TRACE_END(res, state) trace_end (res, state)
+
+#define TRACE_END(res, state) \
+    if (display_trace) trace_end((res), (state))
 #else
 #define TRACE_ENTER(p, s)     ((void)0)
 #define TRACE_EXIT(res, note) ((void)0)
