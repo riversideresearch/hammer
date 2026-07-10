@@ -60,8 +60,9 @@ parsers = [
 
 backends = [
     "backends/%s.c" % s
-    for s in ["missing", "packrat", "params", "regex", "lr", "lr0", "lalr", "llk", "glr"]
+    for s in ["missing", "packrat", "params", "regex", "lr", "lr0", "lalr", "llk", "glr", "trace"]
 ]
+
 
 misc_hammer_parts = [
     "allocator.c",
