@@ -36,11 +36,18 @@ static bool display_trace = true;
 
 static int h_trace_depth = 0;
 
+/* Track every distinct parser that reached the deepest input position, not
+ * just the last one: several combinators can bottom out at the same furthest
+ * offset and all of them are worth reporting on failure. Names are deduped by
+ * pointer (trace_vt_name() returns a stable per-vtable string). */
+#define TRACE_MAX_DEEPEST 16
+
 typedef struct {
     size_t abs_pos;
     uint8_t ch;
     uint8_t bit_offset;
-    const char *deepest_parser;
+    const char *deepest_parsers[TRACE_MAX_DEEPEST];
+    size_t n_deepest;
 } TraceMaxState;
 
 static TraceMaxState trace_max;
@@ -153,19 +160,41 @@ static const char *trace_vt_name(const HParserVtable *vt) {
     return stored;
 }
 
+/* Append a parser name to the deepest-position set, skipping duplicates and
+ * silently capping at TRACE_MAX_DEEPEST entries. */
+static void trace_max_add_parser(const char *name) {
+    for (size_t i = 0; i < trace_max.n_deepest; i++)
+        if (trace_max.deepest_parsers[i] == name)
+            return;
+    if (trace_max.n_deepest < TRACE_MAX_DEEPEST)
+        trace_max.deepest_parsers[trace_max.n_deepest++] = name;
+}
+
 static void trace_pos(const HParser *parser, HParseState *state) {
     HInputStream *in = &state->input_stream;
     size_t abs = in->pos + in->index;
 
-    if (abs > trace_max.abs_pos) {
-        trace_max.abs_pos = abs;
-        trace_max.bit_offset = in->bit_offset;
-        trace_max.ch = in->input[in->index];
-        trace_max.deepest_parser = trace_vt_name(parser->vtable);
-    } else if (abs == trace_max.abs_pos && in->bit_offset >= trace_max.bit_offset) {
-        trace_max.bit_offset = in->bit_offset;
-        trace_max.ch = in->input[in->index];
-        trace_max.deepest_parser = trace_vt_name(parser->vtable);
+    /* Only primitive parsers -- the leaves that actually consume input -- are
+     * recorded as the deepest-position parsers. Higher-order combinators merely
+     * delegate to their children, so naming them in the failure message adds
+     * noise without pointing at what actually failed to match. */
+    if (!parser->vtable->higher) {
+        const char *name = trace_vt_name(parser->vtable);
+
+        if (abs > trace_max.abs_pos ||
+            (abs == trace_max.abs_pos && in->bit_offset > trace_max.bit_offset)) {
+            /* strictly deeper (further byte, or same byte + further bit): this is
+             * a new furthest position, so discard the old set and start over */
+            trace_max.abs_pos = abs;
+            trace_max.bit_offset = in->bit_offset;
+            trace_max.ch = in->input[in->index];
+            trace_max.n_deepest = 0;
+            trace_max_add_parser(name);
+        } else if (abs == trace_max.abs_pos && in->bit_offset == trace_max.bit_offset) {
+            /* another parser tied at the current furthest position: record it too */
+            trace_max.ch = in->input[in->index];
+            trace_max_add_parser(name);
+        }
     }
 
     fprintf(stderr, "@%zu", trace_max.abs_pos);
@@ -259,8 +288,12 @@ void h_trace_end(HParseResult *res, HParseState *state) {
     if (trace_max.bit_offset)
         fprintf(stdout, ".%db", trace_max.bit_offset);
 
-    if (trace_max.deepest_parser)
-        fprintf(stdout, " while running [%s]", trace_max.deepest_parser);
+    if (trace_max.n_deepest > 0) {
+        fputs(" while running [", stdout);
+        for (size_t i = 0; i < trace_max.n_deepest; i++)
+            fprintf(stdout, "%s%s", i ? ", " : "", trace_max.deepest_parsers[i]);
+        fputc(']', stdout);
+    }
 
     fprintf(stdout, "\n");
 }
