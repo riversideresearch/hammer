@@ -3,7 +3,7 @@
 #define _GNU_SOURCE /* dladdr(), strdup() used by the AST tracer below */
 #endif
 
-#include "../internal.h"
+#include "internal.h"
 #include "trace.h"
 
 /* ------------------------------------------------------------------------- *
@@ -221,16 +221,16 @@ static void trace_token(const HParsedToken *tok) {
     }
     switch (tok->token_type) {
     case TT_UINT:
-        fprintf(stderr, "UINT %" PRIu64 " (0x%02" PRIx64 ")", tok->uint, tok->uint);
+        fprintf(stderr, "UINT %" PRIu64 " (0x%02" PRIx64 ")", tok->token_data.uint, tok->token_data.uint);
         break;
     case TT_SINT:
-        fprintf(stderr, "SINT %" PRId64, tok->sint);
+        fprintf(stderr, "SINT %" PRId64, tok->token_data.sint);
         break;
     case TT_BYTES:
-        fprintf(stderr, "BYTES[%zu]", tok->bytes.len);
+        fprintf(stderr, "BYTES[%zu]", tok->token_data.bytes.len);
         break;
     case TT_SEQUENCE:
-        fprintf(stderr, "SEQUENCE[%zu children]", tok->seq ? tok->seq->used : (size_t)0);
+        fprintf(stderr, "SEQUENCE[%zu children]", tok->token_data.seq ? tok->token_data.seq->used : (size_t)0);
         break;
     default:
         fputs(trace_tt_name(tok->token_type), stderr);

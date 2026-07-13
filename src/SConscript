@@ -15,6 +15,7 @@ dist_headers = [
     "compiler_specifics.h",
     "glue.h",
     "internal.h",
+    "trace.h",
     "platform.h",
 ]
 
@@ -60,7 +61,7 @@ parsers = [
 
 backends = [
     "backends/%s.c" % s
-    for s in ["missing", "packrat", "params", "regex", "lr", "lr0", "lalr", "llk", "glr", "trace"]
+    for s in ["missing", "packrat", "params", "regex", "lr", "lr0", "lalr", "llk", "glr"]
 ]
 
 
@@ -78,6 +79,7 @@ misc_hammer_parts = [
     "registry.c",
     "system_allocator.c",
     "sloballoc.c",
+    "trace.c",
 ]
 
 misc_hammer_parts += ["platform.c"]

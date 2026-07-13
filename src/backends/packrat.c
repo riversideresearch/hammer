@@ -4,7 +4,7 @@
 #endif
 #include "../internal.h"
 #include "../parsers/parser_internal.h"
-#include "trace.h"
+#include "../trace.h"
 #include <assert.h>
 #include <inttypes.h>
 #include <stdio.h>

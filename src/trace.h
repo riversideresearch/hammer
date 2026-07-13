@@ -2,7 +2,7 @@
 #ifndef HAMMER_BACKENDS_TRACE__H
 #define HAMMER_BACKENDS_TRACE__H
 
-#include "../internal.h" /* HParser, HParseState, HParseResult */
+#include "internal.h" /* HParser, HParseState, HParseResult */
 
 /* Compile-time master switch for the AST tracer.
  *

@@ -19,7 +19,7 @@
 #include "hammer.h"
 
 #include "allocator.h"
-#include "backends/trace.h"
+#include "trace.h"
 #include "glue.h"
 #include "internal.h"
 #include "parsers/parser_internal.h"
