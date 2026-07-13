@@ -42,15 +42,15 @@ static int h_trace_depth = 0;
  * pointer (trace_vt_name() returns a stable per-vtable string). */
 #define TRACE_MAX_DEEPEST 16
 
-typedef struct {
-    size_t abs_pos;
-    uint8_t ch;
+typedef struct HParseError_ {
+    size_t index;
+    uint8_t actual;
     uint8_t bit_offset;
     const char *deepest_parsers[TRACE_MAX_DEEPEST];
     size_t n_deepest;
-} TraceMaxState;
+} HParseError;
 
-static TraceMaxState trace_max;
+static HParseError trace_max;
 
 static const char *trace_tt_name(HTokenType t) {
     switch (t) {
@@ -181,23 +181,23 @@ static void trace_pos(const HParser *parser, HParseState *state) {
     if (!parser->vtable->higher) {
         const char *name = trace_vt_name(parser->vtable);
 
-        if (abs > trace_max.abs_pos ||
-            (abs == trace_max.abs_pos && in->bit_offset > trace_max.bit_offset)) {
+        if (abs > trace_max.index ||
+            (abs == trace_max.index && in->bit_offset > trace_max.bit_offset)) {
             /* strictly deeper (further byte, or same byte + further bit): this is
              * a new furthest position, so discard the old set and start over */
-            trace_max.abs_pos = abs;
+            trace_max.index = abs;
             trace_max.bit_offset = in->bit_offset;
-            trace_max.ch = in->input[in->index];
+            trace_max.actual = in->input[in->index];
             trace_max.n_deepest = 0;
             trace_max_add_parser(name);
-        } else if (abs == trace_max.abs_pos && in->bit_offset == trace_max.bit_offset) {
+        } else if (abs == trace_max.index && in->bit_offset == trace_max.bit_offset) {
             /* another parser tied at the current furthest position: record it too */
-            trace_max.ch = in->input[in->index];
+            trace_max.actual = in->input[in->index];
             trace_max_add_parser(name);
         }
     }
 
-    fprintf(stderr, "@%zu", trace_max.abs_pos);
+    fprintf(stderr, "@%zu", trace_max.index);
     if (trace_max.bit_offset)
         fprintf(stderr, ".%db", trace_max.bit_offset);
 }
@@ -275,15 +275,15 @@ void h_trace_end(HParseResult *res, HParseState *state) {
 
     HInputStream *in = &state->input_stream;
 
-    if (trace_max.abs_pos < in->length) {
-        uint8_t c = trace_max.ch;
+    if (trace_max.index < in->length) {
+        uint8_t c = trace_max.actual;
         char disp[2] = { isprint(c) ? (char)c : '\0', '\0' };
         fprintf(stdout, "error: unexpected byte: '%s' (0x%02x = %d)", disp, c, c);
     } else {
         fprintf(stdout, "error: unexpected end of input");
     }
 
-    fprintf(stdout, " at index %zu", trace_max.abs_pos);
+    fprintf(stdout, " at index %zu", trace_max.index);
 
     if (trace_max.bit_offset)
         fprintf(stdout, ".%db", trace_max.bit_offset);
