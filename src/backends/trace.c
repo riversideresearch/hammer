@@ -31,26 +31,37 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-/* runtime on/off switch (compile gate is HAMMER_TRACE_AST above) */
-static bool display_trace = true;
+/* Runtime on/off switch (compile gate is HAMMER_TRACE_AST above). Defaults OFF
+ * so an ordinary h_parse() stays quiet even when tracing is compiled in; only
+ * h_parse_debug() turns it on -- via h_trace_set_enabled() -- for the duration
+ * of a single parse. */
+static bool display_trace = false;
+
+/* Toggle the runtime trace. Exposed (see trace.h) so h_parse_debug() can enable
+ * tracing for just its own call and switch it back off afterward. */
+void h_trace_set_enabled(bool enabled) {
+    display_trace = enabled;
+}
 
 static int h_trace_depth = 0;
 
-/* Track every distinct parser that reached the deepest input position, not
- * just the last one: several combinators can bottom out at the same furthest
- * offset and all of them are worth reporting on failure. Names are deduped by
- * pointer (trace_vt_name() returns a stable per-vtable string). */
-#define TRACE_MAX_DEEPEST 16
-
-typedef struct HParseError_ {
-    size_t index;
-    uint8_t actual;
-    uint8_t bit_offset;
-    const char *deepest_parsers[TRACE_MAX_DEEPEST];
-    size_t n_deepest;
-} HParseError;
-
+/* The furthest-failure record (HParseError) is defined in hammer.h, because
+ * h_parse_debug() hands a copy back to callers. We track every distinct
+ * primitive parser that reached the deepest input position, not just the last
+ * one: several combinators can bottom out at the same furthest offset and all
+ * of them are worth reporting. Names are deduped by pointer (trace_vt_name()
+ * returns a stable per-vtable string). */
 static HParseError trace_max;
+
+/* Copy the current furthest-failure record out to the caller (see trace.h).
+ * out receives its own copy of the struct -- not a pointer into the global --
+ * so it stays valid across later parses that overwrite trace_max. The copied
+ * deepest_parsers[] entries still point into the tracer's own long-lived name
+ * cache, so this shallow copy is safe and needs no ownership transfer. */
+void h_trace_get_error(HParseError *out) {
+    if (out)
+        memcpy(out, &trace_max, sizeof(*out));
+}
 
 static const char *trace_tt_name(HTokenType t) {
     switch (t) {
@@ -161,12 +172,12 @@ static const char *trace_vt_name(const HParserVtable *vt) {
 }
 
 /* Append a parser name to the deepest-position set, skipping duplicates and
- * silently capping at TRACE_MAX_DEEPEST entries. */
+ * silently capping at H_PARSE_ERROR_MAX_PARSERS entries. */
 static void trace_max_add_parser(const char *name) {
     for (size_t i = 0; i < trace_max.n_deepest; i++)
         if (trace_max.deepest_parsers[i] == name)
             return;
-    if (trace_max.n_deepest < TRACE_MAX_DEEPEST)
+    if (trace_max.n_deepest < H_PARSE_ERROR_MAX_PARSERS)
         trace_max.deepest_parsers[trace_max.n_deepest++] = name;
 }
 

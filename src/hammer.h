@@ -171,6 +171,32 @@ typedef struct HParseResult_ {
     HArena *arena; /**< Memory arena for the parse result */
 } HParseResult;
 
+/** Maximum number of distinct parsers recorded at the deepest input position
+ *  reached during a traced parse. See ::HParseError and h_parse_debug(). */
+#define H_PARSE_ERROR_MAX_PARSERS 16
+
+/**
+ * @struct HParseError
+ * @brief Structured furthest-failure information from a traced parse.
+ *
+ * Filled in by h_parse_debug() so callers can inspect where and why a parse got
+ * stuck programmatically, instead of scraping the textual trace from
+ * stderr/stdout. It records how far into the input the parse advanced and which
+ * primitive parsers were being attempted at that furthest position. Most useful
+ * when the parse fails (h_parse_debug returns NULL); on success it simply
+ * reflects the deepest position reached.
+ */
+typedef struct HParseError_ {
+    size_t index;       /**< Furthest byte offset reached in the input. */
+    uint8_t actual;     /**< Input byte at that offset (0 at end of input). */
+    uint8_t bit_offset; /**< Sub-byte bit position, for bitwise grammars. */
+    /** Names of the primitive parsers tied at the furthest position. They point
+     *  to static storage owned by the tracer -- do not free them. Empty unless
+     *  the library was built with AST tracing (-DHAMMER_TRACE_AST=1). */
+    const char *deepest_parsers[H_PARSE_ERROR_MAX_PARSERS];
+    size_t n_deepest;   /**< Number of valid entries in deepest_parsers. */
+} HParseError;
+
 /**
  * TODO: document me.
  * Relevant functions: h_bit_writer_new, h_bit_writer_put, h_bit_writer_get_buffer,
@@ -422,6 +448,30 @@ HParserBackendWithParams *h_get_backend_with_params_by_name__m(HAllocator *mm__,
 HParseResult *h_parse(const HParser *parser, const uint8_t *input, size_t length);
 HParseResult *h_parse__m(HAllocator *mm__, const HParser *parser, const uint8_t *input,
                          size_t length);
+
+/**
+ * @brief Like h_parse(), but traces the packrat parse to stderr and, on
+ * failure, prints a furthest-position diagnostic. Parsing behavior and return
+ * value are identical to h_parse(); only the emitted debug output differs.
+ *
+ * If @p error is non-NULL, the furthest-failure information is also written
+ * there in structured form (see ::HParseError), so callers can react to a
+ * failed parse programmatically without scraping the textual trace. Pass NULL
+ * if you only want the stderr/stdout trace. The struct is zero-initialized
+ * before use, and its parser-name list is only populated when the library is
+ * built with AST tracing (-DHAMMER_TRACE_AST=1); otherwise this behaves exactly
+ * like h_parse() and @p error is left zeroed.
+ *
+ * @param parser Parser to use
+ * @param input Input data
+ * @param length Length of input data
+ * @param error Out-parameter for structured failure info, or NULL
+ * @return Parse result, or NULL on failure
+ */
+HParseResult *h_parse_debug(const HParser *parser, const uint8_t *input, size_t length,
+                            HParseError *error);
+HParseResult *h_parse_debug__m(HAllocator *mm__, const HParser *parser, const uint8_t *input,
+                               size_t length, HParseError *error);
 
 /**
  * @brief Initialize a parser for iteratively consuming an input stream in chunks.

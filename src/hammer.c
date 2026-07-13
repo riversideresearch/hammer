@@ -19,6 +19,7 @@
 #include "hammer.h"
 
 #include "allocator.h"
+#include "backends/trace.h"
 #include "glue.h"
 #include "internal.h"
 #include "parsers/parser_internal.h"
@@ -558,6 +559,31 @@ HParseResult *h_parse__m(HAllocator *mm__, const HParser *parser, const uint8_t 
                                  .last_chunk = true};
 
     return parser->backend_vtable->parse(mm__, parser, &input_stream);
+}
+
+// Twin of h_parse() that turns on the AST-construction trace for the duration
+// of this one parse, then switches it back off. Identical parsing behavior and
+// return value; the only difference is the trace/diagnostics emitted to
+// stderr/stdout. When the library is built without tracing (HAMMER_TRACE_AST
+// off) TRACE_SET_ENABLED is a no-op and this behaves exactly like h_parse().
+//
+// If `error` is non-NULL it also receives the furthest-failure record in
+// structured form (see HParseError), so callers can react to failures without
+// scraping the textual trace. It is zeroed up front so the compiled-out case
+// (and a NULL trace) leaves well-defined, empty contents.
+HParseResult *h_parse_debug(const HParser *parser, const uint8_t *input, size_t length,
+                            HParseError *error) {
+    return h_parse_debug__m(&system_allocator, parser, input, length, error);
+}
+HParseResult *h_parse_debug__m(HAllocator *mm__, const HParser *parser, const uint8_t *input,
+                               size_t length, HParseError *error) {
+    if (error)
+        memset(error, 0, sizeof(*error));
+    TRACE_SET_ENABLED(true);
+    HParseResult *res = h_parse__m(mm__, parser, input, length);
+    TRACE_SET_ENABLED(false);
+    TRACE_GET_ERROR(error);
+    return res;
 }
 
 void h_parse_result_free__m(HAllocator *alloc, HParseResult *result) {

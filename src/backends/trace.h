@@ -13,11 +13,15 @@
 #define HAMMER_TRACE_AST 1
 #if HAMMER_TRACE_AST
 
+void h_trace_set_enabled(bool enabled);
+void h_trace_get_error(HParseError *out);
 void h_trace_begin(size_t input_len);
 void h_trace_enter(const HParser *parser, HParseState *state);
 void h_trace_exit(HParseResult *res, const char *note);
 void h_trace_end(HParseResult *res, HParseState *state);
 
+#define TRACE_SET_ENABLED(b)  h_trace_set_enabled((b))
+#define TRACE_GET_ERROR(out)  h_trace_get_error((out))
 #define TRACE_BEGIN(len)      h_trace_begin((size_t)(len))
 #define TRACE_ENTER(p, s)     h_trace_enter((p), (s))
 #define TRACE_EXIT(res, note) h_trace_exit((res), (note))
@@ -25,6 +29,8 @@ void h_trace_end(HParseResult *res, HParseState *state);
 
 #else /* tracing compiled out */
 
+#define TRACE_SET_ENABLED(b)  ((void)0)
+#define TRACE_GET_ERROR(out)  ((void)0)
 #define TRACE_BEGIN(len)      ((void)0)
 #define TRACE_ENTER(p, s)     ((void)0)
 #define TRACE_EXIT(res, note) ((void)0)
