@@ -595,6 +595,15 @@ void h_parse_result_free(HParseResult *result) {
         return;
     h_delete_arena(result->arena);
 }
+void h_parse_error_free(HParseError *error) {
+    if (!error)
+        return;
+    for (size_t i = 0; i < error->n_deepest; i++) {
+        free((void *)error->deepest_parsers[i]);  // cast drops the const for free()
+        error->deepest_parsers[i] = NULL;
+    }
+    error->n_deepest = 0;
+}
 
 bool h_false(void *env) {
     (void)env;
