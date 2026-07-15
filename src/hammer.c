@@ -582,7 +582,8 @@ HParseResult *h_parse_debug__m(HAllocator *mm__, const HParser *parser, const ui
     TRACE_SET_ENABLED(true);
     HParseResult *res = h_parse__m(mm__, parser, input, length);
     TRACE_SET_ENABLED(false);
-    TRACE_GET_ERROR(error);
+    if (!res)
+        TRACE_GET_ERROR(error);
     return res;
 }
 

@@ -1135,6 +1135,7 @@ HParser *h_tell__m(HAllocator *mm__);
  * @param result Result to free
  */
 void h_parse_result_free(HParseResult *result);
+void h_parse_error_free(HParseError *error);
 void h_parse_result_free__m(HAllocator *mm__, HParseResult *result);
 
 /** @} */

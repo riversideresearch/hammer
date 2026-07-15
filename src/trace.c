@@ -289,12 +289,12 @@ void h_trace_end(HParseResult *res, HParseState *state) {
     if (trace_max.index < in->length) {
         uint8_t c = trace_max.actual;
         char disp[2] = { isprint(c) ? (char)c : '\0', '\0' };
-        fprintf(stdout, "error: unexpected byte: '%s' (0x%02x = %d)", disp, c, c);
+        fprintf(stdout, "error: unexpected byte(s): '%s' (0x%02x = %d)", disp, c, c);
     } else {
         fprintf(stdout, "error: unexpected end of input");
     }
 
-    fprintf(stdout, " at index %zu", trace_max.index);
+    fprintf(stdout, " starting at index %zu", trace_max.index);
 
     if (trace_max.bit_offset)
         fprintf(stdout, ".%db", trace_max.bit_offset);
