@@ -1358,9 +1358,20 @@ const char *h_get_token_type_name(HTokenType token_type);
 /** Make an allocator that draws from the given memory area. */
 HAllocator *h_sloballoc(void *mem, size_t size);
 
+/**
+ * @brief Free parser p from the heap
+ * 
+ * @param p Parser to free.
+ * @note if the parser has arguments of other parsers, those need to be freed seperately.
+ */
 void h_parser_free(HParser *p);
 
-void h_parser_free__m(HAllocator *mm__, HParser *parser);
+/**
+ * @brief Free parser p from the heap
+ * @param mm__ Allocator that the parser was created in.
+ * @param p Parser to free.
+ */
+void h_parser_free__m(HAllocator *mm__, HParser *p);
 
 #ifdef __cplusplus
 }
