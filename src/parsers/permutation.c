@@ -8,6 +8,19 @@ typedef struct {
     HParser **p_array;
 } HSequence;
 
+static void free_env(
+    HAllocator *allocator,
+    void *environment)
+{
+    HSequence *sequence = environment;
+
+    if (sequence == NULL)
+        return;
+
+    allocator->free(allocator, sequence->p_array);
+    allocator->free(allocator, sequence);
+}
+
 // main recursion, used by parse_permutation below
 static int parse_permutation_tail(const HSequence *s, HCountedArray *seq, const size_t k, char *set,
                                   HParseState *state) {
@@ -153,7 +166,7 @@ HParser *h_permutation__mv(HAllocator *mm__, HParser *p, va_list ap_) {
     va_end(ap);
 
     s->len = len;
-    return h_new_parser(mm__, &permutation_vt, s);
+    return h_new_parser_with_free(mm__, &permutation_vt, s, free_env);
 }
 
 HParser *h_permutation__a(void *args[]) { return h_permutation__ma(&system_allocator, args); }

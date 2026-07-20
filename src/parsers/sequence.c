@@ -9,6 +9,19 @@ typedef struct {
     HParser **p_array;
 } HSequence;
 
+static void free_env(
+    HAllocator *allocator,
+    void *environment)
+{
+    HSequence *sequence = environment;
+
+    if (sequence == NULL)
+        return;
+
+    allocator->free(allocator, sequence->p_array);
+    allocator->free(allocator, sequence);
+}
+
 static HParseResult *parse_sequence(void *env, HParseState *state) {
     HSequence *s = (HSequence *)env;
     HCountedArray *seq = h_carray_new_sized(state->arena, (s->len > 0) ? s->len : 4);
@@ -154,7 +167,7 @@ HParser *h_sequence__mv(HAllocator *mm__, HParser *p, va_list ap_) {
         s->len = len;
     }
 
-    return h_new_parser(mm__, &sequence_vt, s);
+    return h_new_parser_with_free(mm__, &sequence_vt, s, free_env);
 }
 
 HParser *h_sequence__a(void *args[]) { return h_sequence__ma(&system_allocator, args); }
@@ -239,7 +252,7 @@ HParser *h_drop_from___mv(HAllocator *mm__, HParser *p, va_list ap) {
         }
     }
 
-    return h_new_parser(mm__, &sequence_vt, rewrite);
+   return h_new_parser_with_free(mm__, &sequence_vt, rewrite, free_env);
 }
 
 HParser *h_drop_from___a(void *args[]) { return h_drop_from___ma(&system_allocator, args); }
@@ -263,5 +276,5 @@ HParser *h_drop_from___ma(HAllocator *mm__, void *args[]) {
         ++i;
     }
 
-    return h_new_parser(mm__, &sequence_vt, rewrite);
+    return h_new_parser_with_free(mm__, &sequence_vt, rewrite, free_env);
 }

@@ -47,4 +47,12 @@ static inline void desugar_epsilon(HAllocator *mm__, HCFStack *stk__, void *env)
     HCFS_END_CHOICE();
 }
 
+static inline void h_no_free_env(
+    HAllocator *allocator,
+    void *environment)
+{
+    (void)allocator;
+    (void)environment;
+}
+
 #endif // HAMMER_PARSER_INTERNAL__H

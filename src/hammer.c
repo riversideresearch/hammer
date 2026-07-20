@@ -722,3 +722,32 @@ HParseResult *h_parse_finish(HSuspendedParser *s) {
 
     return r;
 }
+
+void h_parser_free(HParser *parser) {
+    if (parser == NULL)
+        return;
+    
+    return h_parser_free__m(&system_allocator, parser);
+}
+
+void h_parser_free__m(HAllocator *mm__, HParser *parser)
+{
+    if (parser == NULL || mm__ == NULL){
+        fprintf(stderr, "Debug: parser or allocator is NULL!\n");
+        return;
+    }
+    if (parser->backend_vtable != NULL &&
+        parser->backend_vtable->free != NULL) {
+        fprintf(stderr, "Debug: Performing backend_vtable->free()\n");
+        parser->backend_vtable->free(parser);
+    }
+
+    if (parser->free_env != NULL){ // callback handles explicit environment clenaup
+        fprintf(stderr, "Debug: Performing parser->free_env()\n");
+        parser->free_env(mm__, parser->env);}
+    else if(parser->env != NULL){ // parser_free handles generic env cleanup
+        fprintf(stderr, "Debug: NOT Performing free(parser->env)\n");
+        mm__->free(mm__, parser->env);}
+    mm__->free(mm__, parser);
+}
+

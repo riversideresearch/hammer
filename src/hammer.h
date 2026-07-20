@@ -182,6 +182,8 @@ typedef struct HCFChoice_ HCFChoice;
 typedef struct HRVMProg_ HRVMProg;
 typedef struct HParserVtable_ HParserVtable;
 
+typedef void (*HParserEnvFree)(HAllocator *mm__, void *);
+
 // TODO: Make this internal
 typedef struct HParser_ {
     const HParserVtable *vtable;
@@ -189,6 +191,7 @@ typedef struct HParser_ {
     HParserBackendVTable *backend_vtable;
     void *backend_data;
     void *env;
+    HParserEnvFree free_env;
     HCFChoice *desugared; /**< if the parser can be desugared, its desugared form */
 } HParser;
 
@@ -1354,6 +1357,10 @@ const char *h_get_token_type_name(HTokenType token_type);
 
 /** Make an allocator that draws from the given memory area. */
 HAllocator *h_sloballoc(void *mem, size_t size);
+
+void h_parser_free(HParser *p);
+
+void h_parser_free__m(HAllocator *mm__, HParser *parser);
 
 #ifdef __cplusplus
 }

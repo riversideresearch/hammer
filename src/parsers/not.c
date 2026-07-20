@@ -22,5 +22,5 @@ static const HParserVtable not_vt = {
 HParser *h_not(const HParser *p) { return h_not__m(&system_allocator, p); }
 HParser *h_not__m(HAllocator *mm__, const HParser *p) {
     void *env = (void *)p;
-    return h_new_parser(mm__, &not_vt, env);
+    return h_new_parser_with_free(mm__, &not_vt, env, h_no_free_env);
 }
