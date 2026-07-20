@@ -16,6 +16,19 @@ typedef struct HIgnoreSeq_ {
     size_t which; // whose result to return
 } HIgnoreSeq;
 
+static void free_env(
+    HAllocator *allocator,
+    void *environment)
+{
+    HIgnoreSeq *sequence = environment;
+
+    if (sequence == NULL)
+        return;
+
+    allocator->free(allocator, sequence->parsers);
+    allocator->free(allocator, sequence);
+}
+
 static HParseResult *parse_ignoreseq(void *env, HParseState *state) {
     const HIgnoreSeq *seq = (HIgnoreSeq *)env;
     HParseResult *res = NULL;
@@ -116,7 +129,7 @@ static HParser *h_leftright__m(HAllocator *mm__, const HParser *p, const HParser
     seq->len = 2;
     seq->which = which;
 
-    return h_new_parser(mm__, &ignoreseq_vt, seq);
+    return h_new_parser_with_free(mm__, &ignoreseq_vt, seq, free_env);
 }
 
 HParser *h_left(const HParser *p, const HParser *q) {
@@ -145,5 +158,5 @@ HParser *h_middle__m(HAllocator *mm__, const HParser *p, const HParser *x, const
     seq->len = 3;
     seq->which = 1;
 
-    return h_new_parser(mm__, &ignoreseq_vt, seq);
+    return h_new_parser_with_free(mm__, &ignoreseq_vt, seq, free_env);
 }

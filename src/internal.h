@@ -401,18 +401,30 @@ static inline HParserBackendVTable *h_get_missing_backend_vtable__int(void) {
 
 int h_copy_numeric_param(HAllocator *mm__, void **out, void *in);
 
-static inline HParser *h_new_parser(HAllocator *mm__, const HParserVtable *vt, void *env) {
+static inline HParser *h_new_parser_with_free(
+    HAllocator *mm__,
+    const HParserVtable *vt,
+    void *env,
+    HParserEnvFree free_env)
+{
     HParser *p = h_new(HParser, 1);
-    memset(p, 0, sizeof(HParser));
+    memset(p, 0, sizeof(*p));
+
     p->vtable = vt;
     p->env = env;
-    /*
-     * Current limitation: if we specify backends solely by HParserBackend, we
-     * can't set a default backend that requires any parameters to h_compile()
-     */
+    p->free_env = free_env;
     p->backend = h_get_default_backend__int();
     p->backend_vtable = h_get_default_backend_vtable__int();
+
     return p;
+}
+
+static inline HParser *h_new_parser(
+    HAllocator *mm__,
+    const HParserVtable *vt,
+    void *env)
+{
+    return h_new_parser_with_free(mm__, vt, env, NULL);
 }
 
 HCFChoice *h_desugar(HAllocator *mm__, HCFStack *stk__, const HParser *parser);

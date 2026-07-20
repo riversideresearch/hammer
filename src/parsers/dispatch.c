@@ -30,6 +30,17 @@ typedef struct {
     size_t size;
 } HDispatch;
 
+static void free_env(HAllocator *allocator, void *environment)
+{
+    HDispatch *dispatch = environment;
+
+    if (dispatch == NULL)
+        return;
+
+    allocator->free(allocator, dispatch->map);
+    allocator->free(allocator, dispatch);
+}
+
 // Helper functions
 static size_t next_pow2(size_t n) {
     if (n == 0)
@@ -241,5 +252,5 @@ HParser *h_dispatch__m(HAllocator *mm__, HParser *discriminator, const OpcodeMap
     env->default_parser = default_parser;
     env->size = size;
 
-    return h_new_parser(mm__, &dispatch_vt, env);
+    return h_new_parser_with_free(mm__, &dispatch_vt, env, free_env);
 }

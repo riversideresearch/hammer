@@ -8,6 +8,19 @@ typedef struct {
     size_t len;
 } HToken;
 
+static void free_env(
+    HAllocator *allocator,
+    void *environment)
+{
+    HToken *token = environment;
+
+    if (token == NULL)
+        return;
+
+    allocator->free(allocator, (void *)token->str);
+    allocator->free(allocator, token);
+}
+
 static HParseResult *parse_token(void *env, HParseState *state) {
     HToken *t = (HToken *)env;
     for (size_t i = 0; i < t->len; ++i) {
@@ -92,5 +105,5 @@ HParser *h_token__m(HAllocator *mm__, const uint8_t *str, const size_t len) {
     uint8_t *str_cpy = h_new(uint8_t, len);
     memcpy(str_cpy, str, len);
     t->str = str_cpy, t->len = len;
-    return h_new_parser(mm__, &token_vt, t);
+    return h_new_parser_with_free(mm__, &token_vt, t, free_env);
 }
