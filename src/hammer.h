@@ -533,6 +533,9 @@ HParser *h_float_range__m(HAllocator *mm__, const HParser *p, const double lower
 HParser *h_bits(size_t len, _Bool sign);
 HParser *h_bits__m(HAllocator *mm__, size_t len, _Bool sign);
 
+#define h_bit1() h_int_range(h_bits(1, false), 1, 1)
+#define h_bit0() h_int_range(h_bits(1, false), 0, 0) 
+
 /**
  * @brief Returns a parser that parses the specified number of bytes. The input does not have to be
  * aligned to a byte boundary.
