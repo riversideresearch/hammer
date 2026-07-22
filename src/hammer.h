@@ -695,6 +695,31 @@ HParser *h_middle__m(HAllocator *mm__, const HParser *p, const HParser *x, const
 HParser *h_action(const HParser *p, const HAction a, void *user_data);
 HParser *h_action__m(HAllocator *mm__, const HParser *p, const HAction a, void *user_data);
 
+typedef struct {
+    HParseResult *res;
+    HAction action;
+    void *user_data;
+} HActionCollection;
+
+/**
+ * @brief Given another parser, p, and a function f, returns a parser that applies p, then applies f
+ * to everything in the AST of p's result
+ * @param p Parser to wrap
+ * @param a Action function
+ * @param user_data Context for action
+ * @return Result token type: any
+ */
+HParser *h_action_wait(const HParser *p, const HAction a, void *user_data, HActionCollection *collection);
+HParser *h_action_wait__m(HAllocator *mm__, const HParser *p, const HAction a, void *user_data, HActionCollection *collection);
+
+/**
+ * @brief Given a table of h_actions, run all the parsed actions.
+ * 
+ * @param actions symbol table map of results, HActions, and user_data.
+ * @param n number of actions to take\
+ */
+void h_action_on_success(HActionCollection *collection);
+
 /**
  * @brief Parse a single byte that is in the given charset. Always attempts to
  * consume exactly one byte from the input; advances the cursor by one byte on
