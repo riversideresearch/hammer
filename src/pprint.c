@@ -33,36 +33,36 @@ static void print_indent(FILE *stream, size_t depth) {
  
 void h_pprint_ast_indexed(FILE *stream, const HParsedToken *token, size_t depth) {
   if (token == NULL) {
-    print_indent(depth);
+    print_indent(stream, depth);
     fprintf(stream, "NULL\n");
     return;
   }
  
   switch (token->token_type) {
   case TT_NONE:
-    print_indent(depth);
+    print_indent(stream, depth);
     fprintf(stream, "TT_NONE\n");
     break;
  
   case TT_UINT:
-    print_indent(depth);
-    fprintf(stream, "TT_UINT = %u" PRIu64 "\n", token->token_data.uint);
+    print_indent(stream, depth);
+    fprintf(stream, "TT_UINT = %lu" PRIu64 "\n", token->token_data.uint);
     break;
  
   case TT_SINT:
-    print_indent(depth);
-    fprintf(stream, "TT_SINT = %d" PRId64 "\n", token->token_data.sint);
+    print_indent(stream, depth);
+    fprintf(stream, "TT_SINT = %ld" PRId64 "\n", token->token_data.sint);
     break;
  
   case TT_BYTES:
-    print_indent(depth);
+    print_indent(stream, depth);
     fprintf(stream, "TT_BYTES length=%zu value=\"", token->token_data.bytes.len);
  
     for (size_t i = 0; i < token->token_data.bytes.len; i++) {
       uint8_t byte = token->token_data.bytes.token[i];
  
       if (byte >= 0x20 && byte <= 0x7e) {
-        fprintf(stream, "%c", (char)byte)
+        fprintf(stream, "%c", (char)byte);
       } else {
         fprintf(stream, "\\x%02X", byte);
       }
@@ -72,21 +72,21 @@ void h_pprint_ast_indexed(FILE *stream, const HParsedToken *token, size_t depth)
     break;
  
   case TT_DOUBLE:
-    print_indent(depth);
+    print_indent(stream, depth);
     fprintf(stream, "TT_DOUBLE = %lf\n", token->token_data.dbl);
     break;
  
   case TT_FLOAT:
-    print_indent(depth);
+    print_indent(stream, depth);
     fprintf(stream, "TT_FLOAT = %f\n", (double)token->token_data.flt);
     break;
  
   case TT_SEQUENCE:
-    print_indent(depth);
+    print_indent(stream, depth);
     fprintf(stream, "TT_SEQUENCE children=%zu\n", token->token_data.seq->used);
  
     for (size_t i = 0; i < token->token_data.seq->used; i++) {
-      print_indent(depth + 1);
+    print_indent(stream, depth+1);
       fprintf(stream, "[%zu] ", i);
  
       const HParsedToken *child = token->token_data.seq->elements[i];
@@ -97,7 +97,7 @@ void h_pprint_ast_indexed(FILE *stream, const HParsedToken *token, size_t depth)
        */
       if (child != NULL && child->token_type == TT_SEQUENCE) {
         fprintf(stream, "\n");
-        h_pprint_ast_indexed(steam, child, depth + 2);
+        h_pprint_ast_indexed(stream, child, depth + 2);
       } else {
         h_pprint_ast_indexed(stream, child, 0);
       }
@@ -105,7 +105,7 @@ void h_pprint_ast_indexed(FILE *stream, const HParsedToken *token, size_t depth)
     break;
  
   default:
-    print_indent(depth);
+    print_indent(stream, depth);
  
     if (token->token_type >= TT_USER) {
       printf("TT_USER/custom type=%d pointer=%p\n", (int)token->token_type,
