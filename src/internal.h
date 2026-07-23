@@ -548,9 +548,8 @@ static inline void h_cfstack_add_to_seq(HAllocator *mm__, HCFStack *stk__, HCFCh
                 }
                 if (cur_top->data.seq[i]->items[j] == NULL) {
                     size_t new_count = j + 2;
-                    HCFChoice **new_items =
-                        mm__->realloc(mm__, cur_top->data.seq[i]->items,
-                                    sizeof(*new_items) * new_count);
+                    HCFChoice **new_items = mm__->realloc(mm__, cur_top->data.seq[i]->items,
+                                                          sizeof(*new_items) * new_count);
 
                     if (!new_items) {
                         stk__->error = 1;

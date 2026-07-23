@@ -32,8 +32,7 @@ static bool h_bit_writer_reserve(HBitWriter *w, size_t nbits) {
     if (w->error)
         return false;
 
-    size_t nbytes =
-        nbits / 8 + (nbits % 8 != 0) + (w->bit_offset != 0);
+    size_t nbytes = nbits / 8 + (nbits % 8 != 0) + (w->bit_offset != 0);
 
     if (nbytes >= SIZE_MAX - w->index) {
         w->error = 1;
@@ -55,8 +54,7 @@ static bool h_bit_writer_reserve(HBitWriter *w, size_t nbits) {
         new_capacity *= 2;
     }
 
-    uint8_t *new_buf =
-        w->mm__->realloc(w->mm__, w->buf, new_capacity);
+    uint8_t *new_buf = w->mm__->realloc(w->mm__, w->buf, new_capacity);
 
     if (!new_buf) {
         w->error = 1;

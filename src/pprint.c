@@ -130,11 +130,10 @@ static inline bool ensure_capacity(struct result_buf *buf, int amt) {
     if (new_capacity == buf->capacity)
         return true;
 
-    char *new_output =
-        system_allocator.realloc(&system_allocator, buf->output, new_capacity);
+    char *new_output = system_allocator.realloc(&system_allocator, buf->output, new_capacity);
 
     if (!new_output)
-        return false;  // buf->output still owns the original allocation
+        return false; // buf->output still owns the original allocation
 
     buf->output = new_output;
     buf->capacity = new_capacity;
