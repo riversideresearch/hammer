@@ -29,30 +29,44 @@ HBitWriter *h_bit_writer_new(HAllocator *mm__) {
  * buffer. If the buffer is expanded, the added bits should be zeroed.
  */
 static bool h_bit_writer_reserve(HBitWriter *w, size_t nbits) {
-    // As is, this may overshoot by a byte, e.g., nbits=9, bit_offset=1.
-    // This will assume that the last partial byte is full, and reserve
-    // 2 bytes at the end, whereas only one is necessary.
-    //
-    // That said, this guarantees the postcondition that w->buf[w->index]
-    // is valid.
+    if (w->error)
+        return false;
 
-    // Round up to bytes
-    int nbytes = (nbits + 7) / 8 + ((w->bit_offset != 0) ? 1 : 0);
-    size_t old_capacity = w->capacity;
-    while (w->index + nbytes >= w->capacity) {
-        uint8_t *new_buf = w->mm__->realloc(w->mm__, w->buf, new_capacity);
-        if (!new_buf) {
-            w->error = 1;
-            return false;
-        }
+    size_t nbytes =
+        nbits / 8 + (nbits % 8 != 0) + (w->bit_offset != 0);
 
-        w->buf = new_buf;
-        w->capacity = new_capacity;
+    if (nbytes >= SIZE_MAX - w->index) {
+        w->error = 1;
+        return false;
     }
-    return true;
 
-    if (old_capacity != w->capacity)
-        memset(w->buf + old_capacity, 0, w->capacity - old_capacity);
+    size_t required_capacity = w->index + nbytes + 1;
+    size_t old_capacity = w->capacity;
+
+    if (required_capacity <= old_capacity)
+        return true;
+
+    size_t new_capacity = old_capacity;
+    while (new_capacity < required_capacity) {
+        if (new_capacity > SIZE_MAX / 2) {
+            new_capacity = required_capacity;
+            break;
+        }
+        new_capacity *= 2;
+    }
+
+    uint8_t *new_buf =
+        w->mm__->realloc(w->mm__, w->buf, new_capacity);
+
+    if (!new_buf) {
+        w->error = 1;
+        return false;
+    }
+
+    memset(new_buf + old_capacity, 0, new_capacity - old_capacity);
+    w->buf = new_buf;
+    w->capacity = new_capacity;
+    return true;
 }
 
 void h_bit_writer_put(HBitWriter *w, uint64_t data, size_t nbits) {
