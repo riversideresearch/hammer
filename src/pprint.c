@@ -103,7 +103,10 @@ void h_pprint_ast_indexed(FILE *stream, const HParsedToken *token, size_t depth)
       }
     }
     break;
- 
+  case TT_ERR:
+    print_indent(stream, depth);
+    fprintf(stream, "TT_ERR\n");
+    break;
   default:
     print_indent(stream, depth);
  
