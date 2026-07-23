@@ -113,6 +113,8 @@ struct result_buf {
 };
 
 static inline bool ensure_capacity(struct result_buf *buf, int amt) {
+    if (buf->failed)
+        return false;
     if (amt < 0 || (size_t)amt >= SIZE_MAX - buf->len)
         return false;
 
@@ -141,6 +143,8 @@ static inline bool ensure_capacity(struct result_buf *buf, int amt) {
 }
 
 bool h_append_buf(struct result_buf *buf, const char *input, int len) {
+    if (buf->failed)
+        return false;
     if (ensure_capacity(buf, len) && !buf->failed) {
         memcpy(buf->output + buf->len, input, len);
         buf->len += len;
@@ -152,6 +156,8 @@ bool h_append_buf(struct result_buf *buf, const char *input, int len) {
 }
 
 bool h_append_buf_c(struct result_buf *buf, char v) {
+    if (buf->failed)
+        return false;
     if (ensure_capacity(buf, 1) && !buf->failed) {
         buf->output[buf->len++] = v;
         return true;
@@ -163,21 +169,28 @@ bool h_append_buf_c(struct result_buf *buf, char v) {
 
 /** append a formatted string to the result buffer */
 bool h_append_buf_formatted(struct result_buf *buf, const char *format, ...) {
-    char *tmpbuf;
+    if (buf->failed)
+        return false;
+    char *tmpbuf = NULL;
     int len;
     bool result;
     va_list ap;
 
     va_start(ap, format);
     len = h_platform_vasprintf(&tmpbuf, format, ap);
+    va_end(ap);
+    if (len < 0) {
+        buf->failed = true;
+        return false;
+    }
     result = h_append_buf(buf, tmpbuf, len);
     free(tmpbuf);
-    va_end(ap);
-
     return result;
 }
 
 static void unamb_sub(const HParsedToken *tok, struct result_buf *buf) {
+    if (buf->failed)
+        return;
     if (!tok) {
         h_append_buf(buf, "NULL", 4);
         return;
@@ -248,7 +261,7 @@ char *h_write_result_unamb(const HParsedToken *tok) {
         .failed = false,
     };
 
-    assert(buf.output != NULL);
+    //h_alloc exits on failure so buf.out != NULL
     unamb_sub(tok, &buf);
 
     if (buf.failed || !h_append_buf_c(&buf, '\0')) {
