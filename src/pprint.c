@@ -46,12 +46,12 @@ void h_pprint_ast_indexed(FILE *stream, const HParsedToken *token, size_t depth)
  
   case TT_UINT:
     print_indent(stream, depth);
-    fprintf(stream, "TT_UINT = %lu" PRIu64 "\n", token->token_data.uint);
+    fprintf(stream, "TT_UINT = %" PRIu64 "\n", token->token_data.uint);
     break;
  
   case TT_SINT:
     print_indent(stream, depth);
-    fprintf(stream, "TT_SINT = %ld" PRId64 "\n", token->token_data.sint);
+    fprintf(stream, "TT_SINT = %" PRId64 "\n", token->token_data.sint);
     break;
  
   case TT_BYTES:
@@ -108,10 +108,10 @@ void h_pprint_ast_indexed(FILE *stream, const HParsedToken *token, size_t depth)
     print_indent(stream, depth);
  
     if (token->token_type >= TT_USER) {
-      printf("TT_USER/custom type=%d pointer=%p\n", (int)token->token_type,
+      fprintf(stream, "TT_USER/custom type=%d pointer=%p\n", (int)token->token_type,
              token->token_data.user);
     } else {
-      printf("Unknown token type=%d\n", (int)token->token_type);
+      fprintf(stream, "Unknown token type=%d\n", (int)token->token_type);
     }
  
     break;
