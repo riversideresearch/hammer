@@ -13,13 +13,16 @@ static void free_env(
     HAllocator *allocator,
     void *environment)
 {
-    HSequence *sequence = environment;
+    HSequence *s = environment;
 
-    if (sequence == NULL)
+    if (s == NULL)
         return;
 
-    allocator->free(allocator, sequence->p_array);
-    allocator->free(allocator, sequence);
+    for(size_t i = 0; i<s->len; ++i){
+        h_parser_free(s->p_array[i]);
+    }
+    allocator->free(allocator, s->p_array);
+    allocator->free(allocator, s);
 }
 
 static HParseResult *parse_sequence(void *env, HParseState *state) {
