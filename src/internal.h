@@ -535,19 +535,30 @@ static inline void h_cfstack_add_to_seq(HAllocator *mm__, HCFStack *stk__, HCFCh
     HCFChoice *cur_top = stk__->stack[stk__->count - 1];
     assert(cur_top->type == HCF_CHOICE);
     assert(cur_top->data.seq[0] != NULL); // There must be at least one sequence...
+    if (stk__->error)
+        return;
     stk__->last_completed = item;
     for (size_t i = 0;; i++) {
         if (cur_top->data.seq[i + 1] == NULL) {
             assert(cur_top->data.seq[i]->items != NULL);
             for (size_t j = 0;; j++) {
+                if (j > SIZE_MAX / sizeof(HCFChoice *) - 2) {
+                    stk__->error = 1;
+                    return;
+                }
                 if (cur_top->data.seq[i]->items[j] == NULL) {
-                    cur_top->data.seq[i]->items = mm__->realloc(mm__, cur_top->data.seq[i]->items,
-                                                                sizeof(HCFChoice *) * (j + 2));
-                    if (!cur_top->data.seq[i]->items) {
+                    size_t new_count = j + 2;
+                    HCFChoice **new_items =
+                        mm__->realloc(mm__, cur_top->data.seq[i]->items,
+                                    sizeof(*new_items) * new_count);
+
+                    if (!new_items) {
                         stk__->error = 1;
+                        return;
                     }
-                    cur_top->data.seq[i]->items[j] = item;
-                    cur_top->data.seq[i]->items[j + 1] = NULL;
+                    cur_top->data.seq[i]->items = new_items;
+                    new_items[j] = item;
+                    new_items[j + 1] = NULL;
                     assert(!stk__->error);
                     return;
                 }
