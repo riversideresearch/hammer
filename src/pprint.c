@@ -109,34 +109,55 @@ struct result_buf {
     char *output;
     size_t len;
     size_t capacity;
+    bool failed;
 };
 
 static inline bool ensure_capacity(struct result_buf *buf, int amt) {
-    while (buf->len + amt >= buf->capacity) {
-        buf->output =
-            (&system_allocator)->realloc(&system_allocator, buf->output, buf->capacity *= 2);
-        if (!buf->output) {
-            return false;
+    if (amt < 0 || (size_t)amt >= SIZE_MAX - buf->len)
+        return false;
+
+    size_t needed = buf->len + (size_t)amt + 1;
+    size_t new_capacity = buf->capacity;
+
+    while (new_capacity < needed) {
+        if (new_capacity > SIZE_MAX / 2) {
+            new_capacity = needed;
+            break;
         }
+        new_capacity *= 2;
     }
+
+    if (new_capacity == buf->capacity)
+        return true;
+
+    char *new_output =
+        system_allocator.realloc(&system_allocator, buf->output, new_capacity);
+
+    if (!new_output)
+        return false;  // buf->output still owns the original allocation
+
+    buf->output = new_output;
+    buf->capacity = new_capacity;
     return true;
 }
 
 bool h_append_buf(struct result_buf *buf, const char *input, int len) {
-    if (ensure_capacity(buf, len)) {
+    if (ensure_capacity(buf, len) && !buf->failed) {
         memcpy(buf->output + buf->len, input, len);
         buf->len += len;
         return true;
     } else {
+        buf->failed = true;
         return false;
     }
 }
 
 bool h_append_buf_c(struct result_buf *buf, char v) {
-    if (ensure_capacity(buf, 1)) {
+    if (ensure_capacity(buf, 1) && !buf->failed) {
         buf->output[buf->len++] = v;
         return true;
     } else {
+        buf->failed = true;
         return false;
     }
 }
@@ -221,9 +242,20 @@ static void unamb_sub(const HParsedToken *tok, struct result_buf *buf) {
 }
 
 char *h_write_result_unamb(const HParsedToken *tok) {
-    struct result_buf buf = {.output = h_alloc(&system_allocator, 16), .len = 0, .capacity = 16};
+    struct result_buf buf = {
+        .output = h_alloc(&system_allocator, 16),
+        .len = 0,
+        .capacity = 16,
+        .failed = false,
+    };
+
     assert(buf.output != NULL);
     unamb_sub(tok, &buf);
-    h_append_buf_c(&buf, 0);
+
+    if (buf.failed || !h_append_buf_c(&buf, '\0')) {
+        system_allocator.free(&system_allocator, buf.output);
+        return NULL;
+    }
+
     return buf.output;
 }

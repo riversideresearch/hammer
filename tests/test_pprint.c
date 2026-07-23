@@ -5,6 +5,60 @@
 #include <glib.h>
 #include <stdio.h>
 #include <string.h>
+
+typedef struct PPrintOOMAllocator_ {
+    HAllocator backing;
+    void *live_ptr;
+    size_t outstanding;
+    size_t realloc_calls;
+    void *realloc_ptr;
+    size_t realloc_size;
+} PPrintOOMAllocator;
+
+static void *pprint_oom_alloc(void *env, size_t size) {
+    PPrintOOMAllocator *state = env;
+    void *ptr = state->backing.alloc(&state->backing, size);
+
+    if (ptr) {
+        state->live_ptr = ptr;
+        state->outstanding++;
+    }
+    return ptr;
+}
+
+static void *pprint_oom_realloc(void *env, void *ptr, size_t size) {
+    PPrintOOMAllocator *state = env;
+
+    state->realloc_calls++;
+    state->realloc_ptr = ptr;
+    state->realloc_size = size;
+
+    if (!ptr)
+        return pprint_oom_alloc(env, size);
+
+    /* Simulate realloc failing while leaving its input allocation intact. */
+    return NULL;
+}
+
+static void pprint_oom_free(void *env, void *ptr) {
+    PPrintOOMAllocator *state = env;
+
+    if (!ptr)
+        return;
+
+    state->backing.free(&state->backing, ptr);
+    if (state->outstanding > 0)
+        state->outstanding--;
+    if (state->live_ptr == ptr)
+        state->live_ptr = NULL;
+}
+
+static HAllocatorVtable pprint_oom_vtable = {
+    .alloc = pprint_oom_alloc,
+    .realloc = pprint_oom_realloc,
+    .free = pprint_oom_free,
+};
+
 static void test_pprint_null(void) {
     FILE *f = tmpfile();
     if (!f)
@@ -307,6 +361,57 @@ static void test_write_result_unamb_user(void) {
     h_delete_arena(arena);
 }
 
+static void test_write_result_unamb_realloc_failure_does_not_leak(void) {
+    const uint8_t bytes[] = {0, 0, 0, 0};
+    HParsedToken bytes_token = {
+        .token_type = TT_BYTES,
+        .token_data.bytes = {.token = bytes, .len = sizeof(bytes)},
+    };
+    HParsedToken *elements[] = {&bytes_token};
+    HCountedArray sequence = {
+        .capacity = 1,
+        .used = 1,
+        .arena = NULL,
+        .elements = elements,
+    };
+    HParsedToken token = {
+        .token_type = TT_SEQUENCE,
+        .token_data.seq = &sequence,
+    };
+
+    HAllocator saved_allocator = system_allocator;
+    PPrintOOMAllocator state = {.backing = saved_allocator};
+    h_allocator_wrap(&system_allocator, &pprint_oom_vtable, &state);
+
+    /*
+     * This token prints as "(<00.00.00.00>)", exactly 15 bytes.  The only
+     * growth attempt is therefore for the trailing NUL byte, so realloc can
+     * fail without a later append dereferencing the lost NULL buffer.
+     */
+    char *result = h_write_result_unamb(&token);
+    bool result_is_null = result == NULL;
+    bool realloc_had_input = state.realloc_ptr != NULL;
+
+    /* Perform all cleanup available to a normal API caller. */
+    system_allocator.free(&system_allocator, result);
+    size_t outstanding_after_normal_cleanup = state.outstanding;
+
+    /*
+     * Recover the deliberately orphaned allocation so this failing regression
+     * test does not itself leak memory under Valgrind or a sanitizer.
+     */
+    if (state.live_ptr)
+        pprint_oom_free(&state, state.live_ptr);
+
+    system_allocator = saved_allocator;
+
+    g_check_cmp_int(result_is_null, ==, true);
+    g_check_cmp_size(state.realloc_calls, ==, 1);
+    g_check_cmp_int(realloc_had_input, ==, true);
+    g_check_cmp_size(state.realloc_size, ==, 32);
+    g_check_cmp_size(outstanding_after_normal_cleanup, ==, 0);
+}
+
 static void test_buffer_functions(void) {
     HArena *arena = h_new_arena(&system_allocator, 4096);
     HParsedToken *tok = h_arena_malloc(arena, sizeof(HParsedToken));
@@ -356,5 +461,7 @@ void register_pprint_tests(void) {
     g_test_add_func("/core/pprint/write_result_unamb_err", test_write_result_unamb_err);
     g_test_add_func("/core/pprint/write_result_unamb_sequence", test_write_result_unamb_sequence);
     g_test_add_func("/core/pprint/write_result_unamb_user", test_write_result_unamb_user);
+    g_test_add_func("/core/pprint/write_result_unamb_realloc_failure_does_not_leak",
+                    test_write_result_unamb_realloc_failure_does_not_leak);
     g_test_add_func("/core/pprint/buffer_functions", test_buffer_functions);
 }
