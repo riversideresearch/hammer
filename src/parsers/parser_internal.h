@@ -55,4 +55,24 @@ static inline void h_no_free_env(
     (void)environment;
 }
 
+typedef struct HSequence {
+    size_t len;
+    HParser **p_array;
+} HSequence;
+
+static inline void h_free_seq_env(
+    HAllocator *allocator,
+    void *environment)
+{
+    HSequence *s = environment;
+
+    if (s == NULL)
+        return;
+
+    for(size_t i = 0; i<s->len; ++i){
+        h_parser_free(s->p_array[i]);
+    }
+    allocator->free(allocator, s->p_array);
+    allocator->free(allocator, s);
+}
 #endif // HAMMER_PARSER_INTERNAL__H
