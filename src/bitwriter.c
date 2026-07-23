@@ -28,7 +28,7 @@ HBitWriter *h_bit_writer_new(HAllocator *mm__) {
  * Ensure there are at least [nbits] bits available at the end of the
  * buffer. If the buffer is expanded, the added bits should be zeroed.
  */
-static void h_bit_writer_reserve(HBitWriter *w, size_t nbits) {
+static bool h_bit_writer_reserve(HBitWriter *w, size_t nbits) {
     // As is, this may overshoot by a byte, e.g., nbits=9, bit_offset=1.
     // This will assume that the last partial byte is full, and reserve
     // 2 bytes at the end, whereas only one is necessary.
@@ -40,12 +40,16 @@ static void h_bit_writer_reserve(HBitWriter *w, size_t nbits) {
     int nbytes = (nbits + 7) / 8 + ((w->bit_offset != 0) ? 1 : 0);
     size_t old_capacity = w->capacity;
     while (w->index + nbytes >= w->capacity) {
-        w->buf = w->mm__->realloc(w->mm__, w->buf, w->capacity *= 2);
-        if (!w->buf) {
+        uint8_t *new_buf = w->mm__->realloc(w->mm__, w->buf, new_capacity);
+        if (!new_buf) {
             w->error = 1;
-            return;
+            return false;
         }
+
+        w->buf = new_buf;
+        w->capacity = new_capacity;
     }
+    return true;
 
     if (old_capacity != w->capacity)
         memset(w->buf + old_capacity, 0, w->capacity - old_capacity);
@@ -55,7 +59,8 @@ void h_bit_writer_put(HBitWriter *w, uint64_t data, size_t nbits) {
     HAMMER_ASSERT(nbits > 0);
 
     // expand size...
-    h_bit_writer_reserve(w, nbits);
+    if (!h_bit_writer_reserve(w, nbits))
+        return;
 
     while (nbits) {
         size_t count = MIN((size_t)(8 - w->bit_offset), nbits);
