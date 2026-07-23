@@ -20,13 +20,13 @@ static void free_env(
     HAllocator *allocator,
     void *environment)
 {
-    HIgnoreSeq *sequence = environment;
+    HIgnoreSeq *s = environment;
 
-    if (sequence == NULL)
+    if (s == NULL)
         return;
-
-    allocator->free(allocator, sequence->parsers);
-    allocator->free(allocator, sequence);
+    
+    allocator->free(allocator, s->parsers);
+    allocator->free(allocator, s);
 }
 
 static HParseResult *parse_ignoreseq(void *env, HParseState *state) {

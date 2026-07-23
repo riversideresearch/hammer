@@ -15,25 +15,6 @@
 #endif
 #endif
 
-typedef struct {
-    size_t len;
-    HParser **p_array;
-} HSequence;
-
-static void free_env(
-    HAllocator *allocator,
-    void *environment)
-{
-    HSequence *sequence = environment;
-
-    if (sequence == NULL)
-        return;
-
-    allocator->free(allocator, sequence->p_array);
-    allocator->free(allocator, sequence);
-}
-
-
 static HParseResult *parse_choice(void *env, HParseState *state) {
     HSequence *s = (HSequence *)env;
     HInputStream backup = state->input_stream;
@@ -148,7 +129,7 @@ HParser *h_choice__mv(HAllocator *mm__, HParser *p, va_list ap_) {
     va_end(ap);
 
     s->len = len;
-    return h_new_parser_with_free(mm__, &choice_vt, s, free_env);
+    return h_new_parser_with_free(mm__, &choice_vt, s, h_free_seq_env);
 }
 
 HParser *h_choice__a(void *args[]) { return h_choice__ma(&system_allocator, args); }
