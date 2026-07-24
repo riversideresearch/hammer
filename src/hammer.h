@@ -511,15 +511,15 @@ HParser *h_int_range__m(HAllocator *mm__, const HParser *p, const int64_t lower,
  * @brief Given a float parser, p, and two float bounds, lower and upper, returns a parser that
  * parses a value within the range
  *
- * @param p float parser (h_float16() or h_float32())
+ * @param p float parser (h_float16(), h_float32(), h_float64())
  * @param lower Lower bound (inclusive)
  * @param upper Upper bound (inclusive)
  * @return Result token type: Same as p's result type
  * @note Consumes the same number of bits as p
  */
-HParser *h_float_range(const HParser *p, const float lower, const float upper);
-HParser *h_float_range__m(HAllocator *mm__, const HParser *p, const float lower,
-                          const float upper);
+HParser *h_float_range(const HParser *p, const double lower, const double upper);
+HParser *h_float_range__m(HAllocator *mm__, const HParser *p, const double lower,
+                          const double upper);
 
 /**
  * @brief Returns a parser that parses the specified number of bits. sign == true if signed, false

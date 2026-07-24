@@ -3,8 +3,8 @@
 
 typedef struct {
     const HParser *p;
-    float lower;
-    float upper;
+    double lower;
+    double upper;
 } HFloatRange;
 
 static HParseResult *parse_float_range(void *env, HParseState *state) {
@@ -14,14 +14,21 @@ static HParseResult *parse_float_range(void *env, HParseState *state) {
     if (!ret || !ret->ast)
         return NULL;
 
-    if (ret->ast->token_type != TT_FLOAT)
+    switch (ret->ast->token_type) {
+    case TT_FLOAT:
+        if ((float)r_env->lower <= ret->ast->token_data.flt && (float)r_env->upper >= ret->ast->token_data.flt)
+            return ret;
+        else
+            return NULL;
+    case TT_DOUBLE:
+        if (r_env->lower <= ret->ast->token_data.dbl &&
+            r_env->upper >= ret->ast->token_data.dbl)
+            return ret;
+        else
+            return NULL;
+    default:
         return NULL;
-
-    const float value = ret->ast->token_data.flt;
-    if (!(r_env->lower <= value && value <= r_env->upper))
-        return NULL;
-
-    return ret;
+    }
 }
 
 static const HParserVtable float_range_vt = {
@@ -31,18 +38,13 @@ static const HParserVtable float_range_vt = {
     .higher = false,
 };
 
-HParser *h_float_range(const HParser *p, const float lower, const float upper) {
+HParser *h_float_range(const HParser *p, const double lower, const double upper) {
     return h_float_range__m(&system_allocator, p, lower, upper);
 }
 
-HParser *h_float_range__m(HAllocator *mm__, const HParser *p, const float lower,
-                          const float upper) {
-    // p must be a float parser, which means it is using parse_float
-    // TODO: re-add this check
-    // assert_message(p->vtable == &float_vt, "float_range requires a float parser");
-
-    // and regardless, the bounds need to fit in the parser in question
-    // TODO: check this as well.
+HParser *h_float_range__m(HAllocator *mm__, const HParser *p, const double lower,
+                          const double upper) {
+    // p must be a float parser
 
     HFloatRange *r_env = h_new(HFloatRange, 1);
     r_env->p = p;
