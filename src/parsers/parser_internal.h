@@ -69,9 +69,6 @@ static inline void h_free_seq_env(
     if (s == NULL)
         return;
 
-    for(size_t i = 0; i<s->len; ++i){
-        h_parser_free(s->p_array[i]);
-    }
     allocator->free(allocator, s->p_array);
     allocator->free(allocator, s);
 }
