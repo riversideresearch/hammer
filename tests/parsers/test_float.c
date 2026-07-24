@@ -229,8 +229,16 @@ static void test_float_range(gconstpointer backend) {
     g_check_parse_failed(p, be, above, sizeof above);
     g_check_parse_failed(p, be, nan, sizeof nan);
 
-    g_check_cmp_int(p->vtable->isValidRegular(p->env), ==, false);
-    g_check_cmp_int(p->vtable->isValidCF(p->env), ==, false);
+    HCFChoice *desugared = h_desugar(&system_allocator, NULL, p);
+    HParseResult *middle_result = h_parse(h_float32(), middle, sizeof middle);
+    HParseResult *below_result = h_parse(h_float32(), below, sizeof below);
+    g_assert_nonnull(desugared);
+    g_assert_nonnull(desugared->pred);
+    g_assert_true(desugared->pred(middle_result, desugared->user_data));
+    g_check_cmp_int(desugared->pred(below_result, desugared->user_data), ==, false);
+
+    g_check_cmp_int(p->vtable->isValidRegular(p->env), ==, true);
+    g_check_cmp_int(p->vtable->isValidCF(p->env), ==, true);
 }
 
 static void test_float_range_precision_and_double(gconstpointer backend) {
@@ -283,11 +291,11 @@ void register_floating_point_parser_tests(void) {
                          test_double64_edgecases);
     g_test_add_data_func("/core/parser/float/truncated", GINT_TO_POINTER(PB_PACKRAT),
                          test_float_truncated);
-    g_test_add_data_func("/core/parser/float/range", GINT_TO_POINTER(PB_PACKRAT),
+    g_test_add_data_func("/core/parser/float/range", GINT_TO_POINTER(PB_GLR),
                          test_float_range);
     g_test_add_data_func("/core/parser/float/range-precision-double",
                          GINT_TO_POINTER(PB_PACKRAT), test_float_range_precision_and_double);
-    g_test_add_data_func("/core/parser/packrat/make_double", GINT_TO_POINTER(PB_PACKRAT),
+    g_test_add_data_func("/core/parser/packrat/make_double", GINT_TO_POINTER(PB_LALR),
                          test_make_double);
     g_test_add_data_func("/core/parser/packrat/make_float", GINT_TO_POINTER(PB_PACKRAT),
                          test_make_float);

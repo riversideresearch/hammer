@@ -7,6 +7,30 @@ typedef struct {
     double upper;
 } HFloatRange;
 
+static bool float_range_match(const HParsedToken *token, const HFloatRange *range) {
+    double value;
+
+    if (!token)
+        return false;
+
+    switch (token->token_type) {
+    case TT_FLOAT:
+        value = (double)token->token_data.flt;
+        break;
+    case TT_DOUBLE:
+        value = token->token_data.dbl;
+        break;
+    default:
+        return false;
+    }
+
+    /*
+     * Writing this as a conjunction deliberately rejects NaNs.  It also
+     * preserves double-precision bounds when p produces a TT_FLOAT.
+     */
+    return range->lower <= value && value <= range->upper;
+}
+
 static HParseResult *parse_float_range(void *env, HParseState *state) {
     HFloatRange *r_env = env;
     HParseResult *ret = h_do_parse(r_env->p, state);
@@ -14,37 +38,37 @@ static HParseResult *parse_float_range(void *env, HParseState *state) {
     if (!ret || !ret->ast)
         return NULL;
 
-    switch (ret->ast->token_type) {
-    case TT_FLOAT:
-        if (r_env->lower <= (double)ret->ast->token_data.flt &&
-            (double)ret->ast->token_data.flt <= r_env->upper)
-            return ret;
-        return NULL;
-    case TT_DOUBLE:
-        if (r_env->lower <= ret->ast->token_data.dbl &&
-            ret->ast->token_data.dbl <= r_env->upper)
-            return ret;
-        return NULL;
-    case TT_SINT:
-        if (r_env->lower <= (double)ret->ast->token_data.sint && r_env->upper >= (double)ret->ast->token_data.sint)
-            return ret;
-        else
-            return NULL;
-    case TT_UINT:
-        if (r_env->lower <= (double)ret->ast->token_data.uint &&
-            r_env->upper >= (double)ret->ast->token_data.uint)
-            return ret;
-        else
-            return NULL;
-    default:
-        return NULL;
+    return float_range_match(ret->ast, r_env) ? ret : NULL;
+}
+
+static bool float_range_predicate(HParseResult *p, void *user_data) {
+    HFloatRange *range = (HFloatRange *)user_data;
+    return p && float_range_match(p->ast, range);
+}
+
+static void desugar_float_range(HAllocator *mm__, HCFStack *stk__, void *env) {
+    HFloatRange *range = (HFloatRange *)env;
+
+    /*
+     * Desugaring p retains its float-specific reshape operation.  The outer
+     * production then forwards that token and applies the inclusive range
+     * predicate to the resulting TT_FLOAT or TT_DOUBLE.
+     */
+    HCFS_BEGIN_CHOICE() {
+        HCFS_BEGIN_SEQ() { HCFS_DESUGAR(range->p); }
+        HCFS_END_SEQ();
+        HCFS_THIS_CHOICE->reshape = h_act_first;
+        HCFS_THIS_CHOICE->pred = float_range_predicate;
+        HCFS_THIS_CHOICE->user_data = range;
     }
+    HCFS_END_CHOICE();
 }
 
 static const HParserVtable float_range_vt = {
     .parse = parse_float_range,
-    .isValidRegular = h_false,
-    .isValidCF = h_false,
+    .isValidRegular = h_true,
+    .isValidCF = h_true,
+    .desugar = desugar_float_range,
     .higher = false,
 };
 
