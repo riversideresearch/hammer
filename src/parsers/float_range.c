@@ -25,6 +25,17 @@ static HParseResult *parse_float_range(void *env, HParseState *state) {
             ret->ast->token_data.dbl <= r_env->upper)
             return ret;
         return NULL;
+    case TT_SINT:
+        if (r_env->lower <= (double)ret->ast->token_data.sint && r_env->upper >= (double)ret->ast->token_data.sint)
+            return ret;
+        else
+            return NULL;
+    case TT_UINT:
+        if (r_env->lower <= (double)ret->ast->token_data.uint &&
+            r_env->upper >= (double)ret->ast->token_data.uint)
+            return ret;
+        else
+            return NULL;
     default:
         return NULL;
     }
@@ -43,8 +54,6 @@ HParser *h_float_range(const HParser *p, const double lower, const double upper)
 
 HParser *h_float_range__m(HAllocator *mm__, const HParser *p, const double lower,
                           const double upper) {
-    // p must be a float parser
-
     HFloatRange *r_env = h_new(HFloatRange, 1);
     r_env->p = p;
     r_env->lower = lower;
