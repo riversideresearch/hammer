@@ -419,12 +419,17 @@ static inline HParser *h_new_parser_with_free(
     return p;
 }
 
+static inline void h_free_env(HAllocator *allocator,
+    void *environment){
+    allocator->free(allocator, environment);
+}
+
 static inline HParser *h_new_parser(
     HAllocator *mm__,
     const HParserVtable *vt,
     void *env)
 {
-    return h_new_parser_with_free(mm__, vt, env, NULL);
+    return h_new_parser_with_free(mm__, vt, env, h_free_env);
 }
 
 HCFChoice *h_desugar(HAllocator *mm__, HCFStack *stk__, const HParser *parser);

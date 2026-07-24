@@ -742,10 +742,6 @@ void h_parser_free__m(HAllocator *mm__, HParser *parser)
 
     if (parser->free_env != NULL){ // callback handles explicit environment clenaup
         parser->free_env(mm__, parser->env);}
-    else if(parser->env != NULL){ // parser_free handles generic env cleanup
-        parser->free_env(mm__, parser->env);}
-    else if(parser->env != NULL){ // parser_free handles generic env cleanup
-        mm__->free(mm__, parser->env);}
     mm__->free(mm__, parser);
 }
 
