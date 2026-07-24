@@ -212,6 +212,27 @@ static void test_float_truncated(gconstpointer backend) {
     g_check_parse_failed(p64, be, short64, sizeof short64);
 }
 
+static void test_float_range(gconstpointer backend) {
+    HParserBackend be = (HParserBackend)GPOINTER_TO_INT(backend);
+    const HParser *p = h_float_range(h_float32(), 1.0f, 2.0f);
+    const uint8_t lower[4] = {0x3f, 0x80, 0x00, 0x00};
+    const uint8_t middle[4] = {0x3f, 0xc0, 0x00, 0x00};
+    const uint8_t upper[4] = {0x40, 0x00, 0x00, 0x00};
+    const uint8_t below[4] = {0x3f, 0x00, 0x00, 0x00};
+    const uint8_t above[4] = {0x40, 0x20, 0x00, 0x00};
+    const uint8_t nan[4] = {0x7f, 0xc0, 0x00, 0x00};
+
+    g_check_parse_match(p, be, lower, sizeof lower, "f0x1p+0");
+    g_check_parse_match(p, be, middle, sizeof middle, "f0x1.8p+0");
+    g_check_parse_match(p, be, upper, sizeof upper, "f0x1p+1");
+    g_check_parse_failed(p, be, below, sizeof below);
+    g_check_parse_failed(p, be, above, sizeof above);
+    g_check_parse_failed(p, be, nan, sizeof nan);
+
+    g_check_cmp_int(p->vtable->isValidRegular(p->env), ==, false);
+    g_check_cmp_int(p->vtable->isValidCF(p->env), ==, false);
+}
+
 // Merged test_floats.c
 // Helper function for double parser test
 static HParsedToken *act_double(const HParseResult *p, void *u) {
@@ -250,6 +271,8 @@ void register_floating_point_parser_tests(void) {
                          test_double64_edgecases);
     g_test_add_data_func("/core/parser/float/truncated", GINT_TO_POINTER(PB_PACKRAT),
                          test_float_truncated);
+    g_test_add_data_func("/core/parser/float/range", GINT_TO_POINTER(PB_PACKRAT),
+                         test_float_range);
     g_test_add_data_func("/core/parser/packrat/make_double", GINT_TO_POINTER(PB_PACKRAT),
                          test_make_double);
     g_test_add_data_func("/core/parser/packrat/make_float", GINT_TO_POINTER(PB_PACKRAT),
