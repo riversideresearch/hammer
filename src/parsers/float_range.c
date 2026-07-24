@@ -16,16 +16,15 @@ static HParseResult *parse_float_range(void *env, HParseState *state) {
 
     switch (ret->ast->token_type) {
     case TT_FLOAT:
-        if ((float)r_env->lower <= ret->ast->token_data.flt && (float)r_env->upper >= ret->ast->token_data.flt)
+        if (r_env->lower <= (double)ret->ast->token_data.flt &&
+            (double)ret->ast->token_data.flt <= r_env->upper)
             return ret;
-        else
-            return NULL;
+        return NULL;
     case TT_DOUBLE:
         if (r_env->lower <= ret->ast->token_data.dbl &&
-            r_env->upper >= ret->ast->token_data.dbl)
+            ret->ast->token_data.dbl <= r_env->upper)
             return ret;
-        else
-            return NULL;
+        return NULL;
     default:
         return NULL;
     }
