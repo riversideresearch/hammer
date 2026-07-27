@@ -850,6 +850,35 @@ static void test_put_get(gconstpointer backend) {
                          9);
 }
 
+// helper function for h_action_wait
+HParsedToken *func(const HParseResult *result, void *user) {
+	(void)result;
+    (void)user;
+    return (HParsedToken*)NULL;
+}
+
+static void test_action_wait_in_seq(void){
+    uint8_t buf[256];
+	buf[0] = (uint8_t)'A';
+	buf[1] = (uint8_t)'B';
+	buf[2] = (uint8_t)'C';
+    HActionCollection action = {0};
+	HParser *parser =
+		h_action_wait(h_uint8(), func, NULL, &action);
+	HParser *seq = h_sequence(h_uint8(), parser, h_uint8(), NULL);
+	HParseResult *result = h_parse(seq, buf, 3);
+    
+    fprintf(stderr, "Prior to Success");
+    h_pprint_ast_indexed(stderr, (HParsedToken*)result->ast, 1);
+    //result->ast->token_data.seq->elements[1] = 65;
+    g_check_cmp_int(result->ast->token_data.seq->elements[1]->token_type, ==, TT_UINT);
+    h_action_on_success(&action);
+	// should now be the transformed AST.
+    g_check_cmp_int(result->ast->token_data.seq->elements[1]->token_type, ==, TT_NONE);
+    
+    h_parse_result_free(result);
+}
+
 static void test_permutation(gconstpointer backend) {
     HParserBackend be = (HParserBackend)GPOINTER_TO_INT(backend);
     const HParser *p = h_permutation(h_ch('a'), h_ch('b'), h_ch('c'), NULL);
@@ -1113,4 +1142,5 @@ void register_parser_tests(void) {
     extern void test_indirect_basic(gconstpointer backend);
     g_test_add_data_func("/core/parser/packrat/indirect/basic", GINT_TO_POINTER(PB_PACKRAT),
                          test_indirect_basic);
+    g_test_add_func("/core/misc/h_action_wait", test_action_wait_in_seq);
 }
