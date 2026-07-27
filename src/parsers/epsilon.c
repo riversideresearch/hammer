@@ -29,5 +29,6 @@ HParser *h_epsilon_p__m(HAllocator *mm__) {
     epsilon_p->backend = h_get_default_backend();
     epsilon_p->backend_vtable = h_get_default_backend_vtable();
     epsilon_p->vtable = &epsilon_vt;
+    epsilon_p->free_env = h_no_free_env;
     return epsilon_p;
 }

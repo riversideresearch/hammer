@@ -727,7 +727,9 @@ void h_parser_free(HParser *parser) {
     if (parser == NULL)
         return;
     
-    return h_parser_free__m(&system_allocator, parser);
+    h_parser_free__m(&system_allocator, parser);
+    
+    return;
 }
 
 void h_parser_free__m(HAllocator *mm__, HParser *parser)
@@ -740,8 +742,10 @@ void h_parser_free__m(HAllocator *mm__, HParser *parser)
         parser->backend_vtable->free(parser);
     }
 
-    if (parser->free_env != NULL){ // callback handles explicit environment clenaup
-        parser->free_env(mm__, parser->env);}
+    if (parser->free_env != NULL) // callback handles explicit environment clenaup
+        parser->free_env(mm__, parser->env);
+    if (parser->desugared != NULL) // callback handles explicit environment clenaup
+        mm__->free(mm__, parser->desugared);
     mm__->free(mm__, parser);
 }
 
