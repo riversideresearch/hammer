@@ -106,12 +106,17 @@ typedef struct {
 static HParseResult *parse_action_wait(void *env, HParseState *state) {
     HParseActionWait *a = (HParseActionWait *)env;
     if (a->p && a->action) {
-        HParseResult *res = h_do_parse(a->p, state);
-        if (res) {
-            a->collection->res = res;
+        HParseResult *tmp = h_do_parse(a->p, state);
+        if (tmp) {
+            HParsedToken *placeholder =
+                h_arena_malloc_noinit(state->arena, sizeof(*placeholder));
+
+            *placeholder = *tmp->ast;
+            a->collection->res = *tmp;
+            a->collection->placeholder = placeholder;
             a->collection->action=a->action;
             a->collection->user_data = a->user_data;
-            return res;
+            return make_result(state->arena, placeholder);
         } else
             return NULL;
     } else // either the parser's missing or the action's missing
@@ -193,15 +198,26 @@ HParser *h_action_wait__m(HAllocator *mm__, const HParser *p, const HAction a, v
 // On Success
 
 void h_action_on_success(HActionCollection *collection) {
-    if (!collection)
+    if (!collection || !collection->action ||
+        !collection->placeholder)
         return;
+
     HParsedToken *transformed =
         collection->action(
-            collection->res,
+            &collection->res,
             collection->user_data
         );
-    collection->res->ast = transformed;
-    collection->pending = false;
+
+    if (transformed) {
+        if (transformed != collection->placeholder)
+            *collection->placeholder = *transformed;
+    } else {
+        /*
+         * A stable placeholder cannot be removed from its parent sequence,
+         * so represent an ignored result as TT_NONE.
+         */
+        collection->placeholder->token_type = TT_NONE;
+    }
 }
 /*
 void h_action_on_success__m(HAllocator *mm__, HActionCollection ac, size_t size) {

@@ -696,7 +696,8 @@ HParser *h_action(const HParser *p, const HAction a, void *user_data);
 HParser *h_action__m(HAllocator *mm__, const HParser *p, const HAction a, void *user_data);
 
 typedef struct {
-    HParseResult *res;
+    HParseResult res;
+    HParsedToken *placeholder;
     HAction action;
     void *user_data;
 } HActionCollection;
