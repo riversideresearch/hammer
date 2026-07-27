@@ -203,7 +203,7 @@ HParser *h_action_wait__m(HAllocator *mm__, const HParser *p, const HAction a, v
 }
 // On Success
 
-void h_action_on_success(HActionCollection *collection) {
+void h_action_apply(HActionCollection *collection) {
     if (!collection || !collection->action ||
         !collection->placeholder)
         return;
@@ -226,7 +226,7 @@ void h_action_on_success(HActionCollection *collection) {
     }
 }
 /*
-void h_action_on_success__m(HAllocator *mm__, HActionCollection ac, size_t size) {
+void h_action_apply__m(HAllocator *mm__, HActionCollection ac, size_t size) {
     
     
 }*/

@@ -872,7 +872,7 @@ static void test_action_wait_in_seq(void){
     h_pprint_ast_indexed(stderr, (HParsedToken*)result->ast, 1);
     //result->ast->token_data.seq->elements[1] = 65;
     g_check_cmp_int(result->ast->token_data.seq->elements[1]->token_type, ==, TT_UINT);
-    h_action_on_success(&action);
+    h_action_apply(&action);
 	// should now be the transformed AST.
     g_check_cmp_int(result->ast->token_data.seq->elements[1]->token_type, ==, TT_NONE);
     
