@@ -200,7 +200,9 @@ static bool h_svm_action_validate_float(HArena *arena, HSVMContext *ctx, void *e
     for (size_t i = 0; i < captured->token_data.bytes.len; ++i)
         raw_bits = (raw_bits << 8) | captured->token_data.bytes.token[i];
 
-    HParsedToken *result = make_float_token(arena, captured, float_env_->bit_len, raw_bits);
+    HParsedToken source = *captured;
+    source.bit_length = (size_t)float_env_->bit_len;
+    HParsedToken *result = make_float_token(arena, &source, float_env_->bit_len, raw_bits);
     if (!result)
         return false;
 
