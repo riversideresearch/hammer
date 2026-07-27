@@ -35,7 +35,7 @@
  * so an ordinary h_parse() stays quiet even when tracing is compiled in; only
  * h_parse_debug() turns it on -- via h_trace_set_enabled() -- for the duration
  * of a single parse. */
-static bool display_trace = false;
+bool display_trace = false;
 
 /* Toggle the runtime trace. Exposed (see trace.h) so h_parse_debug() can enable
  * tracing for just its own call and switch it back off afterward. */
@@ -43,7 +43,7 @@ void h_trace_set_enabled(bool enabled) {
     display_trace = enabled;
 }
 
-static int h_trace_depth = 0;
+int h_trace_depth = 0;
 
 /* The furthest-failure record (HParseError) is defined in hammer.h, because
  * h_parse_debug() hands a copy back to callers. We track every distinct
