@@ -118,10 +118,20 @@ static bool ir_ctrvm(HRVMProg *prog, void *env) {
     return true;
 }
 
+static bool int_isValidRegular(void *env) {
+    HRange *r_env = (HRange *)env;
+    return r_env->p->vtable->isValidRegular(r_env->p->env);
+}
+
+static bool int_isValidCF(void *env) {
+    HRange *r_env = (HRange *)env;
+    return r_env->p->vtable->isValidCF(r_env->p->env);
+}
+
 static const HParserVtable int_range_vt = {
     .parse = parse_int_range,
-    .isValidRegular = h_true,
-    .isValidCF = h_true,
+    .isValidRegular = int_isValidRegular,
+    .isValidCF = int_isValidCF,
     .compile_to_rvm = ir_ctrvm,
     .desugar = desugar_int_range,
     .higher = false,
