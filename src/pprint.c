@@ -31,6 +31,20 @@ static void print_indent(FILE *stream, size_t depth) {
     }
 }
 
+static void pprint_bytes(FILE *stream, const uint8_t *bs, size_t len) {
+    fprintf(stream, "\"");
+    for (size_t i = 0; i < len; i++) {
+        uint8_t c = bs[i];
+        if (c == '"' || c == '\\')
+            fprintf(stream, "\\%c", c);
+        else if (c >= 0x20 && c <= 0x7e)
+            fputc(c, stream);
+        else
+            fprintf(stream, "\\u00%02hhx", c);
+    }
+    fprintf(stream, "\"");
+}
+
 void h_pprint_ast_indexed(FILE *stream, const HParsedToken *token, size_t depth) {
     if (token == NULL) {
         print_indent(stream, depth);
@@ -57,17 +71,7 @@ void h_pprint_ast_indexed(FILE *stream, const HParsedToken *token, size_t depth)
     case TT_BYTES:
         print_indent(stream, depth);
         fprintf(stream, "TT_BYTES length=%zu value=\"", token->token_data.bytes.len);
-
-        for (size_t i = 0; i < token->token_data.bytes.len; i++) {
-            uint8_t byte = token->token_data.bytes.token[i];
-
-            if (byte >= 0x20 && byte <= 0x7e) {
-                fprintf(stream, "%c", (char)byte);
-            } else {
-                fprintf(stream, "\\x%02X", byte);
-            }
-        }
-
+        pprint_bytes(stream,token->token_data.bytes.token, token->token_data.bytes.len);
         fprintf(stream, "\"\n");
         break;
 
@@ -126,20 +130,6 @@ typedef struct pp_state {
     int indent_amt;
     int at_bol;
 } pp_state_t;
-
-static void pprint_bytes(FILE *stream, const uint8_t *bs, size_t len) {
-    fprintf(stream, "\"");
-    for (size_t i = 0; i < len; i++) {
-        uint8_t c = bs[i];
-        if (c == '"' || c == '\\')
-            fprintf(stream, "\\%c", c);
-        else if (c >= 0x20 && c <= 0x7e)
-            fputc(c, stream);
-        else
-            fprintf(stream, "\\u00%02hhx", c);
-    }
-    fprintf(stream, "\"");
-}
 
 void h_pprint(FILE *stream, const HParsedToken *tok, int indent, int delta) {
     if (tok == NULL) {
