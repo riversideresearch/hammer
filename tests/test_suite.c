@@ -38,6 +38,8 @@ extern void register_whitespace_tests();
 extern void register_xor_tests();
 extern void register_missing_tests();
 extern void register_packrat_tests();
+extern void register_regex_tests();
+extern void register_contextfree_backend_tests();
 extern void register_trace_tests();
 extern void register_hammer_tests();
 extern void register_glue_tests();
