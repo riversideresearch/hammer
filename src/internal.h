@@ -537,28 +537,23 @@ static inline void h_cfstack_add_to_seq(HAllocator *mm__, HCFStack *stk__, HCFCh
     assert(cur_top->data.seq[0] != NULL); // There must be at least one sequence...
     if (stk__->error)
         return;
-    stk__->last_completed = item;
     for (size_t i = 0;; i++) {
         if (cur_top->data.seq[i + 1] == NULL) {
             assert(cur_top->data.seq[i]->items != NULL);
             for (size_t j = 0;; j++) {
                 if (j > SIZE_MAX / sizeof(HCFChoice *) - 2) {
-                    stk__->error = 1;
-                    return;
+                    h_platform_errx(1, "CF stack allocation size overflow");
                 }
                 if (cur_top->data.seq[i]->items[j] == NULL) {
                     size_t new_count = j + 2;
-                    HCFChoice **new_items = mm__->realloc(mm__, cur_top->data.seq[i]->items,
+                    HCFChoice **new_items = h_realloc(mm__, cur_top->data.seq[i]->items,
                                                           sizeof(*new_items) * new_count);
 
-                    if (!new_items) {
-                        stk__->error = 1;
-                        return;
-                    }
                     cur_top->data.seq[i]->items = new_items;
                     new_items[j] = item;
                     new_items[j + 1] = NULL;
                     assert(!stk__->error);
+                    stk__->last_completed = item;
                     return;
                 }
             }

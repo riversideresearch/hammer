@@ -109,8 +109,11 @@ void h_bit_writer_put(HBitWriter *w, uint64_t data, size_t nbits) {
 const uint8_t *h_bit_writer_get_buffer(HBitWriter *w, size_t *len) {
     HAMMER_ASSERT(w != NULL);
     HAMMER_ASSERT(len != NULL);
+    if (w->error) {
+        *len = 0;
+        return NULL;
+    }
     HAMMER_ASSERT(w->bit_offset == 0);
-
     *len = w->index;
     return w->buf;
 }
