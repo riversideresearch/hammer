@@ -64,11 +64,35 @@ static void desugar_float_range(HAllocator *mm__, HCFStack *stk__, void *env) {
     HCFS_END_CHOICE();
 }
 
+static bool h_svm_action_validate_float_range(HArena *arena, HSVMContext *ctx, void *env) {
+    HFloatRange *r_env = (HFloatRange *)env;
+    HParsedToken *head = ctx->stack[ctx->stack_count - 1];
+    switch (head->token_type) {
+    case TT_DOUBLE:
+        return r_env->lower <= head->token_data.dbl && r_env->upper >= head->token_data.dbl;
+    case TT_FLOAT:
+        return r_env->lower <= (double)head->token_data.flt &&
+               r_env->upper >= (double)head->token_data.flt;
+    default:
+        return false;
+    }
+}
+
+static bool fr_ctrvm(HRVMProg *prog, void *env) {
+    HFloatRange *r_env = (HFloatRange *)env;
+    if (!h_compile_regex(prog, r_env->p))
+        return false;
+    h_rvm_insert_insn(prog, RVM_ACTION,
+                      h_rvm_create_action(prog, h_svm_action_validate_float_range, env));
+    return true;
+}
+
 static const HParserVtable float_range_vt = {
     .parse = parse_float_range,
     .isValidRegular = h_true,
     .isValidCF = h_true,
     .desugar = desugar_float_range,
+    .compile_to_rvm = fr_ctrvm,
     .higher = false,
 };
 

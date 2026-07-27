@@ -283,6 +283,12 @@ void register_floating_point_parser_tests(void) {
     g_test_add_data_func("/core/parser/float/float16", GINT_TO_POINTER(PB_PACKRAT), test_float16);
     g_test_add_data_func("/core/parser/float/float32", GINT_TO_POINTER(PB_PACKRAT), test_float32);
     g_test_add_data_func("/core/parser/float/double64", GINT_TO_POINTER(PB_PACKRAT), test_double64);
+    g_test_add_data_func("/core/parser/float/regular/float16", GINT_TO_POINTER(PB_REGULAR),
+                         test_float16);
+    g_test_add_data_func("/core/parser/float/regular/float32", GINT_TO_POINTER(PB_REGULAR),
+                         test_float32);
+    g_test_add_data_func("/core/parser/float/regular/double64", GINT_TO_POINTER(PB_REGULAR),
+                         test_double64);
     g_test_add_data_func("/core/parser/float/float16-edgecases", GINT_TO_POINTER(PB_PACKRAT),
                          test_float16_edgecases);
     g_test_add_data_func("/core/parser/float/float32-edgecases", GINT_TO_POINTER(PB_PACKRAT),
@@ -291,11 +297,11 @@ void register_floating_point_parser_tests(void) {
                          test_double64_edgecases);
     g_test_add_data_func("/core/parser/float/truncated", GINT_TO_POINTER(PB_PACKRAT),
                          test_float_truncated);
-    g_test_add_data_func("/core/parser/float/range", GINT_TO_POINTER(PB_GLR),
+    g_test_add_data_func("/core/parser/float/range", GINT_TO_POINTER(PB_REGULAR),
                          test_float_range);
     g_test_add_data_func("/core/parser/float/range-precision-double",
-                         GINT_TO_POINTER(PB_PACKRAT), test_float_range_precision_and_double);
-    g_test_add_data_func("/core/parser/packrat/make_double", GINT_TO_POINTER(PB_LALR),
+                         GINT_TO_POINTER(PB_REGULAR), test_float_range_precision_and_double);
+    g_test_add_data_func("/core/parser/packrat/make_double", GINT_TO_POINTER(PB_PACKRAT),
                          test_make_double);
     g_test_add_data_func("/core/parser/packrat/make_float", GINT_TO_POINTER(PB_PACKRAT),
                          test_make_float);
