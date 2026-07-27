@@ -110,8 +110,14 @@ static HParseResult *parse_action_wait(void *env, HParseState *state) {
         if (tmp) {
             HParsedToken *placeholder =
                 h_arena_malloc_noinit(state->arena, sizeof(*placeholder));
-
-            *placeholder = *tmp->ast;
+            if (tmp->ast) {
+                *placeholder = *tmp->ast;
+            } else {
+                placeholder->token_type = TT_NONE;
+                placeholder->index = 0;
+                placeholder->bit_length = 0;
+                placeholder->bit_offset = 0;
+            }
             a->collection->res = *tmp;
             a->collection->placeholder = placeholder;
             a->collection->action=a->action;
