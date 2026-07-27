@@ -102,6 +102,8 @@ HParser *h_float_range(const HParser *p, const double lower, const double upper)
 
 HParser *h_float_range__m(HAllocator *mm__, const HParser *p, const double lower,
                           const double upper) {
+    if(!h_is_float_parser(p))
+        return NULL;
     HFloatRange *r_env = h_new(HFloatRange, 1);
     r_env->p = p;
     r_env->lower = lower;

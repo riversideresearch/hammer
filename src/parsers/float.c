@@ -200,9 +200,7 @@ static bool h_svm_action_validate_float(HArena *arena, HSVMContext *ctx, void *e
     for (size_t i = 0; i < captured->token_data.bytes.len; ++i)
         raw_bits = (raw_bits << 8) | captured->token_data.bytes.token[i];
 
-    HParsedToken source = *captured;
-    source.bit_length = (size_t)float_env_->bit_len;
-    HParsedToken *result = make_float_token(arena, &source, float_env_->bit_len, raw_bits);
+    HParsedToken *result = make_float_token(arena, captured, float_env_->bit_len, raw_bits);
     if (!result)
         return false;
 
@@ -248,6 +246,10 @@ HParser *h_floating_point__m(HAllocator *mm__, int bit_len) {
     float_env *env = h_new(float_env, 1);
     env->bit_len = bit_len;
     return h_new_parser(mm__, &float_vt, env);
+}
+
+bool h_is_float_parser(const HParser *p) {
+    return p != NULL && p->vtable == &float_vt;
 }
 
 HParser *h_float16(void) { return h_floating_point__m(&system_allocator, 16); }
