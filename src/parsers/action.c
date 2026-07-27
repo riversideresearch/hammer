@@ -201,12 +201,10 @@ HParser *h_action_wait__m(HAllocator *mm__, const HParser *p, const HAction a, v
     env->collection = ac;
     return h_new_parser(mm__, &action_wait_vt, env);
 }
-// On Success
-
-void h_action_apply(HActionCollection *collection) {
+static bool apply_action(HActionCollection *collection) {
     if (!collection || !collection->action ||
         !collection->placeholder)
-        return;
+        return false;
 
     HParsedToken *transformed =
         collection->action(
@@ -224,9 +222,33 @@ void h_action_apply(HActionCollection *collection) {
          */
         collection->placeholder->token_type = TT_NONE;
     }
+    return true;
 }
-/*
-void h_action_apply__m(HAllocator *mm__, HActionCollection ac, size_t size) {
-    
-    
-}*/
+
+static HParseResult *parse_action_apply(void *env, HParseState *state) {
+    if (!apply_action(env))
+        return NULL;
+
+    HParseResult *result = a_new(HParseResult, 1);
+    result->ast = NULL;
+    result->arena = state->arena;
+    result->bit_length = 0;
+    return result;
+}
+
+static const HParserVtable action_apply_vt = {
+    .parse = parse_action_apply,
+    .isValidRegular = h_false,
+    .isValidCF = h_false,
+    .higher = true,
+};
+
+HParser *h_action_apply(HActionCollection *collection) {
+    apply_action(collection);
+    return h_new_parser(&system_allocator, &action_apply_vt, collection);
+}
+
+HParser *h_action_apply__m(HAllocator *mm__, HActionCollection *collection) {
+    apply_action(collection);
+    return h_new_parser(mm__, &action_apply_vt, collection);
+}

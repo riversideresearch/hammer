@@ -719,7 +719,8 @@ HParser *h_action_wait__m(HAllocator *mm__, const HParser *p, const HAction a, v
  * @param actions symbol table map of results, HActions, and user_data.
  * @param n number of actions to take\
  */
-void h_action_apply(HActionCollection *collection);
+HParser *h_action_apply(HActionCollection *collection);
+HParser *h_action_apply__m(HAllocator *mm__, HActionCollection *collection);
 
 /**
  * @brief Parse a single byte that is in the given charset. Always attempts to

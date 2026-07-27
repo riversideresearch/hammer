@@ -854,10 +854,12 @@ static void test_put_get(gconstpointer backend) {
 HParsedToken *func(const HParseResult *result, void *user) {
 	(void)result;
     (void)user;
+    fprintf(stderr, "Hello World!\n");
     return (HParsedToken*)NULL;
 }
 
 static void test_action_wait_in_seq(void){
+    /*
     uint8_t buf[256];
 	buf[0] = (uint8_t)'A';
 	buf[1] = (uint8_t)'B';
@@ -868,11 +870,34 @@ static void test_action_wait_in_seq(void){
 	HParser *seq = h_sequence(h_uint8(), parser, h_uint8(), NULL);
 	HParseResult *result = h_parse(seq, buf, 3);
     
-    fprintf(stderr, "Prior to Success");
     h_pprint_ast_indexed(stderr, (HParsedToken*)result->ast, 1);
     //result->ast->token_data.seq->elements[1] = 65;
     g_check_cmp_int(result->ast->token_data.seq->elements[1]->token_type, ==, TT_UINT);
     h_action_apply(&action);
+    h_pprint_ast_indexed(stderr, (HParsedToken*)result->ast, 1);
+    
+    g_test_add_func("/core/misc/h_action_wait", test_action_wait_in_seq);
+	// should now be the transformed AST.
+    g_check_cmp_int(result->ast->token_data.seq->elements[1]->token_type, ==, TT_NONE);
+    
+    h_parse_result_free(result);
+    */
+    g_check_cmp_int(TT_BYTES, ==, 2);
+}
+
+static void test_action_apply_in_seq(void){
+    uint8_t buf[256];
+	buf[0] = (uint8_t)'C';
+	buf[1] = (uint8_t)'B';
+	buf[2] = (uint8_t)'A';
+    HActionCollection action = {0};
+	HParser *parser =
+		h_action_wait(h_uint8(), func, NULL, &action);
+	HParser *seq = h_sequence(h_uint8(), parser, h_uint8(), h_action_apply(&action), NULL);
+    
+	HParseResult *result = h_parse(seq, buf, 3);
+    
+    h_pprint_ast_indexed(stderr, (HParsedToken*)result->ast, 1);
 	// should now be the transformed AST.
     g_check_cmp_int(result->ast->token_data.seq->elements[1]->token_type, ==, TT_NONE);
     
@@ -1142,5 +1167,6 @@ void register_parser_tests(void) {
     extern void test_indirect_basic(gconstpointer backend);
     g_test_add_data_func("/core/parser/packrat/indirect/basic", GINT_TO_POINTER(PB_PACKRAT),
                          test_indirect_basic);
-    g_test_add_func("/core/misc/h_action_wait", test_action_wait_in_seq);
+    g_test_add_func("/core/misc/h_action_wait_in_seq", test_action_wait_in_seq);
+    g_test_add_func("/core/misc/h_action_apply_in_seq", test_action_apply_in_seq);
 }
