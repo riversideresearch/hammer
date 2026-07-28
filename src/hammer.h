@@ -534,21 +534,6 @@ HParser *h_bits(size_t len, _Bool sign);
 HParser *h_bits__m(HAllocator *mm__, size_t len, _Bool sign);
 
 /**
- * @brief parse that parses a single bit and fails if it is 0
- *
- * @return Result token type: TT_UINT
- * @note Only works on Packrat backend
- */
-#define h_bit1() h_int_range(h_bits(1, false), 1, 1)
-/**
- * @brief parse that parses a single bit and fails if it is 1
- *
- * @return Result token type: TT_UINT
- * @note Only works on Packrat backend
- */
-#define h_bit0() h_int_range(h_bits(1, false), 0, 0) 
-
-/**
  * @brief Returns a parser that parses the specified number of bytes. The input does not have to be
  * aligned to a byte boundary.
  *
