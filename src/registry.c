@@ -19,7 +19,9 @@
 #include "hammer.h"
 #include "internal.h"
 #include "tsearch.h"
-
+#include <limits.h>
+#include <stdint.h>
+#include <string.h>
 #include <stdlib.h>
 
 #if defined(_MSC_VER)
@@ -30,7 +32,7 @@
 
 static void *tt_registry = NULL;
 static HTTEntry **tt_by_id = NULL;
-static unsigned int tt_by_id_sz = 0;
+static size_t tt_by_id_sz = 0;
 #define TT_START TT_USER
 static HTokenType tt_next = TT_START;
 
@@ -51,45 +53,100 @@ static void default_unamb_sub(const HParsedToken *tok, struct result_buf *buf) {
     h_append_buf_formatted(buf, "XXX AMBIGUOUS USER TYPE %d", tok->token_type);
 }
 
-HTokenType h_allocate_token_new(const char *name,
-                                void (*unamb_sub)(const HParsedToken *tok, struct result_buf *buf),
-                                void (*pprint)(FILE *stream, const HParsedToken *tok, int indent,
-                                               int delta)) {
-    HTTEntry *new_entry = h_alloc(&system_allocator, sizeof(*new_entry));
-    assert(new_entry != NULL);
+HTokenType h_allocate_token_new(
+    const char *name,
+    void (*unamb_sub)(const HParsedToken *tok, struct result_buf *buf),
+    void (*pprint)(FILE *stream, const HParsedToken *tok,
+                   int indent, int delta)) {
+    if (!name)
+        return TT_INVALID;
+
+    HTTEntry *new_entry =
+        system_allocator.alloc(&system_allocator, sizeof(*new_entry));
+    if (!new_entry)
+        return TT_INVALID;
+
     new_entry->name = name;
-    new_entry->value = 0;
-    new_entry->unamb_sub = unamb_sub ? unamb_sub : default_unamb_sub;
+    new_entry->value = TT_INVALID;
+    new_entry->unamb_sub =
+        unamb_sub ? unamb_sub : default_unamb_sub;
     new_entry->pprint = pprint;
-    HTTEntry *probe = *(HTTEntry **)tsearch(new_entry, &tt_registry, compare_entries);
-    if (probe->value != 0) {
-        // Token type already exists...
-        // TODO: treat this as a bug?
-        (&system_allocator)->free(&system_allocator, new_entry);
-        return probe->value;
-    } else {
-        // new value
-        probe->name = h_strdup(probe->name); // drop ownership of name
-        probe->value = tt_next++;
-        if ((probe->value - TT_START) >= tt_by_id_sz) {
-            if (tt_by_id_sz == 0) {
-                tt_by_id = malloc(sizeof(*tt_by_id) * ((tt_by_id_sz = (tt_next - TT_START) * 16)));
-            } else {
-                HTTEntry **temp = realloc(tt_by_id, sizeof(*tt_by_id) * ((tt_by_id_sz *= 2)));
-                if (!temp) {
-                    free(tt_by_id);
-                    return TT_INVALID;
-                }
-                tt_by_id = temp;
-            }
-            if (!tt_by_id) {
-                return TT_INVALID;
-            }
-        }
-        assert(probe->value - TT_START < tt_by_id_sz);
-        tt_by_id[probe->value - TT_START] = probe;
+
+    void *search_result =
+        tsearch(new_entry, &tt_registry, compare_entries);
+    if (!search_result) {
+        system_allocator.free(&system_allocator, new_entry);
+        return TT_INVALID;
+    }
+
+    HTTEntry *probe = *(HTTEntry **)search_result;
+
+    /* Existing registration: new_entry was not inserted. */
+    if (probe != new_entry) {
+        system_allocator.free(&system_allocator, new_entry);
         return probe->value;
     }
+
+    /*
+     * Keep new_entry->name pointing at the caller-provided name until all
+     * allocations succeed, so tdelete() can still locate it during rollback.
+     */
+    char *owned_name = h_strdup(name);
+    if (!owned_name)
+        goto rollback;
+
+    if (tt_next == (HTokenType)INT_MAX)
+        goto rollback;
+
+    HTokenType value = tt_next;
+    size_t index = (size_t)(value - TT_START);
+
+    if (index >= tt_by_id_sz) {
+        size_t new_size = tt_by_id_sz ? tt_by_id_sz : 16;
+
+        while (index >= new_size) {
+            if (new_size > SIZE_MAX / 2)
+                goto rollback;
+            new_size *= 2;
+        }
+
+        if (new_size > SIZE_MAX / sizeof(*tt_by_id))
+            goto rollback;
+
+        HTTEntry **new_table;
+        if (tt_by_id) {
+            new_table =
+                realloc(tt_by_id,
+                        new_size * sizeof(*tt_by_id));
+        } else {
+            new_table =
+                malloc(new_size * sizeof(*tt_by_id));
+        }
+
+        if (!new_table)
+            goto rollback;
+
+        tt_by_id = new_table;
+        tt_by_id_sz = new_size;
+    }
+
+    /* No failing operations remain: commit the new registration. */
+    probe->name = owned_name;
+    probe->value = value;
+    tt_by_id[index] = probe;
+    tt_next = (HTokenType)(tt_next + 1);
+
+    return value;
+
+rollback:
+    /*
+     * Delete the tree node before freeing new_entry because the tree
+     * comparator still needs new_entry->name.
+     */
+    tdelete(new_entry, &tt_registry, compare_entries);
+    free(owned_name);
+    system_allocator.free(&system_allocator, new_entry);
+    return TT_INVALID;
 }
 HTokenType h_allocate_token_type(const char *name) {
     return h_allocate_token_new(name, NULL, NULL);
