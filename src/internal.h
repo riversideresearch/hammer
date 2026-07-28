@@ -606,8 +606,8 @@ static inline void h_cfstack_begin_choice(HAllocator *mm__, HCFStack *stk__) {
     if (stk__->count + 1 > stk__->cap) {
         assert(stk__->cap > 0);
         stk__->cap *= 2;
-        stk__->stack =
-            mm__->realloc(mm__, stk__->stack, (size_t)(stk__->cap) * sizeof(HCFChoice *));
+        stk__->stack = h_realloc(mm__, stk__->stack,
+                (size_t)stk__->cap * sizeof(*stk__->stack));
         if (!stk__->stack) {
             stk__->error = 1;
         }
@@ -620,7 +620,7 @@ static inline void h_cfstack_begin_seq(HAllocator *mm__, HCFStack *stk__) {
     HCFChoice *top = stk__->stack[stk__->count - 1];
     for (size_t i = 0;; i++) {
         if (top->data.seq[i] == NULL) {
-            top->data.seq = mm__->realloc(mm__, top->data.seq, sizeof(HCFSequence *) * (i + 2));
+            top->data.seq = h_realloc(mm__, top->data.seq, sizeof(HCFSequence *) * (i + 2));
             if (!top->data.seq) {
                 stk__->error = 1;
                 return;
