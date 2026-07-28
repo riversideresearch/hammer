@@ -84,15 +84,18 @@ void gen_int_range(HAllocator *mm__, HCFStack *stk__, uint64_t low, uint64_t hig
 }
 
 struct bits_env {
-    uint8_t length;
+    size_t length;
     uint8_t signedp;
 };
 
 static void desugar_int_range(HAllocator *mm__, HCFStack *stk__, void *env) {
     HRange *r = (HRange *)env;
-    struct bits_env *be = (struct bits_env *)r->p->env;
-    uint8_t bytes = be->length / 8;
-    gen_int_range(mm__, stk__, r->lower, r->upper, bytes);
+    const HParser *p = r->p;
+    while (p->vtable->higher)
+        p = *(const HParser *const *)p->env;
+
+    const struct bits_env *be = (const struct bits_env *)p->env;
+    gen_int_range(mm__, stk__, r->lower, r->upper, (uint8_t)(be->length / 8));
 }
 
 static bool h_svm_action_validate_int_range(HArena *arena, HSVMContext *ctx, void *env) {

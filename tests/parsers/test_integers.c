@@ -68,6 +68,21 @@ static void test_int_range(gconstpointer backend) {
     g_check_parse_failed(int_range_, (HParserBackend)GPOINTER_TO_INT(backend), "\xb", 1);
 }
 
+// Helper predicate -always return true
+bool pred(HParseResult *result, void *user_data) {
+    (void)result;
+    (void)user_data;
+    return true;
+}
+
+static void test_int_nested(gconstpointer backend) {
+    HParser *p = h_attr_bool(h_uint8(), pred, NULL);
+    const HParser *int_range_ = h_int_range(p, 3, 10);
+
+    g_check_parse_match(int_range_, (HParserBackend)GPOINTER_TO_INT(backend), "\x05", 1, "u0x5");
+    g_check_parse_failed(int_range_, (HParserBackend)GPOINTER_TO_INT(backend), "\xb", 1);
+}
+
 void register_integer_parser_tests(void) {
     g_test_add_data_func("/core/parser/packrat/int64", GINT_TO_POINTER(PB_PACKRAT), test_int64);
     g_test_add_data_func("/core/parser/packrat/int32", GINT_TO_POINTER(PB_PACKRAT), test_int32);
@@ -77,6 +92,8 @@ void register_integer_parser_tests(void) {
     g_test_add_data_func("/core/parser/packrat/uint32", GINT_TO_POINTER(PB_PACKRAT), test_uint32);
     g_test_add_data_func("/core/parser/packrat/uint16", GINT_TO_POINTER(PB_PACKRAT), test_uint16);
     g_test_add_data_func("/core/parser/packrat/uint8", GINT_TO_POINTER(PB_PACKRAT), test_uint8);
-    g_test_add_data_func("/core/parser/packrat/int_range", GINT_TO_POINTER(PB_PACKRAT),
+    g_test_add_data_func("/core/parser/packrat/int_range", GINT_TO_POINTER(PB_REGULAR),
                          test_int_range);
+    g_test_add_data_func("/core/parser/packrat/int_range_nested", GINT_TO_POINTER(PB_GLR),
+                         test_int_nested);
 }
