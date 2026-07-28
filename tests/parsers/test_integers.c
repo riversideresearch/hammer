@@ -83,6 +83,13 @@ static void test_int_nested(gconstpointer backend) {
     g_check_parse_failed(int_range_, (HParserBackend)GPOINTER_TO_INT(backend), "\xb", 1);
 }
 
+static void test_bit0_and_bit1(gconstpointer backend) {
+    g_check_parse_match(h_bit0(), (HParserBackend)GPOINTER_TO_INT(backend), "\0", 1, "u0");
+    g_check_parse_match(h_bit1(), (HParserBackend)GPOINTER_TO_INT(backend), "\x80", 1, "u0x1");
+    g_check_parse_failed(h_bit0(), (HParserBackend)GPOINTER_TO_INT(backend), "\x80", 1);
+    g_check_parse_failed(h_bit1(), (HParserBackend)GPOINTER_TO_INT(backend), "\0", 1);
+}
+
 void register_integer_parser_tests(void) {
     g_test_add_data_func("/core/parser/packrat/int64", GINT_TO_POINTER(PB_PACKRAT), test_int64);
     g_test_add_data_func("/core/parser/packrat/int32", GINT_TO_POINTER(PB_PACKRAT), test_int32);
@@ -96,4 +103,6 @@ void register_integer_parser_tests(void) {
                          test_int_range);
     g_test_add_data_func("/core/parser/packrat/int_range_nested", GINT_TO_POINTER(PB_REGULAR),
                          test_int_nested);
+    g_test_add_data_func("/core/parser/packrat/bit1", GINT_TO_POINTER(PB_PACKRAT),
+                         test_bit0_and_bit1);
 }
