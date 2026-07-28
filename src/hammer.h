@@ -190,9 +190,7 @@ typedef struct HParseError_ {
     size_t index;       /**< Furthest byte offset reached in the input. */
     uint8_t actual;     /**< Input byte at that offset (0 at end of input). */
     uint8_t bit_offset; /**< Sub-byte bit position, for bitwise grammars. */
-    /** Names of the primitive parsers tied at the furthest position. They point
-     *  to static storage owned by the tracer -- do not free them. Empty unless
-     *  the library was built with AST tracing (-DHAMMER_TRACE_AST=1). */
+    /** Names of the primitive parsers tied at the furthest position. */
     const char *deepest_parsers[H_PARSE_ERROR_MAX_PARSERS];
     size_t n_deepest;   /**< Number of valid entries in deepest_parsers. */
 } HParseError;
