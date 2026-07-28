@@ -710,11 +710,11 @@ typedef struct {
  * @param user_data Context for action
  * @return Result token type: any
  */
-HParser *h_action_wait(const HParser *p, const HAction a, void *user_data, HActionCollection *collection);
-HParser *h_action_wait__m(HAllocator *mm__, const HParser *p, const HAction a, void *user_data, HActionCollection *collection);
+HParser *h_action_stash(const HParser *p, const HAction a, void *user_data, HActionCollection *collection);
+HParser *h_action_stash__m(HAllocator *mm__, const HParser *p, const HAction a, void *user_data, HActionCollection *collection);
 
 /**
- * @brief Given a table of h_actions, run all the parsed actions.
+ * @brief Given a table of h_actions (HActionCollection), run all the parsed actions.
  * 
  * @param actions symbol table map of results, HActions, and user_data.
  * @param n number of actions to take\

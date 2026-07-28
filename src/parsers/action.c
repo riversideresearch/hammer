@@ -94,17 +94,17 @@ HParser *h_action__m(HAllocator *mm__, const HParser *p, const HAction a, void *
     return h_new_parser(mm__, &action_vt, env);
 }
 // HActionCollection Append
-// Action Wait
+// Action stash
 
 typedef struct {
     const HParser *p;
     HAction action;
     void *user_data;
     HActionCollection *collection;
-} HParseActionWait;
+} HParseActionStash;
 
-static HParseResult *parse_action_wait(void *env, HParseState *state) {
-    HParseActionWait *a = (HParseActionWait *)env;
+static HParseResult *parse_action_stash(void *env, HParseState *state) {
+    HParseActionStash *a = (HParseActionStash *)env;
     if (a->p && a->action) {
         HParseResult *tmp = h_do_parse(a->p, state);
         if (tmp) {
@@ -130,7 +130,7 @@ static HParseResult *parse_action_wait(void *env, HParseState *state) {
 }
 
 /*
-static void desugar_action_wait(HAllocator *mm__, HCFStack *stk__, void *env) {
+static void desugar_action_stash(HAllocator *mm__, HCFStack *stk__, void *env) {
     HParseAction *a = (HParseAction *)env;
 
     HCFS_BEGIN_CHOICE() {
@@ -143,17 +143,17 @@ static void desugar_action_wait(HAllocator *mm__, HCFStack *stk__, void *env) {
     HCFS_END_CHOICE();
 }
 
-static bool action_wait_isValidRegular(void *env) {
+static bool action_stash_isValidRegular(void *env) {
     HParseAction *a = (HParseAction *)env;
     return a->p->vtable->isValidRegular(a->p->env);
 }
 
-static bool action_wait_isValidCF(void *env) {
+static bool action_stash_isValidCF(void *env) {
     HParseAction *a = (HParseAction *)env;
     return a->p->vtable->isValidCF(a->p->env);
 }
 
-static bool h_svm_action_action_wait(HArena *arena, HSVMContext *ctx, void *arg) {
+static bool h_svm_action_action_stash(HArena *arena, HSVMContext *ctx, void *arg) {
     HParseResult res;
     HParseAction *a = arg;
     assert(ctx->stack_count >= 1);
@@ -171,35 +171,35 @@ static bool h_svm_action_action_wait(HArena *arena, HSVMContext *ctx, void *arg)
     return true;
 }
 
-static bool action_wait_ctrvm(HRVMProg *prog, void *env) {
+static bool action_stash_ctrvm(HRVMProg *prog, void *env) {
     HParseAction *a = (HParseAction *)env;
     h_rvm_insert_insn(prog, RVM_PUSH, 0);
     if (!h_compile_regex(prog, a->p))
         return false;
-    h_rvm_insert_insn(prog, RVM_ACTION, h_rvm_create_action(prog, h_svm_action_action_wait, a));
+    h_rvm_insert_insn(prog, RVM_ACTION, h_rvm_create_action(prog, h_svm_action_action_stash, a));
     return true;
 }
 */
-static const HParserVtable action_wait_vt = {
-    .parse = parse_action_wait,
-    .isValidRegular = h_false, // action_wait_isValidRegular,
-    .isValidCF = h_false, // action_wait_isValidCF,
-    //.compile_to_rvm = action_wait_ctrvm,
-    //.desugar = desugar_action_wait,
+static const HParserVtable action_stash_vt = {
+    .parse = parse_action_stash,
+    .isValidRegular = h_false, // action_stash_isValidRegular,
+    .isValidCF = h_false, // action_stash_isValidCF,
+    //.compile_to_rvm = action_stash_ctrvm,
+    //.desugar = desugar_action_stash,
     .higher = true,
 };
 
-HParser *h_action_wait(const HParser *p, const HAction a, void *user_data, HActionCollection *ac) {
-    return h_action_wait__m(&system_allocator, p, a, user_data, ac);
+HParser *h_action_stash(const HParser *p, const HAction a, void *user_data, HActionCollection *ac) {
+    return h_action_stash__m(&system_allocator, p, a, user_data, ac);
 }
 
-HParser *h_action_wait__m(HAllocator *mm__, const HParser *p, const HAction a, void *user_data, HActionCollection *ac) {
-    HParseActionWait *env = h_new(HParseActionWait, 1);
+HParser *h_action_stash__m(HAllocator *mm__, const HParser *p, const HAction a, void *user_data, HActionCollection *ac) {
+    HParseActionStash *env = h_new(HParseActionStash, 1);
     env->p = p;
     env->action = a;
     env->user_data = user_data;
     env->collection = ac;
-    return h_new_parser(mm__, &action_wait_vt, env);
+    return h_new_parser(mm__, &action_stash_vt, env);
 }
 static bool apply_action(HActionCollection *collection) {
     if (!collection || !collection->action ||
