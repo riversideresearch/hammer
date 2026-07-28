@@ -132,9 +132,6 @@ HParser *h_int_range(const HParser *p, const int64_t lower, const int64_t upper)
 }
 HParser *h_int_range__m(HAllocator *mm__, const HParser *p, const int64_t lower,
                         const int64_t upper) {
-    // p must be an integer parser, which means it's using parse_bits
-    if(!h_is_int_parser(p))
-        return NULL;
     HRange *r_env = h_new(HRange, 1);
     r_env->p = p;
     r_env->lower = lower;

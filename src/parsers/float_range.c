@@ -67,15 +67,32 @@ static void desugar_float_range(HAllocator *mm__, HCFStack *stk__, void *env) {
 static bool h_svm_action_validate_float_range(HArena *arena, HSVMContext *ctx, void *env) {
     HFloatRange *r_env = (HFloatRange *)env;
     HParsedToken *head = ctx->stack[ctx->stack_count - 1];
+    bool valid;
+
     switch (head->token_type) {
     case TT_DOUBLE:
-        return r_env->lower <= head->token_data.dbl && r_env->upper >= head->token_data.dbl;
+        valid = r_env->lower <= head->token_data.dbl && r_env->upper >= head->token_data.dbl;
+        break;
     case TT_FLOAT:
-        return r_env->lower <= (double)head->token_data.flt &&
-               r_env->upper >= (double)head->token_data.flt;
+        valid = r_env->lower <= (double)head->token_data.flt &&
+                r_env->upper >= (double)head->token_data.flt;
+        break;
     default:
         return false;
     }
+
+    /*
+     * Higher parsers such as attr_bool may leave capture marks below the
+     * resulting token.  Keep only the validated float, as int_range does.
+     */
+    if (valid && ctx->stack_count > 1) {
+        size_t first = ctx->stack_count - 1;
+        while (first > 0 && ctx->stack[first - 1]->token_type == TT_MARK)
+            --first;
+        ctx->stack[first] = head;
+        ctx->stack_count = first + 1;
+    }
+    return valid;
 }
 
 static bool fr_ctrvm(HRVMProg *prog, void *env) {
@@ -87,10 +104,20 @@ static bool fr_ctrvm(HRVMProg *prog, void *env) {
     return true;
 }
 
+static bool float_range_isValidRegular(void *env) {
+    HFloatRange *range = (HFloatRange *)env;
+    return range->p->vtable->isValidRegular(range->p->env);
+}
+
+static bool float_range_isValidCF(void *env) {
+    HFloatRange *range = (HFloatRange *)env;
+    return range->p->vtable->isValidCF(range->p->env);
+}
+
 static const HParserVtable float_range_vt = {
     .parse = parse_float_range,
-    .isValidRegular = h_true,
-    .isValidCF = h_true,
+    .isValidRegular = float_range_isValidRegular,
+    .isValidCF = float_range_isValidCF,
     .desugar = desugar_float_range,
     .compile_to_rvm = fr_ctrvm,
     .higher = false,
@@ -102,7 +129,13 @@ HParser *h_float_range(const HParser *p, const double lower, const double upper)
 
 HParser *h_float_range__m(HAllocator *mm__, const HParser *p, const double lower,
                           const double upper) {
-    if(!h_is_float_parser(p))
+    /*
+     * Do not require the outer parser to be the primitive float parser:
+     * higher parsers can transparently wrap a float-producing parser.
+     * parse_float_range and the compiled validator still reject non-float
+     * results.
+     */
+    if (!p)
         return NULL;
     HFloatRange *r_env = h_new(HFloatRange, 1);
     r_env->p = p;

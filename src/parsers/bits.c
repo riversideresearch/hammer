@@ -129,10 +129,6 @@ HParser *h_bits__m(HAllocator *mm__, size_t len, bool sign) {
     return h_new_parser(mm__, &bits_vt, env);
 }
 
-bool h_is_int_parser(const HParser *p) {
-    return p != NULL && p->vtable == &bits_vt;
-}
-
 #define SIZED_BITS(name_pre, len, signedp)                                                         \
     HParser *h_##name_pre##len() { return h_bits__m(&system_allocator, len, signedp); }            \
     HParser *h_##name_pre##len##__m(HAllocator *mm__) { return h_bits__m(mm__, len, signedp); }
