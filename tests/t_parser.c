@@ -857,7 +857,7 @@ HParsedToken *func(const HParseResult *result, void *user) {
     return (HParsedToken*)NULL;
 }
 
-static void test_action_stash_in_seq(void){
+static void test_action_stash_before_and_after(void){
     uint8_t buf[256];
 	buf[0] = (uint8_t)'A';
 	buf[1] = (uint8_t)'B';
@@ -937,7 +937,8 @@ static void test_action_apply_fail(void){
     HActionCollection action = {0};
 	HParser *parser =
 		h_action_stash(h_uint8(), fail_func, NULL, &action);
-	HParser *seq = h_sequence(h_uint8(), parser, h_nothing_p(), h_action_apply(&action), NULL);
+	HParser *seq = h_sequence(h_uint8(), parser, h_nothing_p(), NULL);
+    h_action_apply(&action);
     
 	HParseResult *result = h_parse(seq, buf, 3);
     // Will call h_platform_errx, no test check needed
@@ -1206,7 +1207,7 @@ void register_parser_tests(void) {
     extern void test_indirect_basic(gconstpointer backend);
     g_test_add_data_func("/core/parser/packrat/indirect/basic", GINT_TO_POINTER(PB_PACKRAT),
                          test_indirect_basic);
-    g_test_add_func("/core/misc/h_action_stash_in_seq", test_action_stash_in_seq);
+    g_test_add_func("/core/misc/h_action_stash_before_and_after", test_action_stash_before_and_after);
     g_test_add_func("/core/misc/h_action_apply_in_seq", test_action_apply_in_seq);
     g_test_add_func("/core/misc/h_action_stash_multiple", test_action_stash_multiple);
     g_test_add_func("/core/misc/h_action_apply_fail", test_action_apply_fail);
