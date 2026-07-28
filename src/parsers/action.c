@@ -94,12 +94,47 @@ HParser *h_action__m(HAllocator *mm__, const HParser *p, const HAction a, void *
     return h_new_parser(mm__, &action_vt, env);
 }
 // HActionCollection Append
+
+static bool append_action(
+    HActionCollection *collection,
+    const HParseResult *result,
+    HParsedToken *placeholder,
+    HAction action,
+    void *user_data
+) {
+    if (!collection || !result || !placeholder || !action)
+        return false;
+
+    if (collection->count == collection->capacity) {
+        size_t new_capacity =
+            collection->capacity ? collection->capacity * 2 : 4;
+
+        HActionEntry *new_entries = h_realloc(
+            &system_allocator,
+            collection->entries,
+            new_capacity * sizeof(*new_entries)
+        );  // h_realloc will exit on failure
+
+        collection->entries = new_entries;
+        collection->capacity = new_capacity;
+    }
+
+    collection->entries[collection->count++] = (HActionEntry){
+        .res = *result,
+        .placeholder = placeholder,
+        .action = action,
+        .user_data = user_data,
+    };
+
+    return true;
+}
 // Action stash
 
 typedef struct {
     const HParser *p;
     HAction action;
     void *user_data;
+    HActionEntry *entry;
     HActionCollection *collection;
 } HParseActionStash;
 
@@ -113,15 +148,19 @@ static HParseResult *parse_action_stash(void *env, HParseState *state) {
             if (tmp->ast) {
                 *placeholder = *tmp->ast;
             } else {
-                placeholder->token_type = TT_NONE;
-                placeholder->index = 0;
-                placeholder->bit_length = 0;
-                placeholder->bit_offset = 0;
+                *placeholder = (HParsedToken){
+                    .token_type = TT_NONE,
+                    .index = 0,
+                    .bit_length = 0,
+                    .bit_offset = 0,
+                };
             }
-            a->collection->res = *tmp;
-            a->collection->placeholder = placeholder;
-            a->collection->action=a->action;
-            a->collection->user_data = a->user_data;
+            if (!append_action(a->collection,
+                tmp,
+                placeholder,
+                a->action,
+                a->user_data))
+                return NULL;
             return make_result(state->arena, placeholder);
         } else
             return NULL;
@@ -201,32 +240,39 @@ HParser *h_action_stash__m(HAllocator *mm__, const HParser *p, const HAction a, 
     env->collection = ac;
     return h_new_parser(mm__, &action_stash_vt, env);
 }
-static bool apply_action(HActionCollection *collection) {
-    if (!collection || !collection->action ||
-        !collection->placeholder)
+
+static bool apply_actions(HActionCollection *collection) {
+    if (!collection)
         return false;
 
-    HParsedToken *transformed =
-        collection->action(
-            &collection->res,
-            collection->user_data
-        );
+    for (size_t i = 0; i < collection->count; ++i) {
+        HActionEntry *entry = &collection->entries[i];
 
-    if (transformed) {
-        if (transformed != collection->placeholder)
-            *collection->placeholder = *transformed;
-    } else {
-        /*
-         * A stable placeholder cannot be removed from its parent sequence,
-         * so represent an ignored result as TT_NONE.
-         */
-        collection->placeholder->token_type = TT_NONE;
+        if (!entry->action || !entry->placeholder)
+            return false;
+
+        HParsedToken *transformed =
+            entry->action(
+                &entry->res,
+                entry->user_data
+            );
+
+        if (transformed) {
+            if (transformed != entry->placeholder)
+                *entry->placeholder = *transformed;
+        } else {
+            entry->placeholder->token_type = TT_NONE;
+        }
     }
+
+    // Prevent them from being applied again.
+
+    collection->count = 0;
     return true;
 }
 
 static HParseResult *parse_action_apply(void *env, HParseState *state) {
-    if (!apply_action(env))
+    if (!apply_actions(env))
         return NULL;
 
     HParseResult *result = a_new(HParseResult, 1);
@@ -244,11 +290,13 @@ static const HParserVtable action_apply_vt = {
 };
 
 HParser *h_action_apply(HActionCollection *collection) {
-    apply_action(collection);
+    if (!apply_actions(collection))
+        return NULL;
     return h_new_parser(&system_allocator, &action_apply_vt, collection);
 }
 
 HParser *h_action_apply__m(HAllocator *mm__, HActionCollection *collection) {
-    apply_action(collection);
+    if (!apply_actions(collection))
+        return NULL;
     return h_new_parser(mm__, &action_apply_vt, collection);
 }

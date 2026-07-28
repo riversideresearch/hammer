@@ -700,6 +700,12 @@ typedef struct {
     HParsedToken *placeholder;
     HAction action;
     void *user_data;
+} HActionEntry;
+
+typedef struct {
+    HActionEntry *entries;
+    size_t count;
+    size_t capacity;
 } HActionCollection;
 
 /**
