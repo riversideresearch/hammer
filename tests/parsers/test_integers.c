@@ -1,4 +1,5 @@
 #include "hammer.h"
+#include "glue.h"
 #include "test_suite.h"
 
 #include <glib.h>
@@ -84,10 +85,10 @@ static void test_int_nested(gconstpointer backend) {
 }
 
 static void test_bit0_and_bit1(gconstpointer backend) {
-    g_check_parse_match(h_bit0(), (HParserBackend)GPOINTER_TO_INT(backend), "\0", 1, "u0");
-    g_check_parse_match(h_bit1(), (HParserBackend)GPOINTER_TO_INT(backend), "\x80", 1, "u0x1");
-    g_check_parse_failed(h_bit0(), (HParserBackend)GPOINTER_TO_INT(backend), "\x80", 1);
-    g_check_parse_failed(h_bit1(), (HParserBackend)GPOINTER_TO_INT(backend), "\0", 1);
+    g_check_parse_match(H_BIT0(), (HParserBackend)GPOINTER_TO_INT(backend), "\0", 1, "u0");
+    g_check_parse_match(H_BIT1(), (HParserBackend)GPOINTER_TO_INT(backend), "\x80", 1, "u0x1");
+    g_check_parse_failed(H_BIT0(), (HParserBackend)GPOINTER_TO_INT(backend), "\x80", 1);
+    g_check_parse_failed(H_BIT1(), (HParserBackend)GPOINTER_TO_INT(backend), "\0", 1);
 }
 
 void register_integer_parser_tests(void) {
