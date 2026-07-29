@@ -695,17 +695,19 @@ HParser *h_middle__m(HAllocator *mm__, const HParser *p, const HParser *x, const
 HParser *h_action(const HParser *p, const HAction a, void *user_data);
 HParser *h_action__m(HAllocator *mm__, const HParser *p, const HAction a, void *user_data);
 
-typedef struct {
+typedef struct HActionEntry_ {
     HParseResult res;
     HParsedToken *placeholder;
     HAction action;
     void *user_data;
+    struct HActionEntry_ *next;
 } HActionEntry;
 
 typedef struct {
-    HActionEntry *entries;
+    HActionEntry *head;
+    HActionEntry *tail;
     size_t count;
-    size_t capacity;
+    HArena *arena;
 } HActionCollection;
 
 /**
@@ -720,13 +722,22 @@ HParser *h_action_stash(const HParser *p, const HAction a, void *user_data, HAct
 HParser *h_action_stash__m(HAllocator *mm__, const HParser *p, const HAction a, void *user_data, HActionCollection *collection);
 
 /**
- * @brief Given a table of h_actions (HActionCollection), run all the parsed actions.
- * 
- * @param actions symbol table map of results, HActions, and user_data.
- * @param n number of actions to take\
+ * @brief Forget all stashed actions without running them.
+ *
+ * The entries are owned by the parse arena and are released with the parse
+ * result. This function only clears the collection's references to them.
  */
-HParser *h_action_apply(HActionCollection *collection);
-HParser *h_action_apply__m(HAllocator *mm__, HActionCollection *collection);
+void h_action_collection_reset(HActionCollection *collection);
+
+/**
+ * @brief Parse p and, if it succeeds, run the actions accumulated in collection.
+ * 
+ * @param p An HParser containing h_action_stash parsers.
+ * @param collection Collection populated while parsing p.
+ * @return A parser that fails and clears collection if p fails.
+ */
+HParser *h_action_apply(HParser *p, HActionCollection *collection);
+HParser *h_action_apply__m(HAllocator *mm__, HParser *p, HActionCollection *collection);
 
 /**
  * @brief Parse a single byte that is in the given charset. Always attempts to

@@ -97,37 +97,72 @@ HParser *h_action__m(HAllocator *mm__, const HParser *p, const HAction a, void *
 
 static bool append_action(
     HActionCollection *collection,
+    HParseState *state,
     const HParseResult *result,
     HParsedToken *placeholder,
     HAction action,
     void *user_data
 ) {
-    if (!collection || !result || !placeholder || !action)
+    if (!collection || !state || !result ||
+        !placeholder || !action) {
         return false;
-
-    if (collection->count == collection->capacity) {
-        size_t new_capacity =
-            collection->capacity ? collection->capacity * 2 : 4;
-
-        HActionEntry *new_entries = h_realloc(
-            &system_allocator,
-            collection->entries,
-            new_capacity * sizeof(*new_entries)
-        );  // h_realloc will exit on failure
-
-        collection->entries = new_entries;
-        collection->capacity = new_capacity;
     }
 
-    collection->entries[collection->count++] = (HActionEntry){
+    /*
+     * Initialize the collection for this parse.
+     */
+    if (!collection->head) {
+        collection->tail = NULL;
+        collection->count = 0;
+        collection->arena = state->arena;
+    } else if (collection->arena != state->arena) {
+        /*
+         * The collection still contains entries belonging to another parse.
+         */
+        return false;
+    }
+
+    HActionEntry *entry =
+        h_arena_malloc(
+            state->arena,
+            sizeof(*entry)
+        );
+
+    if (!entry)
+        return false;
+
+    *entry = (HActionEntry){
         .res = *result,
         .placeholder = placeholder,
         .action = action,
         .user_data = user_data,
+        .next = NULL,
     };
+
+    if (collection->tail) {
+        collection->tail->next = entry;
+    } else {
+        collection->head = entry;
+    }
+
+    collection->tail = entry;
+    collection->count++;
 
     return true;
 }
+// Collection Reset
+void h_action_collection_reset(
+    HActionCollection *collection
+) {
+    if (!collection)
+        return;
+
+    collection->head = NULL;
+    collection->tail = NULL;
+    collection->count = 0;
+    collection->arena = NULL;
+}
+
 // Action stash
 
 typedef struct {
@@ -155,11 +190,13 @@ static HParseResult *parse_action_stash(void *env, HParseState *state) {
                     .bit_offset = 0,
                 };
             }
-            if (!append_action(a->collection,
-                tmp,
-                placeholder,
-                a->action,
-                a->user_data))
+            if (!append_action(
+                    a->collection,
+                    state,
+                    tmp,
+                    placeholder,
+                    a->action,
+                    a->user_data))
                 return NULL;
             return make_result(state->arena, placeholder);
         } else
@@ -245,9 +282,9 @@ static bool apply_actions(HActionCollection *collection) {
     if (!collection)
         return false;
 
-    for (size_t i = 0; i < collection->count; ++i) {
-        HActionEntry *entry = &collection->entries[i];
+    HActionEntry *entry = collection->head;
 
+    while (entry) {
         if (!entry->action || !entry->placeholder)
             return false;
 
@@ -263,23 +300,54 @@ static bool apply_actions(HActionCollection *collection) {
         } else {
             entry->placeholder->token_type = TT_NONE;
         }
+
+        entry = entry->next;
     }
 
-    // Prevent them from being applied again.
-
+    /*
+     * The arena owns the entries. Do not free them individually.
+     * Merely stop the collection from referencing them.
+     */
+    collection->head = NULL;
+    collection->tail = NULL;
     collection->count = 0;
+    collection->arena = NULL;
+
     return true;
 }
 
+// Action Apply
+typedef struct {
+    const HParser *p;
+    HActionCollection *collection;
+} HParseActionApply;
+
 static HParseResult *parse_action_apply(void *env, HParseState *state) {
-    if (!apply_actions(env))
+    HParseActionApply *a = (HParseActionApply *)env;
+
+    if (!a || !a->p || !a->collection)
         return NULL;
 
-    HParseResult *result = a_new(HParseResult, 1);
-    result->ast = NULL;
-    result->arena = state->arena;
-    result->bit_length = 0;
-    return result;
+    /*
+     * Parse the wrapped parser first. h_action_stash parsers encountered
+     * inside it populate the collection.
+     */
+    HParseResult *res = h_do_parse(a->p, state);
+    if (!res) {
+        h_action_collection_reset(a->collection);
+        return NULL;
+    }
+
+    /*
+     * Only apply the stashed actions after the complete wrapped parser has
+     * succeeded.
+     */
+    if (!apply_actions(a->collection)) {
+        h_action_collection_reset(a->collection);
+        return NULL;
+    }
+
+    return res;
 }
 
 static const HParserVtable action_apply_vt = {
@@ -289,14 +357,19 @@ static const HParserVtable action_apply_vt = {
     .higher = true,
 };
 
-HParser *h_action_apply(HActionCollection *collection) {
-    if (!apply_actions(collection))
-        return NULL;
-    return h_new_parser(&system_allocator, &action_apply_vt, collection);
+HParser *h_action_apply(HParser *p, HActionCollection *collection) {
+    return h_action_apply__m(&system_allocator, p, collection);
 }
 
-HParser *h_action_apply__m(HAllocator *mm__, HActionCollection *collection) {
-    if (!apply_actions(collection))
+HParser *h_action_apply__m(HAllocator *mm__, HParser *p,  HActionCollection *collection) {
+    if (!mm__ || !p || !collection)
         return NULL;
-    return h_new_parser(mm__, &action_apply_vt, collection);
+
+    HParseActionApply *env = h_new(HParseActionApply, 1);
+    if (!env)
+        return NULL;
+
+    env->p = p;
+    env->collection = collection;
+    return h_new_parser(mm__, &action_apply_vt, env);
 }
