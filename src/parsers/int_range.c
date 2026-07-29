@@ -29,57 +29,23 @@ static HParseResult *parse_int_range(void *env, HParseState *state) {
     }
 }
 
-void gen_int_range(HAllocator *mm__, HCFStack *stk__, uint64_t low, uint64_t high, uint8_t bytes) {
-    /* Possible FIXME: TallerThanMe */
-    if (1 == bytes) {
-        HCharset cs = new_charset(mm__);
-        for (uint64_t i = low; i <= high; ++i) {
-            charset_set(cs, i, 1);
-        }
-        HCFS_ADD_CHARSET(cs);
-    } else if (1 < bytes) {
-        uint8_t low_head, hi_head;
-        low_head = ((low >> (8 * (bytes - 1))) & 0xFF);
-        hi_head = ((high >> (8 * (bytes - 1))) & 0xFF);
-        if (low_head != hi_head) {
-            HCFS_BEGIN_CHOICE() {
-                HCFS_BEGIN_SEQ() {
-                    HCFS_ADD_CHAR(low_head);
-                    gen_int_range(mm__, stk__, low & ((1 << (8 * (bytes - 1))) - 1),
-                                  ((1 << (8 * (bytes - 1))) - 1), bytes - 1);
-                }
-                HCFS_END_SEQ();
-                HCFS_BEGIN_SEQ() {
-                    HCharset hd = new_charset(mm__);
-                    HCharset rest = new_charset(mm__);
-                    for (int i = 0; i < 256; i++) {
-                        charset_set(hd, i, (i > low_head && i < hi_head));
-                        charset_set(rest, i, 1);
-                    }
-                    HCFS_ADD_CHARSET(hd);
-                    for (int i = 2; i < bytes; i++)
-                        HCFS_ADD_CHARSET(rest);
-                }
-                HCFS_END_SEQ();
-                HCFS_BEGIN_SEQ() {
-                    HCFS_ADD_CHAR(hi_head);
-                    gen_int_range(mm__, stk__, 0, high & ((1 << (8 * (bytes - 1))) - 1), bytes - 1);
-                }
-                HCFS_END_SEQ();
-            }
-            HCFS_END_CHOICE();
-        } else {
-            // TODO: find a way to merge this with the higher-up SEQ
-            HCFS_BEGIN_CHOICE() {
-                HCFS_BEGIN_SEQ() {
-                    HCFS_ADD_CHAR(low_head);
-                    gen_int_range(mm__, stk__, low & ((1 << (8 * (bytes - 1))) - 1),
-                                  high & ((1 << (8 * (bytes - 1))) - 1), bytes - 1);
-                }
-                HCFS_END_SEQ();
-            }
-            HCFS_END_CHOICE();
-        }
+static bool int_range_predicate(HParseResult *result, void *user_data) {
+    HRange *range = user_data;
+
+    if (!result || !result->ast)
+        return false;
+
+    switch (result->ast->token_type) {
+    case TT_SINT:
+        return range->lower <= result->ast->token_data.sint &&
+               result->ast->token_data.sint <= range->upper;
+
+    case TT_UINT:
+        return (uint64_t)range->lower <= result->ast->token_data.uint &&
+               result->ast->token_data.uint <= (uint64_t)range->upper;
+
+    default:
+        return false;
     }
 }
 
@@ -89,13 +55,17 @@ struct bits_env {
 };
 
 static void desugar_int_range(HAllocator *mm__, HCFStack *stk__, void *env) {
-    HRange *r = (HRange *)env;
-    const HParser *p = r->p;
-    while (p->vtable->higher)
-        p = *(const HParser *const *)p->env;
+    HRange *range = env;
 
-    const struct bits_env *be = (const struct bits_env *)p->env;
-    gen_int_range(mm__, stk__, r->lower, r->upper, (uint8_t)(be->length / 8));
+    HCFS_BEGIN_CHOICE() {
+        HCFS_BEGIN_SEQ() { HCFS_DESUGAR(range->p); }
+        HCFS_END_SEQ();
+
+        HCFS_THIS_CHOICE->reshape = h_act_first;
+        HCFS_THIS_CHOICE->pred = int_range_predicate;
+        HCFS_THIS_CHOICE->user_data = range;
+    }
+    HCFS_END_CHOICE();
 }
 
 static bool h_svm_action_validate_int_range(HArena *arena, HSVMContext *ctx, void *env) {

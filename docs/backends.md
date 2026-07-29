@@ -44,6 +44,7 @@ Legend:
 | `h_int64`, `h_uint64` | Yes | Yes | Yes | Yes | Yes | Whole-byte integer parser. |
 | `h_int_range` | Yes | Limited | Limited | Limited | Limited | Assumes a whole-byte integer parser. |
 | `h_float_range` | Yes | If child | If child | If child | If child | Can handle float parser wrapped in a higher parser. |
+| `h_int_range` | Yes | Limited | If children | If children | If children | Regex can't have the UINT parser wrapped in a higher parser. |
 | `h_bytes` | Yes | Yes | Yes | Yes | Yes | Desugars to a charset. |
 | `h_sequence` | Yes | If children | If children | If children | If children | Grammar shape can still affect LL/LALR compilation. |
 | `h_choice` | Yes | If children | If children | If children | If children | LL may require larger `k`; LALR may report conflicts. |
