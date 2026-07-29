@@ -33,9 +33,37 @@ static void test_regex_signed_integers(void) {
     g_check_parse_failed(h_int_range(h_int8(), -2, 0), PB_REGULAR, "\x7f", 1);
 }
 
+HParsedToken *regex_identity_action(const HParseResult *p, void *user_data) {
+    (void)user_data;
+    return (HParsedToken *)p->ast;
+}
+
+static void test_regex_action_in_sequence(void) {
+    HParser *parser =
+        h_sequence(h_action(h_ch('a'), regex_identity_action, NULL), h_ch('b'), NULL);
+
+    g_check_parse_match(parser, PB_REGULAR, "ab", 2, "(u0x61 u0x62)");
+}
+
+static bool regex_accept_predicate(HParseResult *result, void *user_data) {
+    (void)result;
+    (void)user_data;
+    return true;
+}
+
+static void test_regex_attr_bool_in_sequence(void) {
+    HParser *parser =
+        h_sequence(h_attr_bool(h_ch('a'), regex_accept_predicate, NULL), h_ch('b'), NULL);
+
+    g_check_parse_match(parser, PB_REGULAR, "ab", 2, "(u0x61 u0x62)");
+}
+
 void register_regex_tests(void) {
     g_test_add_func("/core/backends/regex/registration", test_regex_backend_registration);
     g_test_add_func("/core/backends/regex/basic_parsers", test_regex_basic_parsers);
     g_test_add_func("/core/backends/regex/repetition_optional", test_regex_repetition_and_optional);
     g_test_add_func("/core/backends/regex/signed_integers", test_regex_signed_integers);
+    g_test_add_func("/core/backends/regex/action_in_sequence", test_regex_action_in_sequence);
+    g_test_add_func("/core/backends/regex/attr_bool_in_sequence",
+                    test_regex_attr_bool_in_sequence);
 }
