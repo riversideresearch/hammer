@@ -94,6 +94,6 @@ void register_integer_parser_tests(void) {
     g_test_add_data_func("/core/parser/packrat/uint8", GINT_TO_POINTER(PB_PACKRAT), test_uint8);
     g_test_add_data_func("/core/parser/packrat/int_range", GINT_TO_POINTER(PB_REGULAR),
                          test_int_range);
-    g_test_add_data_func("/core/parser/packrat/int_range_nested", GINT_TO_POINTER(PB_GLR),
+    g_test_add_data_func("/core/parser/packrat/int_range_nested", GINT_TO_POINTER(PB_REGULAR),
                          test_int_nested);
 }

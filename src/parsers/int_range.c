@@ -71,15 +71,28 @@ static void desugar_int_range(HAllocator *mm__, HCFStack *stk__, void *env) {
 static bool h_svm_action_validate_int_range(HArena *arena, HSVMContext *ctx, void *env) {
     HRange *r_env = (HRange *)env;
     HParsedToken *head = ctx->stack[ctx->stack_count - 1];
+    bool valid;
+
     switch (head->token_type) {
     case TT_SINT:
-        return r_env->lower <= head->token_data.sint && r_env->upper >= head->token_data.sint;
+        valid = r_env->lower <= head->token_data.sint && r_env->upper >= head->token_data.sint;
+        break;
     case TT_UINT:
-        return (uint64_t)r_env->lower <= head->token_data.uint &&
-               (uint64_t)r_env->upper >= head->token_data.uint;
+        valid = (uint64_t)r_env->lower <= head->token_data.uint &&
+                (uint64_t)r_env->upper >= head->token_data.uint;
+        break;
     default:
         return false;
     }
+
+    if (valid && ctx->stack_count > 1) {
+        size_t first = ctx->stack_count - 1;
+        while (first > 0 && ctx->stack[first - 1]->token_type == TT_MARK)
+            --first;
+        ctx->stack[first] = head;
+        ctx->stack_count = first + 1;
+    }
+    return valid;
 }
 
 static bool ir_ctrvm(HRVMProg *prog, void *env) {
