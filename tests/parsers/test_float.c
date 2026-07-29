@@ -212,6 +212,63 @@ static void test_float_truncated(gconstpointer backend) {
     g_check_parse_failed(p64, be, short64, sizeof short64);
 }
 
+static void test_float_range(gconstpointer backend) {
+    HParserBackend be = (HParserBackend)GPOINTER_TO_INT(backend);
+    const HParser *p = h_float_range(h_float32(), 1.0f, 2.0f);
+    const uint8_t lower[4] = {0x3f, 0x80, 0x00, 0x00};
+    const uint8_t middle[4] = {0x3f, 0xc0, 0x00, 0x00};
+    const uint8_t upper[4] = {0x40, 0x00, 0x00, 0x00};
+    const uint8_t below[4] = {0x3f, 0x00, 0x00, 0x00};
+    const uint8_t above[4] = {0x40, 0x20, 0x00, 0x00};
+    const uint8_t nan[4] = {0x7f, 0xc0, 0x00, 0x00};
+
+    g_check_parse_match(p, be, lower, sizeof lower, "f0x1p+0");
+    g_check_parse_match(p, be, middle, sizeof middle, "f0x1.8p+0");
+    g_check_parse_match(p, be, upper, sizeof upper, "f0x1p+1");
+    g_check_parse_failed(p, be, below, sizeof below);
+    g_check_parse_failed(p, be, above, sizeof above);
+    g_check_parse_failed(p, be, nan, sizeof nan);
+
+    HCFChoice *desugared = h_desugar(&system_allocator, NULL, p);
+    HParseResult *middle_result = h_parse(h_float32(), middle, sizeof middle);
+    HParseResult *below_result = h_parse(h_float32(), below, sizeof below);
+    g_assert_nonnull(desugared);
+    g_assert_nonnull(desugared->pred);
+    g_assert_true(desugared->pred(middle_result, desugared->user_data));
+    g_check_cmp_int(desugared->pred(below_result, desugared->user_data), ==, false);
+
+    g_check_cmp_int(p->vtable->isValidRegular(p->env), ==, true);
+    g_check_cmp_int(p->vtable->isValidCF(p->env), ==, true);
+}
+
+static void test_float_range_precision_and_double(gconstpointer backend) {
+    HParserBackend be = (HParserBackend)GPOINTER_TO_INT(backend);
+    const uint8_t one32[4] = {0x3f, 0x80, 0x00, 0x00};
+    const uint8_t one64[8] = {0x3f, 0xf0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+    const HParser *narrow32 = h_float_range(h_float32(), 1.00000001, 2.0);
+    const HParser *range64 = h_float_range(h_float64(), 1.0, 1.0);
+
+    /* Do not round double bounds to float before comparing the parsed value. */
+    g_check_parse_failed(narrow32, be, one32, sizeof one32);
+    g_check_parse_match(range64, be, one64, sizeof one64, "d0x1p+0");
+}
+
+// Helper predicate - always return true.
+static bool float_range_pred(HParseResult *result, void *user_data) {
+    (void)result;
+    (void)user_data;
+    return true;
+}
+
+static void test_float_range_higher(gconstpointer backend) {
+    HParserBackend be = (HParserBackend)GPOINTER_TO_INT(backend);
+    const uint8_t one64[8] = {0x3f, 0xf0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+    const HParser *range64 =
+        h_float_range(h_attr_bool(h_float64(), float_range_pred, NULL), 1.0, 1.0);
+
+    g_check_parse_match(range64, be, one64, sizeof one64, "d0x1p+0");
+}
+
 // Merged test_floats.c
 // Helper function for double parser test
 static HParsedToken *act_double(const HParseResult *p, void *u) {
@@ -242,6 +299,12 @@ void register_floating_point_parser_tests(void) {
     g_test_add_data_func("/core/parser/float/float16", GINT_TO_POINTER(PB_PACKRAT), test_float16);
     g_test_add_data_func("/core/parser/float/float32", GINT_TO_POINTER(PB_PACKRAT), test_float32);
     g_test_add_data_func("/core/parser/float/double64", GINT_TO_POINTER(PB_PACKRAT), test_double64);
+    g_test_add_data_func("/core/parser/float/regular/float16", GINT_TO_POINTER(PB_REGULAR),
+                         test_float16);
+    g_test_add_data_func("/core/parser/float/regular/float32", GINT_TO_POINTER(PB_REGULAR),
+                         test_float32);
+    g_test_add_data_func("/core/parser/float/regular/double64", GINT_TO_POINTER(PB_REGULAR),
+                         test_double64);
     g_test_add_data_func("/core/parser/float/float16-edgecases", GINT_TO_POINTER(PB_PACKRAT),
                          test_float16_edgecases);
     g_test_add_data_func("/core/parser/float/float32-edgecases", GINT_TO_POINTER(PB_PACKRAT),
@@ -250,6 +313,12 @@ void register_floating_point_parser_tests(void) {
                          test_double64_edgecases);
     g_test_add_data_func("/core/parser/float/truncated", GINT_TO_POINTER(PB_PACKRAT),
                          test_float_truncated);
+    g_test_add_data_func("/core/parser/float/range", GINT_TO_POINTER(PB_REGULAR),
+                         test_float_range);
+    g_test_add_data_func("/core/parser/float/range-precision-double",
+                         GINT_TO_POINTER(PB_REGULAR), test_float_range_precision_and_double);
+    g_test_add_data_func("/core/parser/packrat/float_range_higher", GINT_TO_POINTER(PB_REGULAR),
+                         test_float_range_higher);
     g_test_add_data_func("/core/parser/packrat/make_double", GINT_TO_POINTER(PB_PACKRAT),
                          test_make_double);
     g_test_add_data_func("/core/parser/packrat/make_float", GINT_TO_POINTER(PB_PACKRAT),
