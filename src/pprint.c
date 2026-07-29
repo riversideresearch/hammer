@@ -70,9 +70,9 @@ void h_pprint_ast_indexed(FILE *stream, const HParsedToken *token, size_t depth)
 
     case TT_BYTES:
         print_indent(stream, depth);
-        fprintf(stream, "TT_BYTES length=%zu value=\"", token->token_data.bytes.len);
+        fprintf(stream, "TT_BYTES length=%zu value=", token->token_data.bytes.len);
         pprint_bytes(stream,token->token_data.bytes.token, token->token_data.bytes.len);
-        fprintf(stream, "\"\n");
+        fprintf(stream, "\n");
         break;
 
     case TT_DOUBLE:
