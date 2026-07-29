@@ -47,8 +47,4 @@ static inline void desugar_epsilon(HAllocator *mm__, HCFStack *stk__, void *env)
     HCFS_END_CHOICE();
 }
 
-bool h_is_int_parser(const HParser *p);
-
-bool h_is_float_parser(const HParser *p);
-
 #endif // HAMMER_PARSER_INTERNAL__H
