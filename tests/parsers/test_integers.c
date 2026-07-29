@@ -76,12 +76,20 @@ bool pred(HParseResult *result, void *user_data) {
     return true;
 }
 
-static void test_int_nested(gconstpointer backend) {
+static void test_int_range_nested(gconstpointer backend) {
     HParser *p = h_attr_bool(h_uint8(), pred, NULL);
     const HParser *int_range_ = h_int_range(p, 3, 10);
 
     g_check_parse_match(int_range_, (HParserBackend)GPOINTER_TO_INT(backend), "\x05", 1, "u0x5");
     g_check_parse_failed(int_range_, (HParserBackend)GPOINTER_TO_INT(backend), "\xb", 1);
+}
+
+static void test_int_range_edge_case(gconstpointer backend) {
+    HParser *p = h_attr_bool(h_uint8(), pred, NULL);
+    HParser *int_range_ = h_int_range(p, 3, 10);
+    HParser *seq = h_sequence(int_range_, h_epsilon_p(), NULL);
+    g_check_parse_match(seq, (HParserBackend)GPOINTER_TO_INT(backend), "\x05", 1, "(u0x5)");
+    g_check_parse_failed(seq, (HParserBackend)GPOINTER_TO_INT(backend), "\xb", 1);
 }
 
 static void test_bit0_and_bit1(gconstpointer backend) {
@@ -100,10 +108,12 @@ void register_integer_parser_tests(void) {
     g_test_add_data_func("/core/parser/packrat/uint32", GINT_TO_POINTER(PB_PACKRAT), test_uint32);
     g_test_add_data_func("/core/parser/packrat/uint16", GINT_TO_POINTER(PB_PACKRAT), test_uint16);
     g_test_add_data_func("/core/parser/packrat/uint8", GINT_TO_POINTER(PB_PACKRAT), test_uint8);
-    g_test_add_data_func("/core/parser/packrat/int_range", GINT_TO_POINTER(PB_REGULAR),
+    g_test_add_data_func("/core/parser/regex/int_range", GINT_TO_POINTER(PB_REGULAR),
                          test_int_range);
-    g_test_add_data_func("/core/parser/packrat/int_range_nested", GINT_TO_POINTER(PB_REGULAR),
-                         test_int_nested);
+    g_test_add_data_func("/core/parser/regex/int_range_nested", GINT_TO_POINTER(PB_REGULAR),
+                         test_int_range_nested);
+    g_test_add_data_func("/core/parser/regex/int_range_edge_case", GINT_TO_POINTER(PB_REGULAR),
+                         test_int_range_edge_case);
     g_test_add_data_func("/core/parser/packrat/bit1", GINT_TO_POINTER(PB_PACKRAT),
                          test_bit0_and_bit1);
 }

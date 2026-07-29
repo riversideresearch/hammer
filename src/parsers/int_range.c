@@ -68,6 +68,17 @@ static void desugar_int_range(HAllocator *mm__, HCFStack *stk__, void *env) {
     HCFS_END_CHOICE();
 }
 
+static bool h_svm_action_mark_int_range(HArena *arena, HSVMContext *ctx, void *env) {
+    (void)arena;
+
+    if (ctx->stack_count == 0 ||
+        ctx->stack[ctx->stack_count - 1]->token_type != TT_MARK)
+        return false;
+
+    ctx->stack[ctx->stack_count - 1]->token_data.user = env;
+    return true;
+}
+
 static bool h_svm_action_validate_int_range(HArena *arena, HSVMContext *ctx, void *env) {
     HRange *r_env = (HRange *)env;
     HParsedToken *head = ctx->stack[ctx->stack_count - 1];
@@ -85,18 +96,32 @@ static bool h_svm_action_validate_int_range(HArena *arena, HSVMContext *ctx, voi
         return false;
     }
 
-    if (valid && ctx->stack_count > 1) {
+    if (valid) {
+        /*
+         * Higher parsers such as attr_bool may leave capture marks below the
+         * resulting token.  Collapse them only as far as int_range's tagged
+         * mark so an enclosing parser's mark remains on the stack.
+         */
         size_t first = ctx->stack_count - 1;
-        while (first > 0 && ctx->stack[first - 1]->token_type == TT_MARK)
+        while (first > 0) {
             --first;
-        ctx->stack[first] = head;
-        ctx->stack_count = first + 1;
+            if (ctx->stack[first]->token_type == TT_MARK &&
+                ctx->stack[first]->token_data.user == r_env) {
+                ctx->stack[first] = head;
+                ctx->stack_count = first + 1;
+                return true;
+            }
+        }
+        return false;
     }
-    return valid;
+    return false;
 }
 
 static bool ir_ctrvm(HRVMProg *prog, void *env) {
     HRange *r_env = (HRange *)env;
+    h_rvm_insert_insn(prog, RVM_PUSH, 0);
+    h_rvm_insert_insn(prog, RVM_ACTION,
+                      h_rvm_create_action(prog, h_svm_action_mark_int_range, env));
     if (!h_compile_regex(prog, r_env->p))
         return false;
     h_rvm_insert_insn(prog, RVM_ACTION,
