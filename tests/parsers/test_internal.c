@@ -58,10 +58,10 @@ static void test_cfstack_begin_seq_realloc_failure(void) {
         h_cfstack_begin_seq(mm__, stack);
 
         /*
-         * The current implementation returns silently after losing old_seq.
-         * Restore ownership before failing so the child does not add another
-         * sanitizer leak to the diagnostic.
-         */
+        * Reached only if h_cfstack_begin_seq() unexpectedly returns after
+        * the failed realloc. Restore the original allocation before forcing
+        * failure so this regression path remains sanitizer-clean.
+        */
         if (!choice->data.seq)
             choice->data.seq = old_seq;
         mm__->free(mm__, choice->data.seq);
@@ -110,11 +110,7 @@ static void test_desugar_realloc_failure_is_fatal(void) {
          */
         state.fail_next_realloc = true;
         HCFChoice *choice = h_desugar(mm__, NULL, parser);
-
-        /*
-         * Current code returns this incomplete choice. Recover the overwritten
-         * allocation before reporting that the OOM escaped h_desugar().
-         */
+    
         if (choice) {
             if (!choice->data.seq)
                 choice->data.seq = state.failed_realloc_ptr;
