@@ -169,9 +169,7 @@ HParser *h_permutation__ma(HAllocator *mm__, void *args[]) {
     }
 
     s->len = len;
-    HParser *ret = h_new(HParser, 1);
-    ret->vtable = &permutation_vt;
-    ret->env = (void *)s;
+    HParser *ret = h_new_parser_with_free(mm__, &permutation_vt, s, h_free_seq_env);
     ret->backend = h_get_default_backend();
     ret->backend_vtable = h_get_default_backend_vtable();
     ret->desugared = NULL;
