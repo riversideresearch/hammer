@@ -162,7 +162,7 @@ static void test_desugar_indirect(void) {
     HCFChoice *desugared = h_desugar(&system_allocator, NULL, p);
     g_check_cmp_ptr(desugared, !=, NULL);
     // The desugared form should be the same as desugaring h_ch('a') directly
-    g_check_cmp_int(desugared->type, ==, HCF_CHAR);
+    g_check_cmp_int(desugared->type, ==, HCF_CHOICE);
 }
 
 // Test desugar for action parser
