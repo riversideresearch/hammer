@@ -857,6 +857,17 @@ HParsedToken *func(const HParseResult *result, void *user) {
     return (HParsedToken*)NULL;
 }
 
+static void test_h_action_apply(gconstpointer backend){
+    HActionCollection action = {0};
+	HParser *parser =
+		h_action_stash(h_uint8(), func, NULL, &action);
+	HParser *seq =  h_action_apply(h_sequence(h_uint8(), parser, h_uint8(), NULL),&action);
+
+	// should now be the transformed AST.
+    g_check_parse_match(seq, (HParserBackend)GPOINTER_TO_INT(backend),
+                        "\x01\x01\x01",
+                        3, "(u0x1 null u0x1)");
+}
 static void test_action_apply_seq(void){
     uint8_t buf[256];
 	buf[0] = (uint8_t)'C';
@@ -1200,8 +1211,12 @@ void register_parser_tests(void) {
     extern void test_indirect_basic(gconstpointer backend);
     g_test_add_data_func("/core/parser/packrat/indirect/basic", GINT_TO_POINTER(PB_PACKRAT),
                          test_indirect_basic);
-    g_test_add_func("/core/misc/h_action_apply_seq", test_action_apply_seq);
-    g_test_add_func("/core/misc/h_action_stash_choice", test_action_stash_choice);
-    g_test_add_func("/core/misc/h_action_stash_multiple", test_action_stash_multiple);
-    g_test_add_func("/core/misc/h_action_apply_fail", test_action_apply_fail);
+    g_test_add_data_func("/core/parser/h_action_apply/regex", GINT_TO_POINTER(PB_REGULAR),
+                         test_h_action_apply);
+    g_test_add_data_func("/core/parser/h_action_apply/glr", GINT_TO_POINTER(PB_GLR),
+                         test_h_action_apply);
+    g_test_add_func("/core/parser/h_action_apply/seq", test_action_apply_seq);
+    g_test_add_func("/core/parser/h_action_stash/choice", test_action_stash_choice);
+    g_test_add_func("/core/parser/h_action_stash/multiple", test_action_stash_multiple);
+    g_test_add_func("/core/parser/h_action_apply/fail", test_action_apply_fail);
 }

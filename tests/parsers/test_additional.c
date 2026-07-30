@@ -1312,7 +1312,7 @@ void register_additional_parser_tests(void) {
                          GINT_TO_POINTER(PB_PACKRAT), test_permutation_two_elements);
     g_test_add_data_func("/core/parser/packrat/bind_edge_cases", GINT_TO_POINTER(PB_PACKRAT),
                          test_bind_edge_cases);
-    g_test_add_data_func("/core/parser/packrat/attr_bool_edge_cases", GINT_TO_POINTER(PB_PACKRAT),
+    g_test_add_data_func("/core/parser/regex/attr_bool_edge_cases", GINT_TO_POINTER(PB_REGULAR),
                          test_attr_bool);
     g_test_add_data_func("/core/parser/packrat/value_put_get_free", GINT_TO_POINTER(PB_PACKRAT),
                          test_value_put_get_free);

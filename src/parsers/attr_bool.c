@@ -50,15 +50,36 @@ static void desugar_ab(HAllocator *mm__, HCFStack *stk__, void *env) {
 }
 
 static bool h_svm_action_attr_bool(HArena *arena, HSVMContext *ctx, void *arg) {
-    HParseResult res;
-    HAttrBool *ab = arg;
-    assert(ctx->stack_count >= 1);
-    if (ctx->stack[ctx->stack_count - 1]->token_type != TT_MARK)
-        res.ast = ctx->stack[ctx->stack_count - 1];
-    else
-        res.ast = NULL;
-    res.arena = arena;
-    return ab->pred(&res, ab->user_data);
+    HAttrBool *ab = (HAttrBool *)arg;
+    if (!ab || !ab->pred || ctx->stack_count < 2)
+        return false;
+
+    HParsedToken *child = ctx->stack[ctx->stack_count - 1];
+    HParsedToken *mark = ctx->stack[ctx->stack_count - 2];
+
+    /*
+     * ab_ctrvm() inserts a private mark before the wrapped parser. Like the
+     * packrat implementation, attr_bool requires a non-NULL child AST.
+     */
+    if (child->token_type == TT_MARK || mark->token_type != TT_MARK)
+        return false;
+
+    HParseResult res = {
+        .ast = child,
+        .arena = arena,
+        .bit_length = (ctx->input_pos - mark->index) * 8,
+    };
+
+    if (!ab->pred(&res, ab->user_data))
+        return false;
+
+    /*
+     * Preserve exactly one result for the parent parser: copy the validated
+     * child into the private mark and pop the original child stack slot.
+     */
+    *mark = *child;
+    ctx->stack_count--;
+    return true;
 }
 
 static bool ab_ctrvm(HRVMProg *prog, void *env) {

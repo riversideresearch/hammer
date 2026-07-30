@@ -97,13 +97,13 @@ HParser *h_action__m(HAllocator *mm__, const HParser *p, const HAction a, void *
 
 static bool append_action(
     HActionCollection *collection,
-    HParseState *state,
+    HArena *arena,
     const HParseResult *result,
     HParsedToken *placeholder,
     HAction action,
     void *user_data
 ) {
-    if (!collection || !state || !result ||
+    if (!collection || !arena || !result ||
         !placeholder || !action) {
         return false;
     }
@@ -114,8 +114,8 @@ static bool append_action(
     if (!collection->head) {
         collection->tail = NULL;
         collection->count = 0;
-        collection->arena = state->arena;
-    } else if (collection->arena != state->arena) {
+        collection->arena = arena;
+    } else if (collection->arena != arena) {
         /*
          * The collection still contains entries belonging to another parse.
          */
@@ -124,7 +124,7 @@ static bool append_action(
 
     HActionEntry *entry =
         h_arena_malloc(
-            state->arena,
+            arena,
             sizeof(*entry)
         );
 
@@ -192,7 +192,7 @@ static HParseResult *parse_action_stash(void *env, HParseState *state) {
             }
             if (!append_action(
                     a->collection,
-                    state,
+                    state->arena,
                     tmp,
                     placeholder,
                     a->action,
@@ -206,62 +206,143 @@ static HParseResult *parse_action_stash(void *env, HParseState *state) {
 }
 
 /*
+ * Context-free backends invoke this semantic action after the wrapped
+ * nonterminal has reduced. Stash the user's action instead of invoking it.
+ */
+static HParsedToken *action_stash_cf(const HParseResult *result, void *user_data) {
+    HParseActionStash *a = (HParseActionStash *)user_data;
+    if (!a || !a->action || !a->collection || !result || !result->arena)
+        return NULL;
+
+    HParsedToken *placeholder =
+        h_arena_malloc_noinit(result->arena, sizeof(*placeholder));
+
+    if (result->ast) {
+        *placeholder = *result->ast;
+    } else {
+        *placeholder = (HParsedToken){
+            .token_type = TT_NONE,
+            .index = 0,
+            .bit_offset = 0,
+            .bit_length = result->bit_length,
+        };
+    }
+
+    if (!append_action(
+            a->collection,
+            result->arena,
+            result,
+            placeholder,
+            a->action,
+            a->user_data)) {
+        return NULL;
+    }
+
+    return placeholder;
+}
+
 static void desugar_action_stash(HAllocator *mm__, HCFStack *stk__, void *env) {
-    HParseAction *a = (HParseAction *)env;
+    HParseActionStash *a = (HParseActionStash *)env;
 
     HCFS_BEGIN_CHOICE() {
         HCFS_BEGIN_SEQ() { HCFS_DESUGAR(a->p); }
         HCFS_END_SEQ();
-        HCFS_THIS_CHOICE->user_data = a->user_data;
-        HCFS_THIS_CHOICE->action = a->action;
+        HCFS_THIS_CHOICE->user_data = a;
+        HCFS_THIS_CHOICE->action = action_stash_cf;
         HCFS_THIS_CHOICE->reshape = h_act_first;
     }
     HCFS_END_CHOICE();
 }
 
 static bool action_stash_isValidRegular(void *env) {
-    HParseAction *a = (HParseAction *)env;
+    HParseActionStash *a = env;
     return a->p->vtable->isValidRegular(a->p->env);
 }
 
 static bool action_stash_isValidCF(void *env) {
-    HParseAction *a = (HParseAction *)env;
+    HParseActionStash *a = (HParseActionStash *)env;
     return a->p->vtable->isValidCF(a->p->env);
 }
 
-static bool h_svm_action_action_stash(HArena *arena, HSVMContext *ctx, void *arg) {
-    HParseResult res;
-    HParseAction *a = arg;
-    assert(ctx->stack_count >= 1);
-    if (ctx->stack[ctx->stack_count - 1]->token_type != TT_MARK) {
-        res.ast = ctx->stack[ctx->stack_count - 1];
-    } else {
-        res.ast = NULL;
+size_t svm_count_to_mark(HSVMContext *ctx) {
+    size_t ctm;
+    for (ctm = 0; ctm < ctx->stack_count; ctm++) {
+        if (ctx->stack[ctx->stack_count - 1 - ctm]->token_type == TT_MARK) {
+            return ctm;
+        }
     }
-    res.arena = arena;
-    HParsedToken *action_result = a->action(&res, a->user_data);
-    if (action_result)
-        ctx->stack[ctx->stack_count - 1] = action_result;
-    else
-        ctx->stack_count--;
+    return ctx->stack_count;
+}
+
+static bool h_svm_action_action_stash(HArena *arena, HSVMContext *ctx, void *arg) {
+    HParseActionStash *a = (HParseActionStash *)arg;
+    if (!a || !a->action || !a->collection || ctx->stack_count < 1)
+        return false;
+
+    /*
+     * action_stash_ctrvm() inserted a private mark before compiling the
+     * wrapped parser. A parser result consists of either zero or one token
+     * above that mark.
+     */
+    size_t child_count = svm_count_to_mark(ctx);
+    if (child_count > 1 || child_count >= ctx->stack_count)
+        return false;
+
+    size_t mark_index = ctx->stack_count - child_count - 1;
+    HParsedToken *placeholder = ctx->stack[mark_index];
+    HParsedToken *child =
+        child_count ? ctx->stack[mark_index + 1] : NULL;
+    size_t start = placeholder->index;
+    size_t bit_length = (ctx->input_pos - start) * 8;
+
+    HParseResult res = {
+        .ast = child,
+        .arena = arena,
+        .bit_length = bit_length,
+    };
+
+    if (child) {
+        *placeholder = *child;
+    } else {
+        *placeholder = (HParsedToken){
+            .token_type = TT_NONE,
+            .index = start,
+            .bit_offset = 0,
+            .bit_length = bit_length,
+        };
+    }
+
+    /* Collapse the private mark and optional child to one placeholder. */
+    ctx->stack_count = mark_index + 1;
+
+    if (!append_action(
+            a->collection,
+            arena,
+            &res,
+            placeholder,
+            a->action,
+            a->user_data)) {
+        return false;
+    }
+
     return true;
 }
 
 static bool action_stash_ctrvm(HRVMProg *prog, void *env) {
-    HParseAction *a = (HParseAction *)env;
+    HParseActionStash *a = (HParseActionStash *)env;
     h_rvm_insert_insn(prog, RVM_PUSH, 0);
     if (!h_compile_regex(prog, a->p))
         return false;
     h_rvm_insert_insn(prog, RVM_ACTION, h_rvm_create_action(prog, h_svm_action_action_stash, a));
     return true;
 }
-*/
+
 static const HParserVtable action_stash_vt = {
     .parse = parse_action_stash,
-    .isValidRegular = h_false, // action_stash_isValidRegular,
-    .isValidCF = h_false, // action_stash_isValidCF,
-    //.compile_to_rvm = action_stash_ctrvm,
-    //.desugar = desugar_action_stash,
+    .isValidRegular = action_stash_isValidRegular,
+    .isValidCF = action_stash_isValidCF,
+    .compile_to_rvm = action_stash_ctrvm,
+    .desugar = desugar_action_stash,
     .higher = true,
 };
 
@@ -350,10 +431,76 @@ static HParseResult *parse_action_apply(void *env, HParseState *state) {
     return res;
 }
 
+/*
+ * The outer h_action_apply reduction occurs only after its wrapped grammar
+ * has reduced successfully, so all stash reductions are available here.
+ */
+static HParsedToken *action_apply_cf(const HParseResult *result, void *user_data) {
+    HParseActionApply *a = (HParseActionApply *)user_data;
+    if (!a || !a->collection || !result)
+        return NULL;
+
+    if (!apply_actions(a->collection)) {
+        h_action_collection_reset(a->collection);
+        return NULL;
+    }
+
+    return (HParsedToken *)result->ast;
+}
+
+static void desugar_action_apply(HAllocator *mm__, HCFStack *stk__, void *env) {
+    HParseActionApply *a = (HParseActionApply *)env;
+
+    HCFS_BEGIN_CHOICE() {
+        HCFS_BEGIN_SEQ() { HCFS_DESUGAR(a->p); }
+        HCFS_END_SEQ();
+        HCFS_THIS_CHOICE->user_data = a;
+        HCFS_THIS_CHOICE->action = action_apply_cf;
+        HCFS_THIS_CHOICE->reshape = h_act_first;
+    }
+    HCFS_END_CHOICE();
+}
+
+static bool action_apply_isValidCF(void *env) {
+    HParseActionApply *a = env;
+    return a->p->vtable->isValidCF(a->p->env);
+}
+
+static bool action_apply_isValidRegular(void *env) {
+    HParseActionApply *a = env;
+    return a->p->vtable->isValidRegular(a->p->env);
+}
+
+static bool h_svm_action_action_apply(HArena *arena, HSVMContext *ctx, void *arg) {
+    (void)arena;
+    (void)ctx;
+
+    HParseActionApply *a = (HParseActionApply *)arg;
+    if (!a || !a->collection)
+        return false;
+
+    if (!apply_actions(a->collection)) {
+        h_action_collection_reset(a->collection);
+        return false;
+    }
+
+    return true;
+}
+
+static bool action_apply_ctrvm(HRVMProg *prog, void *env) {
+    HParseActionApply *a = (HParseActionApply *)env;
+    if (!h_compile_regex(prog, a->p))
+        return false;
+    h_rvm_insert_insn(prog, RVM_ACTION, h_rvm_create_action(prog, h_svm_action_action_apply, a));
+    return true;
+}
+
 static const HParserVtable action_apply_vt = {
     .parse = parse_action_apply,
-    .isValidRegular = h_false,
-    .isValidCF = h_false,
+    .isValidRegular = action_apply_isValidRegular,
+    .isValidCF = action_apply_isValidCF,
+    .desugar = desugar_action_apply,
+    .compile_to_rvm = action_apply_ctrvm,
     .higher = true,
 };
 
