@@ -151,8 +151,6 @@ HParser *h_choice__ma(HAllocator *mm__, void *args[]) {
 
     s->len = len;
     HParser *ret = h_new_parser_with_free(mm__, &choice_vt, (void *)s, h_free_seq_env);
-    ret->backend = h_get_default_backend();
-    ret->backend_vtable = h_get_default_backend_vtable();
     ret->desugared = NULL;
     return ret;
 }
