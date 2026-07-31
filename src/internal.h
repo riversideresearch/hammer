@@ -415,6 +415,7 @@ static inline HParser *h_new_parser_with_free(
     p->free_env = free_env;
     p->backend = h_get_default_backend__int();
     p->backend_vtable = h_get_default_backend_vtable__int();
+    p->owner_mm__ = mm__;
 
     return p;
 }
@@ -433,6 +434,8 @@ static inline HParser *h_new_parser(
 }
 
 HCFChoice *h_desugar(HAllocator *mm__, HCFStack *stk__, const HParser *parser);
+HAllocator *h_desugar_context_allocator(HParser *parser);
+void h_desugar_context_release(HDesugarContext *ctx);
 
 /*
  * Correct Usage:

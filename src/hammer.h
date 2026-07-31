@@ -184,6 +184,13 @@ typedef struct HParserVtable_ HParserVtable;
 
 typedef void (*HParserEnvFree)(HAllocator *mm__, void *);
 
+
+typedef struct HDesugarContext_ {
+    HArena *arena;
+    HAllocator allocator;   /* arena-backed allocator */
+    HAllocator *owner_mm__;
+    size_t refs;
+} HDesugarContext;
 // TODO: Make this internal
 typedef struct HParser_ {
     const HParserVtable *vtable;
@@ -193,6 +200,8 @@ typedef struct HParser_ {
     void *env;
     HParserEnvFree free_env;
     HCFChoice *desugared; /**< if the parser can be desugared, its desugared form */
+    HAllocator *owner_mm__;
+    HDesugarContext *desugar_ctx;
 } HParser;
 
 typedef struct HSuspendedParser_ HSuspendedParser;

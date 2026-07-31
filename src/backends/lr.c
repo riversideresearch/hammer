@@ -643,7 +643,7 @@ HCFGrammar *h_pprint_lr_info(FILE *f, HParser *p) {
     HAllocator *mm__ = &system_allocator;
 
     fprintf(f, "\n==== G R A M M A R ====\n");
-    HCFGrammar *g = h_cfgrammar_(mm__, h_desugar_augmented(mm__, p));
+    HCFGrammar *g = h_cfgrammar_(mm__, h_desugar_augmented(p));
     if (g == NULL) {
         fprintf(f, "h_cfgrammar failed\n");
         return NULL;

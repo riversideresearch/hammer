@@ -744,8 +744,6 @@ void h_parser_free__m(HAllocator *mm__, HParser *parser)
 
     if (parser->free_env != NULL) // callback handles explicit environment clenaup
         parser->free_env(mm__, parser->env);
-    if (parser->desugared != NULL) // callback handles explicit environment clenaup
-        mm__->free(mm__, parser->desugared);
+    h_desugar_context_release(parser->desugar_ctx);
     mm__->free(mm__, parser);
 }
-
