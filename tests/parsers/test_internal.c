@@ -181,6 +181,36 @@ static void test_indirect_isValidCF(void) {
     // but doesn't protect against NULL dereference.
 }
 
+static void test_desugar_context_lifetime(void) {
+    HParser *p1 = h_ch('a');
+    HParser *p2 = h_ch('b');
+    HParser *sequence = h_sequence(p1, p2, NULL);
+
+    g_check_cmp_ptr(h_desugar(&system_allocator, NULL, sequence), !=, NULL);
+    //g_check_cmp_ptr(sequence->desugar_ctx, !=, NULL);
+    //g_check_cmp_ptr(p1->desugar_ctx, ==, sequence->desugar_ctx);
+    //g_check_cmp_ptr(p2->desugar_ctx, ==, sequence->desugar_ctx);
+
+    h_parser_free(sequence);
+    g_check_cmp_ptr(p1->desugared, !=, NULL);
+    g_check_cmp_ptr(p2->desugared, !=, NULL);
+
+    h_parser_free(p1);
+    h_parser_free(p2);
+}
+
+static void test_indirect_desugar_has_own_cfg(void) {
+    HParser *inner = h_ch('a');
+    HParser *indirect = h_indirect();
+    h_bind_indirect(indirect, inner);
+
+    g_check_cmp_ptr(h_desugar(&system_allocator, NULL, indirect), !=, NULL);
+    g_check_cmp_ptr(indirect->desugared, !=, inner->desugared);
+
+    h_parser_free(indirect);
+    h_parser_free(inner);
+}
+
 static void test_reshape_bits_direct(void) {
     HArena *arena = h_new_arena(&system_allocator, 0);
 
@@ -417,4 +447,7 @@ void register_internal_tests(void) {
     g_test_add_func("/core/internal/ignoreseq_isValidRegular", test_ignoreseq_isValidRegular);
     g_test_add_func("/core/internal/ignoreseq_isValidCF", test_ignoreseq_isValidCF);
     g_test_add_func("/core/internal/indirect_isValidCF", test_indirect_isValidCF);
+    g_test_add_func("/core/internal/desugar_context_lifetime", test_desugar_context_lifetime);
+    g_test_add_func("/core/internal/indirect_desugar_own_cfg",
+                    test_indirect_desugar_has_own_cfg);
 }

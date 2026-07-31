@@ -150,8 +150,59 @@ static void test_drop_from_variants_free_root_and_wrappers(void) {
     system_allocator = saved;
 }
 
+static void test_lalr_desugaring_context_is_freed(void) {
+    TrackingAllocator tracking = {0};
+    HAllocator saved = install_tracking_allocator(&tracking);
+    HParser *a = h_ch('a');
+    HParser *b = h_ch('b');
+    HParser *c = h_ch('c');
+    HParser *d = h_ch('d');
+    HParser *choice = h_choice(b, c, NULL);
+    HParser *sequence = h_sequence(a, choice, d, NULL);
+    //HParseResult *res = h_parse(sequence, NULL, 0);
+    g_assert_cmpint(h_compile(sequence, PB_LALR, NULL), ==, 0);
+    //g_assert_nonnull(sequence->desugar_ctx);
+
+    h_parser_free(sequence);
+    h_parser_free(choice);
+    h_parser_free(a);
+    h_parser_free(b);
+    h_parser_free(c);
+    h_parser_free(d);
+    g_assert_cmpuint(tracking.live_allocations, ==, 0);
+
+    system_allocator = saved;
+}
+
+static void test_lalr_desugaring_context_survives_child_frees(void) {
+    TrackingAllocator tracking = {0};
+    HAllocator saved = install_tracking_allocator(&tracking);
+    HParser *a = h_ch('a');
+    HParser *b = h_ch('b');
+    HParser *c = h_ch('c');
+    HParser *d = h_ch('d');
+    HParser *choice = h_choice(b, c, NULL);
+    HParser *sequence = h_sequence(a, choice, d, NULL);
+
+    g_assert_cmpint(h_compile(sequence, PB_LALR, NULL), ==, 0);
+
+    h_parser_free(a);
+    h_parser_free(b);
+    h_parser_free(c);
+    h_parser_free(d);
+    h_parser_free(choice);
+    h_parser_free(sequence);
+    g_assert_cmpuint(tracking.live_allocations, ==, 0);
+
+    system_allocator = saved;
+}
+
 void register_parser_free_tests(void) {
     g_test_add_func("/core/parser/free/sequence_variants", test_sequence_variants_free_root);
     g_test_add_func("/core/parser/free/drop_from_variants",
                     test_drop_from_variants_free_root_and_wrappers);
+    g_test_add_func("/core/parser/free/lalr_desugaring_context",
+                    test_lalr_desugaring_context_is_freed);
+    g_test_add_func("/core/parser/free/lalr_desugaring_context_child_first",
+                    test_lalr_desugaring_context_survives_child_frees);
 }
