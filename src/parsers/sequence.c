@@ -166,9 +166,10 @@ HParser *h_sequence__mv(HAllocator *mm__, HParser *p, va_list ap_) {
         va_end(ap);
 
         s->len = len;
-    }
 
-    return h_new_parser_with_free(mm__, &sequence_vt, s, h_free_seq_env);
+        return h_new_parser_with_free(mm__, &sequence_vt, s, h_free_seq_env);
+    }
+    return h_new_parser_with_free(mm__, &sequence_vt, s, h_no_free_env);
 }
 
 HParser *h_sequence__a(void *args[]) { return h_sequence__ma(&system_allocator, args); }
