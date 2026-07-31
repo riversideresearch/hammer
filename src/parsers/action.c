@@ -425,7 +425,6 @@ static HParseResult *parse_action_apply(void *env, HParseState *state) {
      */
     if (!apply_actions(a->collection)) {
         h_action_collection_reset(a->collection);
-        return NULL;
     }
 
     return res;
@@ -437,12 +436,11 @@ static HParseResult *parse_action_apply(void *env, HParseState *state) {
  */
 static HParsedToken *action_apply_cf(const HParseResult *result, void *user_data) {
     HParseActionApply *a = (HParseActionApply *)user_data;
-    if (!a || !a->collection || !result)
+    if (!a || !result)
         return NULL;
 
     if (!apply_actions(a->collection)) {
         h_action_collection_reset(a->collection);
-        return NULL;
     }
 
     return (HParsedToken *)result->ast;
@@ -476,12 +474,11 @@ static bool h_svm_action_action_apply(HArena *arena, HSVMContext *ctx, void *arg
     (void)ctx;
 
     HParseActionApply *a = (HParseActionApply *)arg;
-    if (!a || !a->collection)
+    if (!a)
         return false;
 
     if (!apply_actions(a->collection)) {
         h_action_collection_reset(a->collection);
-        return false;
     }
 
     return true;
@@ -509,7 +506,7 @@ HParser *h_action_apply(HParser *p, HActionCollection *collection) {
 }
 
 HParser *h_action_apply__m(HAllocator *mm__, HParser *p,  HActionCollection *collection) {
-    if (!mm__ || !p || !collection)
+    if (!mm__ || !p)
         return NULL;
 
     HParseActionApply *env = h_new(HParseActionApply, 1);
@@ -517,6 +514,8 @@ HParser *h_action_apply__m(HAllocator *mm__, HParser *p,  HActionCollection *col
         return NULL;
 
     env->p = p;
-    env->collection = collection;
+    if (collection)
+        env->collection = collection;
+    
     return h_new_parser(mm__, &action_apply_vt, env);
 }

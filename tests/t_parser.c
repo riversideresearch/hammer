@@ -934,7 +934,6 @@ static void test_action_stash_choice(void){
 }
 
 static void test_action_apply_fail(void){
-    int x = 1;
     uint8_t buf[256];
 	buf[0] = (uint8_t)'C';
 	buf[1] = (uint8_t)'B';
@@ -948,6 +947,17 @@ static void test_action_apply_fail(void){
     // Will call h_platform_errx, no test check needed
 }
 
+static void test_action_apply_choice(void){
+    uint8_t buf[256];
+	buf[0] = (uint8_t)'C';
+	buf[1] = (uint8_t)'B';
+	buf[2] = (uint8_t)'A';
+    HActionCollection action = {0};
+	HParser *parser = h_action_apply(h_choice(h_action_stash(h_int32(), func, NULL, &action),h_uint8(),NULL), &action);
+	HParseResult *result = h_parse(parser, buf, 3);
+    g_check_cmp_int(result->ast->token_type, ==, TT_UINT);
+    h_parse_result_free(result);
+}
 static void test_permutation(gconstpointer backend) {
     HParserBackend be = (HParserBackend)GPOINTER_TO_INT(backend);
     const HParser *p = h_permutation(h_ch('a'), h_ch('b'), h_ch('c'), NULL);
@@ -1219,4 +1229,5 @@ void register_parser_tests(void) {
     g_test_add_func("/core/parser/h_action_stash/choice", test_action_stash_choice);
     g_test_add_func("/core/parser/h_action_stash/multiple", test_action_stash_multiple);
     g_test_add_func("/core/parser/h_action_apply/fail", test_action_apply_fail);
+    g_test_add_func("/core/parser/h_action_apply/choice", test_action_apply_choice);
 }
