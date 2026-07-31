@@ -406,7 +406,7 @@ typedef struct {
 static HParseResult *parse_action_apply(void *env, HParseState *state) {
     HParseActionApply *a = (HParseActionApply *)env;
 
-    if (!a || !a->p || !a->collection)
+    if (!a || !a->p)
         return NULL;
 
     /*
@@ -415,16 +415,20 @@ static HParseResult *parse_action_apply(void *env, HParseState *state) {
      */
     HParseResult *res = h_do_parse(a->p, state);
     if (!res) {
-        h_action_collection_reset(a->collection);
-        return NULL;
+        if(a->collection){
+            h_action_collection_reset(a->collection);
+            return NULL;
+        }
     }
 
     /*
      * Only apply the stashed actions after the complete wrapped parser has
      * succeeded.
      */
-    if (!apply_actions(a->collection)) {
-        h_action_collection_reset(a->collection);
+    if(a->collection){
+        if (!apply_actions(a->collection)) {
+            h_action_collection_reset(a->collection);
+        }
     }
 
     return res;
@@ -439,8 +443,10 @@ static HParsedToken *action_apply_cf(const HParseResult *result, void *user_data
     if (!a || !result)
         return NULL;
 
-    if (!apply_actions(a->collection)) {
-        h_action_collection_reset(a->collection);
+    if(a->collection){
+        if (!apply_actions(a->collection)) {
+            h_action_collection_reset(a->collection);
+        }
     }
 
     return (HParsedToken *)result->ast;
@@ -477,8 +483,10 @@ static bool h_svm_action_action_apply(HArena *arena, HSVMContext *ctx, void *arg
     if (!a)
         return false;
 
-    if (!apply_actions(a->collection)) {
-        h_action_collection_reset(a->collection);
+    if(a->collection){
+        if (!apply_actions(a->collection)) {
+            h_action_collection_reset(a->collection);
+        }
     }
 
     return true;
@@ -516,6 +524,8 @@ HParser *h_action_apply__m(HAllocator *mm__, HParser *p,  HActionCollection *col
     env->p = p;
     if (collection)
         env->collection = collection;
+    else
+        env->collection = NULL;
     
     return h_new_parser(mm__, &action_apply_vt, env);
 }
