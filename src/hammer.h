@@ -716,6 +716,7 @@ typedef struct {
  * @param p Parser to wrap
  * @param a Action function
  * @param user_data Context for action
+ * @param collection Collection populated while parsing p.
  * @return Result token type: any
  */
 HParser *h_action_stash(const HParser *p, const HAction a, void *user_data, HActionCollection *collection);
@@ -733,8 +734,9 @@ void h_action_collection_reset(HActionCollection *collection);
  * @brief Parse p and, if it succeeds, run the actions accumulated in collection.
  * 
  * @param p An HParser containing h_action_stash parsers.
- * @param collection Collection populated while parsing p.
- * @return A parser that fails and clears collection if p fails.
+ * @param collection Collection populated while parsing p. 
+ * @return Result token type: any.
+ * @note clears collection if p fails. If collection is NULL, it still parses p.
  */
 HParser *h_action_apply(HParser *p, HActionCollection *collection);
 HParser *h_action_apply__m(HAllocator *mm__, HParser *p, HActionCollection *collection);
