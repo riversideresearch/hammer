@@ -23,12 +23,5 @@ static const HParserVtable epsilon_vt = {
 
 HParser *h_epsilon_p() { return h_epsilon_p__m(&system_allocator); }
 HParser *h_epsilon_p__m(HAllocator *mm__) {
-    HParser *epsilon_p = h_new(HParser, 1);
-    epsilon_p->desugared = NULL;
-    epsilon_p->backend_data = NULL;
-    epsilon_p->backend = h_get_default_backend();
-    epsilon_p->backend_vtable = h_get_default_backend_vtable();
-    epsilon_p->vtable = &epsilon_vt;
-    epsilon_p->free_env = h_no_free_env;
-    return epsilon_p;
+    return h_new_parser_with_free(mm__, &epsilon_vt, NULL, h_no_free_env);
 }
