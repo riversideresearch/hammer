@@ -363,6 +363,8 @@ static bool apply_actions(HActionCollection *collection) {
     if (!collection)
         return false;
 
+    if(!collection->head)
+        return false;
     HActionEntry *entry = collection->head;
 
     while (entry) {
