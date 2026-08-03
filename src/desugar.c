@@ -105,13 +105,28 @@ void h_desugar_context_release(HDesugarContext *ctx) {
     }
 }
 
+static void desugar_stack_store(HAllocator *mm__, HCFStack *stk__, HCFChoice *choice) {
+    if (stk__->count > 0) {
+        h_cfstack_add_to_seq(mm__, stk__, choice);
+    } else {
+        assert(stk__->cap > 0);
+        stk__->stack[0] = choice;
+        stk__->last_completed = choice;
+    }
+}
+
 HCFChoice *h_desugar(HAllocator *mm__, HCFStack *stk__, const HParser *parser) {
     HCFStack *nstk__ = stk__;
     if (parser->desugared == NULL) {
         HParser *mutable_parser = (HParser *)parser;
         HDesugarContext *ctx = desugar_context_from_allocator(mm__);
         HAllocator *cfg_mm__;
-
+        if (stk__ != NULL && !ctx) {
+            HCFChoice *choice = h_desugar(mm__, NULL, parser);
+            if (choice != NULL)
+                desugar_stack_store(mm__, stk__, choice);
+            return choice;
+        }
         if (ctx) {
             desugar_context_attach(ctx, mutable_parser);
             cfg_mm__ = &ctx->allocator;
@@ -138,7 +153,7 @@ HCFChoice *h_desugar(HAllocator *mm__, HCFStack *stk__, const HParser *parser) {
         HDesugarContext *ctx = desugar_context_from_allocator(mm__);
         if (ctx && parser->desugar_ctx)
             desugar_context_merge(ctx, parser->desugar_ctx);
-        HCFS_APPEND(parser->desugared);
+        desugar_stack_store(mm__, stk__, parser->desugared);
     }
 
     return parser->desugared;

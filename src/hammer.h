@@ -203,6 +203,7 @@ typedef struct HParser_ {
     void *env;
     HParserEnvFree free_env;
     HCFChoice *desugared; /**< if the parser can be desugared, its desugared form */
+    HCFChoice *augmented;
     HAllocator *owner_mm__;
     HDesugarContext *desugar_ctx;
 } HParser;

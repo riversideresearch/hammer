@@ -265,6 +265,8 @@ static bool match_any_production(const HLRTable *table, HLREnhGrammar *eg, const
 // this guarantees that the start symbol will not occur in any productions
 
 HCFChoice *h_desugar_augmented(HParser *parser) {
+    if (parser->augmented)
+        return parser->augmented;
     HAllocator *mm__ = h_desugar_context_allocator(parser);
     if (!mm__)
         return NULL;
@@ -279,7 +281,7 @@ HCFChoice *h_desugar_augmented(HParser *parser) {
     }
     HCFS_END_CHOICE();
     h_cfstack_free(mm__, stk__);
-
+    parser->augmented = augmented;
     return augmented;
 }
 

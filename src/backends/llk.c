@@ -14,6 +14,7 @@ typedef struct HLLkTable_ {
     size_t kmax;
     HHashTable *rows;
     HCFChoice *start; // start symbol
+    HCFStartWrapper *owned_start;
     HArena *arena;
     HAllocator *mm__;
 } HLLkTable;
@@ -58,6 +59,8 @@ HLLkTable *h_llktable_new(HAllocator *mm__) {
     table->mm__ = mm__;
     table->arena = arena;
     table->rows = rows;
+    table->start = NULL;
+    table->owned_start = NULL;
 
     return table;
 }
@@ -67,6 +70,8 @@ void h_llktable_free(HLLkTable *table) {
         return;
     HAllocator *mm__ = table->mm__;
     h_delete_arena(table->arena);
+    if (table->owned_start)
+        h_free(table->owned_start);
     h_free(table);
 }
 
@@ -260,6 +265,9 @@ int h_llk_compile(HAllocator *mm__, HParser *parser, const void *params) {
         return -2;
     }
     parser->backend_data = table;
+
+    table->owned_start = grammar->owned_start;
+    grammar->owned_start = NULL;
 
     // free grammar and its arena.
     // desugared parsers (HCFChoice and HCFSequence) are unaffected by this.

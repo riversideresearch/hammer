@@ -264,6 +264,24 @@ static void test_lalr_parent_retains_independently_desugared_child(void) {
     system_allocator = saved;
 }
 
+static void test_llk_terminal_start_is_freed(void) {
+    TrackingAllocator tracking = {0};
+    HAllocator saved = install_tracking_allocator(&tracking);
+    HParser *parser = h_ch('a');
+    const uint8_t input[] = {'a'};
+
+    g_assert_cmpint(h_compile(parser, PB_LL, NULL), ==, 0);
+
+    HParseResult *result = h_parse(parser, input, sizeof(input));
+    g_assert_nonnull(result);
+    h_parse_result_free(result);
+
+    h_parser_free(parser);
+    g_assert_cmpuint(tracking.live_allocations, ==, 0);
+
+    system_allocator = saved;
+}
+
 static void test_contextfree_parent_survives_freed_child_env(void) {
     TrackingAllocator tracking = {0};
     HAllocator saved = install_tracking_allocator(&tracking);
@@ -385,6 +403,7 @@ void register_parser_free_tests(void) {
                     test_lalr_conflict_frees_table);
     g_test_add_func("/core/parser/free/lalr_independently_desugared_child",
                     test_lalr_parent_retains_independently_desugared_child);
+    g_test_add_func("/core/parser/free/llk_terminal_start", test_llk_terminal_start_is_freed);
     g_test_add_func("/core/parser/free/contextfree_child_env",
                     test_contextfree_parent_survives_freed_child_env);
     g_test_add_func("/core/parser/free/regex_child_env", test_regex_parent_survives_freed_child_env);

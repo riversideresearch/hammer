@@ -538,6 +538,7 @@ static HCFStack *h_cfstack_new(HAllocator *mm__) {
     stack->count = 0;
     stack->cap = 4;
     stack->stack = h_new(HCFChoice *, stack->cap);
+    stack->last_completed = NULL;
     stack->prealloc = NULL;
     stack->error = 0;
     return stack;
