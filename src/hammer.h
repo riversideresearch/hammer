@@ -1101,6 +1101,15 @@ HParser *h_get_value(const char *name);
 HParser *h_get_value__m(HAllocator *mm__, const char *name);
 
 /**
+ * @brief prints the entire abstract syntax tree with proper indexing
+ *
+ * @param stream Output stream
+ * @param tok Token to format
+ * @param indent Initial indentation level
+ */
+void h_pprint_ast_indexed(FILE *stream, const HParsedToken *token, size_t indent);
+
+/**
  * @brief The 'h_free_value' combinator retrieves a named HParseResult that was previously stashed
  * in the parse state and deletes it from the symbol table
  *
