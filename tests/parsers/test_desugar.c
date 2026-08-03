@@ -99,12 +99,18 @@ static void test_desugar_float(void) {
     g_check_cmp_ptr(desugared->reshape, !=, NULL);
 }
 
+static void test_desugar_float_range(void) {
+    const HParser *p = h_float_range(h_float16(), -65504.0f, 65504.0f);
+    HCFChoice *desugared = h_desugar(&system_allocator, NULL, p);
+    g_check_cmp_ptr(desugared, !=, NULL);
+    g_check_cmp_int(desugared->type, ==, HCF_CHOICE);
+}
+
 static void test_desugar_int_range(void) {
     const HParser *p = h_int_range(h_uint8(), 0, 255);
     HCFChoice *desugared = h_desugar(&system_allocator, NULL, p);
     g_check_cmp_ptr(desugared, !=, NULL);
-    // int_range desugars to a charset (HCF_CHARSET = 2)
-    g_check_cmp_int(desugared->type, ==, HCF_CHARSET);
+    g_check_cmp_int(desugared->type, ==, HCF_CHOICE);
 }
 
 static void test_desugar_sequence(void) {
@@ -287,6 +293,7 @@ void register_desugar_tests(void) {
     g_test_add_func("/core/desugar/bits", test_desugar_bits);
     g_test_add_func("/core/desugar/bits_signed", test_desugar_bits_signed);
     g_test_add_func("/core/desugar/float", test_desugar_float);
+    g_test_add_func("/core/desugar/float_range", test_desugar_float_range);
     g_test_add_func("/core/desugar/int_range", test_desugar_int_range);
     g_test_add_func("/core/desugar/sequence", test_desugar_sequence);
     g_test_add_func("/core/desugar/choice", test_desugar_choice);

@@ -64,6 +64,17 @@ static void desugar_float_range(HAllocator *mm__, HCFStack *stk__, void *env) {
     HCFS_END_CHOICE();
 }
 
+static bool h_svm_action_mark_float_range(HArena *arena, HSVMContext *ctx, void *env) {
+    (void)arena;
+
+    if (ctx->stack_count == 0 ||
+        ctx->stack[ctx->stack_count - 1]->token_type != TT_MARK)
+        return false;
+
+    ctx->stack[ctx->stack_count - 1]->token_data.user = env;
+    return true;
+}
+
 static bool h_svm_action_validate_float_range(HArena *arena, HSVMContext *ctx, void *env) {
     HFloatRange *r_env = (HFloatRange *)env;
     HParsedToken *head = ctx->stack[ctx->stack_count - 1];
@@ -81,26 +92,40 @@ static bool h_svm_action_validate_float_range(HArena *arena, HSVMContext *ctx, v
         return false;
     }
 
-    /*
-     * Higher parsers such as attr_bool may leave capture marks below the
-     * resulting token.  Keep only the validated float, as int_range does.
-     */
-    if (valid && ctx->stack_count > 1) {
+    if (valid) {
+        /*
+         * Higher parsers such as attr_bool may leave capture marks below the
+         * resulting token.  Collapse them only as far as float_range's tagged
+         * mark so an enclosing parser's mark remains on the stack.
+         */
         size_t first = ctx->stack_count - 1;
-        while (first > 0 && ctx->stack[first - 1]->token_type == TT_MARK)
+        while (first > 0) {
             --first;
-        ctx->stack[first] = head;
-        ctx->stack_count = first + 1;
+            if (ctx->stack[first]->token_type == TT_MARK &&
+                ctx->stack[first]->token_data.user == r_env) {
+                ctx->stack[first] = head;
+                ctx->stack_count = first + 1;
+                return true;
+            }
+        }
+        return false;
     }
-    return valid;
+    return false;
 }
 
 static bool fr_ctrvm(HRVMProg *prog, void *env) {
     HFloatRange *r_env = (HFloatRange *)env;
+    HFloatRange *rvm_range = h_rvm_alloc(prog, sizeof(*rvm_range));
+    *rvm_range = *r_env;
+    rvm_range->p = NULL;
+
+    h_rvm_insert_insn(prog, RVM_PUSH, 0);
+    h_rvm_insert_insn(prog, RVM_ACTION,
+                      h_rvm_create_action(prog, h_svm_action_mark_float_range, rvm_range));
     if (!h_compile_regex(prog, r_env->p))
         return false;
     h_rvm_insert_insn(prog, RVM_ACTION,
-                      h_rvm_create_action(prog, h_svm_action_validate_float_range, env));
+                      h_rvm_create_action(prog, h_svm_action_validate_float_range, rvm_range));
     return true;
 }
 

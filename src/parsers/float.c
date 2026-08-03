@@ -214,6 +214,9 @@ static bool float_ctrvm(HRVMProg *prog, void *env) {
     if (float_env_->bit_len != 16 && float_env_->bit_len != 32 && float_env_->bit_len != 64)
         return false;
 
+    float_env *rvm_float = h_rvm_alloc(prog, sizeof(*rvm_float));
+    *rvm_float = *float_env_;
+
     h_rvm_insert_insn(prog, RVM_PUSH, 0);
     for (size_t i = 0; i < (size_t)float_env_->bit_len / 8; ++i) {
         h_rvm_insert_insn(prog, RVM_MATCH, 0xFF00);
@@ -221,7 +224,7 @@ static bool float_ctrvm(HRVMProg *prog, void *env) {
     }
     h_rvm_insert_insn(prog, RVM_CAPTURE, 0);
     h_rvm_insert_insn(prog, RVM_ACTION,
-                      h_rvm_create_action(prog, h_svm_action_validate_float, env));
+                      h_rvm_create_action(prog, h_svm_action_validate_float, rvm_float));
     return true;
 }
 

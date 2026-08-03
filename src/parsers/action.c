@@ -1,8 +1,6 @@
 /* Copyright (c) 2026 Riverside Research */
 #include "parser_internal.h"
 
-#include <assert.h>
-
 typedef struct {
     const HParser *p;
     HAction action;
@@ -46,41 +44,58 @@ static bool action_isValidCF(void *env) {
     return a->p->vtable->isValidCF(a->p->env);
 }
 
+static bool h_svm_action_mark_action(HArena *arena, HSVMContext *ctx, void *arg) {
+    (void)arena;
+
+    if (ctx->stack_count == 0 ||
+        ctx->stack[ctx->stack_count - 1]->token_type != TT_MARK)
+        return false;
+
+    ctx->stack[ctx->stack_count - 1]->token_data.user = arg;
+    return true;
+}
+
 static bool h_svm_action_action(HArena *arena, HSVMContext *ctx, void *arg) {
     HParseResult res;
     HParseAction *a = arg;
-    assert(ctx->stack_count >= 1);
-    HParsedToken *top = ctx->stack[ctx->stack_count - 1];
-    if (top->token_type != TT_MARK &&
-        (ctx->stack_count < 2 || ctx->stack[ctx->stack_count - 2]->token_type != TT_MARK))
+    size_t boundary = ctx->stack_count;
+
+    while (boundary > 0) {
+        --boundary;
+        if (ctx->stack[boundary]->token_type == TT_MARK &&
+            ctx->stack[boundary]->token_data.user == a)
+            break;
+    }
+
+    if (boundary == ctx->stack_count ||
+        ctx->stack[boundary]->token_type != TT_MARK ||
+        ctx->stack[boundary]->token_data.user != a)
         return false;
-    res.ast = top->token_type == TT_MARK ? NULL : top;
+
+    res.ast =
+        boundary + 1 < ctx->stack_count ? ctx->stack[ctx->stack_count - 1] : NULL;
     res.arena = arena;
     HParsedToken *action_result = a->action(&res, a->user_data);
-    if (top->token_type == TT_MARK) {
-        if (action_result)
-            ctx->stack[ctx->stack_count - 1] = action_result;
-        else
-            ctx->stack_count--;
+    if (action_result) {
+        ctx->stack[boundary] = action_result;
+        ctx->stack_count = boundary + 1;
     } else {
-        if (action_result) {
-            ctx->stack[ctx->stack_count - 2] = action_result;
-            ctx->stack_count--;
-        } else {
-            ctx->stack_count -= 2;
-        }
+        ctx->stack_count = boundary;
     }
     return true;
 }
 
 static bool action_ctrvm(HRVMProg *prog, void *env) {
     HParseAction *a = (HParseAction *)env;
-    h_rvm_insert_insn(prog, RVM_PUSH, 0);
-    if (!h_compile_regex(prog, a->p))
-        return false;
     HParseAction *rvm_action = h_rvm_alloc(prog, sizeof(*rvm_action));
     *rvm_action = *a;
     rvm_action->p = NULL;
+
+    h_rvm_insert_insn(prog, RVM_PUSH, 0);
+    h_rvm_insert_insn(prog, RVM_ACTION,
+                      h_rvm_create_action(prog, h_svm_action_mark_action, rvm_action));
+    if (!h_compile_regex(prog, a->p))
+        return false;
     h_rvm_insert_insn(prog,
                       RVM_ACTION,
                       h_rvm_create_action(prog, h_svm_action_action, rvm_action));

@@ -269,6 +269,14 @@ static void test_float_range_higher(gconstpointer backend) {
     g_check_parse_match(range64, be, one64, sizeof one64, "d0x1p+0");
 }
 
+static void test_float_range_edge_case(gconstpointer backend) {
+    HParserBackend be = (HParserBackend)GPOINTER_TO_INT(backend);
+    const uint8_t buf[3] = {0x3f, 0xf0, 0x00};
+    HParser *range = h_float_range(h_float16(), -65504.0f, 65504.0f);
+    HParser *parser = h_sequence(range, h_ch(0x00), NULL);
+    g_check_parse_match(parser, be, buf, 3, "(f0x1.fcp+0 u0)");
+}
+
 // Merged test_floats.c
 // Helper function for double parser test
 static HParsedToken *act_double(const HParseResult *p, void *u) {
@@ -313,12 +321,14 @@ void register_floating_point_parser_tests(void) {
                          test_double64_edgecases);
     g_test_add_data_func("/core/parser/float/truncated", GINT_TO_POINTER(PB_PACKRAT),
                          test_float_truncated);
-    g_test_add_data_func("/core/parser/float/range", GINT_TO_POINTER(PB_REGULAR),
+    g_test_add_data_func("/core/parser/float//regular/range", GINT_TO_POINTER(PB_REGULAR),
                          test_float_range);
     g_test_add_data_func("/core/parser/float/range-precision-double",
                          GINT_TO_POINTER(PB_REGULAR), test_float_range_precision_and_double);
-    g_test_add_data_func("/core/parser/packrat/float_range_higher", GINT_TO_POINTER(PB_REGULAR),
+    g_test_add_data_func("/core/parser/regular/float_range_higher", GINT_TO_POINTER(PB_REGULAR),
                          test_float_range_higher);
+    g_test_add_data_func("/core/parser/regular/float_range_edge_case", GINT_TO_POINTER(PB_REGULAR),
+                         test_float_range_edge_case);
     g_test_add_data_func("/core/parser/packrat/make_double", GINT_TO_POINTER(PB_PACKRAT),
                          test_make_double);
     g_test_add_data_func("/core/parser/packrat/make_float", GINT_TO_POINTER(PB_PACKRAT),

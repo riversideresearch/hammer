@@ -116,10 +116,20 @@ static bool bits_ctrvm(HRVMProg *prog, void *env) {
     return true;
 }
 
+static bool bits_isvalidCF(void *env) {
+    struct bits_env *bits = env;
+    return bits->length % 8 == 0;
+}
+
+static bool bits_isvalidRegular(void *env) {
+    struct bits_env *bits = env;
+    return bits->length % 8 == 0;
+}
+
 static const HParserVtable bits_vt = {
     .parse = parse_bits,
-    .isValidRegular = h_true,
-    .isValidCF = h_true,
+    .isValidRegular = bits_isvalidRegular,
+    .isValidCF = bits_isvalidCF,
     .compile_to_rvm = bits_ctrvm,
     .desugar = desugar_bits,
     .higher = false,

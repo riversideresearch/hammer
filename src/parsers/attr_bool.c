@@ -1,8 +1,6 @@
 /* Copyright (c) 2026 Riverside Research */
 #include "parser_internal.h"
 
-#include <assert.h>
-
 typedef struct {
     const HParser *p;
     HPredicate pred;
@@ -49,34 +47,60 @@ static void desugar_ab(HAllocator *mm__, HCFStack *stk__, void *env) {
     HCFS_END_CHOICE();
 }
 
+static bool h_svm_action_mark_attr_bool(HArena *arena, HSVMContext *ctx, void *arg) {
+    (void)arena;
+
+    if (ctx->stack_count == 0 ||
+        ctx->stack[ctx->stack_count - 1]->token_type != TT_MARK)
+        return false;
+
+    ctx->stack[ctx->stack_count - 1]->token_data.user = arg;
+    return true;
+}
+
 static bool h_svm_action_attr_bool(HArena *arena, HSVMContext *ctx, void *arg) {
     HParseResult res;
     HAttrBool *ab = arg;
-    assert(ctx->stack_count >= 1);
-    HParsedToken *top = ctx->stack[ctx->stack_count - 1];
-    if (top->token_type == TT_MARK)
-        return false;
-    if (ctx->stack_count < 2 || ctx->stack[ctx->stack_count - 2]->token_type != TT_MARK)
+    size_t boundary = ctx->stack_count;
+
+    while (boundary > 0) {
+        --boundary;
+        if (ctx->stack[boundary]->token_type == TT_MARK &&
+            ctx->stack[boundary]->token_data.user == ab)
+            break;
+    }
+
+    if (boundary == ctx->stack_count ||
+        ctx->stack[boundary]->token_type != TT_MARK ||
+        ctx->stack[boundary]->token_data.user != ab ||
+        boundary + 1 >= ctx->stack_count)
         return false;
 
-    res.ast = top;
+    HParsedToken *head = ctx->stack[ctx->stack_count - 1];
+    if (head->token_type == TT_MARK)
+        return false;
+
+    res.ast = head;
     res.arena = arena;
     if (!ab->pred(&res, ab->user_data))
         return false;
 
-    ctx->stack[ctx->stack_count - 2] = top;
-    ctx->stack_count--;
+    ctx->stack[boundary] = head;
+    ctx->stack_count = boundary + 1;
     return true;
 }
 
 static bool ab_ctrvm(HRVMProg *prog, void *env) {
     HAttrBool *ab = (HAttrBool *)env;
-    h_rvm_insert_insn(prog, RVM_PUSH, 0);
-    if (!h_compile_regex(prog, ab->p))
-        return false;
     HAttrBool *rvm_attr = h_rvm_alloc(prog, sizeof(*rvm_attr));
     *rvm_attr = *ab;
     rvm_attr->p = NULL;
+
+    h_rvm_insert_insn(prog, RVM_PUSH, 0);
+    h_rvm_insert_insn(prog, RVM_ACTION,
+                      h_rvm_create_action(prog, h_svm_action_mark_attr_bool, rvm_attr));
+    if (!h_compile_regex(prog, ab->p))
+        return false;
     h_rvm_insert_insn(prog,
                       RVM_ACTION,
                       h_rvm_create_action(prog, h_svm_action_attr_bool, rvm_attr));
