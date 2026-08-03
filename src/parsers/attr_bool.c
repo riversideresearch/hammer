@@ -1,8 +1,6 @@
 /* Copyright (c) 2026 Riverside Research */
 #include "parser_internal.h"
 
-#include <assert.h>
-
 typedef struct {
     const HParser *p;
     HPredicate pred;
@@ -49,45 +47,63 @@ static void desugar_ab(HAllocator *mm__, HCFStack *stk__, void *env) {
     HCFS_END_CHOICE();
 }
 
+static bool h_svm_action_mark_attr_bool(HArena *arena, HSVMContext *ctx, void *arg) {
+    (void)arena;
+
+    if (ctx->stack_count == 0 ||
+        ctx->stack[ctx->stack_count - 1]->token_type != TT_MARK)
+        return false;
+
+    ctx->stack[ctx->stack_count - 1]->token_data.user = arg;
+    return true;
+}
+
 static bool h_svm_action_attr_bool(HArena *arena, HSVMContext *ctx, void *arg) {
-    HAttrBool *ab = (HAttrBool *)arg;
-    if (!ab || !ab->pred || ctx->stack_count < 2)
+    HParseResult res;
+    HAttrBool *ab = arg;
+    size_t boundary = ctx->stack_count;
+
+    while (boundary > 0) {
+        --boundary;
+        if (ctx->stack[boundary]->token_type == TT_MARK &&
+            ctx->stack[boundary]->token_data.user == ab)
+            break;
+    }
+
+    if (boundary == ctx->stack_count ||
+        ctx->stack[boundary]->token_type != TT_MARK ||
+        ctx->stack[boundary]->token_data.user != ab ||
+        boundary + 1 >= ctx->stack_count)
         return false;
 
-    HParsedToken *child = ctx->stack[ctx->stack_count - 1];
-    HParsedToken *mark = ctx->stack[ctx->stack_count - 2];
-
-    /*
-     * ab_ctrvm() inserts a private mark before the wrapped parser. Like the
-     * packrat implementation, attr_bool requires a non-NULL child AST.
-     */
-    if (child->token_type == TT_MARK || mark->token_type != TT_MARK)
+    HParsedToken *head = ctx->stack[ctx->stack_count - 1];
+    if (head->token_type == TT_MARK)
         return false;
 
-    HParseResult res = {
-        .ast = child,
-        .arena = arena,
-        .bit_length = (ctx->input_pos - mark->index) * 8,
-    };
-
+    res.ast = head;
+    res.arena = arena;
     if (!ab->pred(&res, ab->user_data))
         return false;
 
-    /*
-     * Preserve exactly one result for the parent parser: copy the validated
-     * child into the private mark and pop the original child stack slot.
-     */
-    *mark = *child;
-    ctx->stack_count--;
+    ctx->stack[boundary] = head;
+    ctx->stack_count = boundary + 1;
     return true;
 }
 
 static bool ab_ctrvm(HRVMProg *prog, void *env) {
     HAttrBool *ab = (HAttrBool *)env;
+    HAttrBool *rvm_attr = h_rvm_alloc(prog, sizeof(*rvm_attr));
+    *rvm_attr = *ab;
+    rvm_attr->p = NULL;
+
     h_rvm_insert_insn(prog, RVM_PUSH, 0);
+    h_rvm_insert_insn(prog, RVM_ACTION,
+                      h_rvm_create_action(prog, h_svm_action_mark_attr_bool, rvm_attr));
     if (!h_compile_regex(prog, ab->p))
         return false;
-    h_rvm_insert_insn(prog, RVM_ACTION, h_rvm_create_action(prog, h_svm_action_attr_bool, ab));
+    h_rvm_insert_insn(prog,
+                      RVM_ACTION,
+                      h_rvm_create_action(prog, h_svm_action_attr_bool, rvm_attr));
     return true;
 }
 
