@@ -29,88 +29,99 @@ static HParseResult *parse_int_range(void *env, HParseState *state) {
     }
 }
 
-void gen_int_range(HAllocator *mm__, HCFStack *stk__, uint64_t low, uint64_t high, uint8_t bytes) {
-    /* Possible FIXME: TallerThanMe */
-    if (1 == bytes) {
-        HCharset cs = new_charset(mm__);
-        for (uint64_t i = low; i <= high; ++i) {
-            charset_set(cs, i, 1);
-        }
-        HCFS_ADD_CHARSET(cs);
-    } else if (1 < bytes) {
-        uint8_t low_head, hi_head;
-        low_head = ((low >> (8 * (bytes - 1))) & 0xFF);
-        hi_head = ((high >> (8 * (bytes - 1))) & 0xFF);
-        if (low_head != hi_head) {
-            HCFS_BEGIN_CHOICE() {
-                HCFS_BEGIN_SEQ() {
-                    HCFS_ADD_CHAR(low_head);
-                    gen_int_range(mm__, stk__, low & ((1 << (8 * (bytes - 1))) - 1),
-                                  ((1 << (8 * (bytes - 1))) - 1), bytes - 1);
-                }
-                HCFS_END_SEQ();
-                HCFS_BEGIN_SEQ() {
-                    HCharset hd = new_charset(mm__);
-                    HCharset rest = new_charset(mm__);
-                    for (int i = 0; i < 256; i++) {
-                        charset_set(hd, i, (i > low_head && i < hi_head));
-                        charset_set(rest, i, 1);
-                    }
-                    HCFS_ADD_CHARSET(hd);
-                    for (int i = 2; i < bytes; i++)
-                        HCFS_ADD_CHARSET(rest);
-                }
-                HCFS_END_SEQ();
-                HCFS_BEGIN_SEQ() {
-                    HCFS_ADD_CHAR(hi_head);
-                    gen_int_range(mm__, stk__, 0, high & ((1 << (8 * (bytes - 1))) - 1), bytes - 1);
-                }
-                HCFS_END_SEQ();
-            }
-            HCFS_END_CHOICE();
-        } else {
-            // TODO: find a way to merge this with the higher-up SEQ
-            HCFS_BEGIN_CHOICE() {
-                HCFS_BEGIN_SEQ() {
-                    HCFS_ADD_CHAR(low_head);
-                    gen_int_range(mm__, stk__, low & ((1 << (8 * (bytes - 1))) - 1),
-                                  high & ((1 << (8 * (bytes - 1))) - 1), bytes - 1);
-                }
-                HCFS_END_SEQ();
-            }
-            HCFS_END_CHOICE();
-        }
-    }
-}
+static bool int_range_predicate(HParseResult *result, void *user_data) {
+    HRange *range = user_data;
 
-struct bits_env {
-    uint8_t length;
-    uint8_t signedp;
-};
+    if (!result || !result->ast)
+        return false;
 
-static void desugar_int_range(HAllocator *mm__, HCFStack *stk__, void *env) {
-    HRange *r = (HRange *)env;
-    struct bits_env *be = (struct bits_env *)r->p->env;
-    uint8_t bytes = be->length / 8;
-    gen_int_range(mm__, stk__, r->lower, r->upper, bytes);
-}
-
-static bool h_svm_action_validate_int_range(HArena *arena, HSVMContext *ctx, void *env) {
-    HRange *r_env = (HRange *)env;
-    HParsedToken *head = ctx->stack[ctx->stack_count - 1];
-    switch (head->token_type) {
+    switch (result->ast->token_type) {
     case TT_SINT:
-        return r_env->lower <= head->token_data.sint && r_env->upper >= head->token_data.sint;
+        return range->lower <= result->ast->token_data.sint &&
+               result->ast->token_data.sint <= range->upper;
+
     case TT_UINT:
-        return (uint64_t)r_env->lower <= head->token_data.uint &&
-               (uint64_t)r_env->upper >= head->token_data.uint;
+        return (uint64_t)range->lower <= result->ast->token_data.uint &&
+               result->ast->token_data.uint <= (uint64_t)range->upper;
+
     default:
         return false;
     }
 }
 
+struct bits_env {
+    size_t length;
+    uint8_t signedp;
+};
+
+static void desugar_int_range(HAllocator *mm__, HCFStack *stk__, void *env) {
+    HRange *range = env;
+
+    HCFS_BEGIN_CHOICE() {
+        HCFS_BEGIN_SEQ() { HCFS_DESUGAR(range->p); }
+        HCFS_END_SEQ();
+
+        HCFS_THIS_CHOICE->reshape = h_act_first;
+        HCFS_THIS_CHOICE->pred = int_range_predicate;
+        HCFS_THIS_CHOICE->user_data = range;
+    }
+    HCFS_END_CHOICE();
+}
+
+static bool h_svm_action_mark_int_range(HArena *arena, HSVMContext *ctx, void *env) {
+    (void)arena;
+
+    if (ctx->stack_count == 0 ||
+        ctx->stack[ctx->stack_count - 1]->token_type != TT_MARK)
+        return false;
+
+    ctx->stack[ctx->stack_count - 1]->token_data.user = env;
+    return true;
+}
+
+static bool h_svm_action_validate_int_range(HArena *arena, HSVMContext *ctx, void *env) {
+    HRange *r_env = (HRange *)env;
+    HParsedToken *head = ctx->stack[ctx->stack_count - 1];
+    bool valid;
+
+    switch (head->token_type) {
+    case TT_SINT:
+        valid = r_env->lower <= head->token_data.sint && r_env->upper >= head->token_data.sint;
+        break;
+    case TT_UINT:
+        valid = (uint64_t)r_env->lower <= head->token_data.uint &&
+                (uint64_t)r_env->upper >= head->token_data.uint;
+        break;
+    default:
+        return false;
+    }
+
+    if (valid) {
+        /*
+         * Higher parsers such as attr_bool may leave capture marks below the
+         * resulting token.  Collapse them only as far as int_range's tagged
+         * mark so an enclosing parser's mark remains on the stack.
+         */
+        size_t first = ctx->stack_count - 1;
+        while (first > 0) {
+            --first;
+            if (ctx->stack[first]->token_type == TT_MARK &&
+                ctx->stack[first]->token_data.user == r_env) {
+                ctx->stack[first] = head;
+                ctx->stack_count = first + 1;
+                return true;
+            }
+        }
+        return false;
+    }
+    return false;
+}
+
 static bool ir_ctrvm(HRVMProg *prog, void *env) {
     HRange *r_env = (HRange *)env;
+    h_rvm_insert_insn(prog, RVM_PUSH, 0);
+    h_rvm_insert_insn(prog, RVM_ACTION,
+                      h_rvm_create_action(prog, h_svm_action_mark_int_range, env));
     if (!h_compile_regex(prog, r_env->p))
         return false;
     h_rvm_insert_insn(prog, RVM_ACTION,
@@ -118,10 +129,20 @@ static bool ir_ctrvm(HRVMProg *prog, void *env) {
     return true;
 }
 
+static bool int_isValidRegular(void *env) {
+    HRange *r_env = (HRange *)env;
+    return r_env->p->vtable->isValidRegular(r_env->p->env);
+}
+
+static bool int_isValidCF(void *env) {
+    HRange *r_env = (HRange *)env;
+    return r_env->p->vtable->isValidCF(r_env->p->env);
+}
+
 static const HParserVtable int_range_vt = {
     .parse = parse_int_range,
-    .isValidRegular = h_true,
-    .isValidCF = h_true,
+    .isValidRegular = int_isValidRegular,
+    .isValidCF = int_isValidCF,
     .compile_to_rvm = ir_ctrvm,
     .desugar = desugar_int_range,
     .higher = false,
