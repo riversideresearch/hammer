@@ -7,6 +7,27 @@ typedef struct {
     void *env;
 } BindEnv;
 
+// an HAllocator backed by an HArena
+typedef struct {
+    HAllocator allocator; // inherit  XXX is this the proper way to do it?
+    HArena *arena;
+} ArenaAllocator;
+
+static void *aa_alloc(HAllocator *allocator, size_t size) {
+    HArena *arena = ((ArenaAllocator *)allocator)->arena;
+    return h_arena_malloc(arena, size);
+}
+
+static void *aa_realloc(HAllocator *allocator, void *ptr, size_t size) {
+    HArena *arena = ((ArenaAllocator *)allocator)->arena;
+    return h_arena_realloc(arena, ptr, size);
+}
+
+static void aa_free(HAllocator *allocator, void *ptr) {
+    HArena *arena = ((ArenaAllocator *)allocator)->arena;
+    // h_arena_free(arena, ptr);
+}
+
 static HParseResult *parse_bind(void *be_, HParseState *state) {
     BindEnv *be = be_;
 
@@ -14,10 +35,10 @@ static HParseResult *parse_bind(void *be_, HParseState *state) {
     if (!res)
         return NULL;
 
-    // use the system allocator so frees actually work.
-    HAllocator *mm__ = &system_allocator;
+    // create a wrapper arena allocator for the continuation
+    ArenaAllocator aa = {{aa_alloc, aa_realloc, aa_free, NULL, NULL}, state->arena};
 
-    HParser *kx = be->k(mm__, res->ast, be->env);
+    HParser *kx = be->k((HAllocator *)&aa, res->ast, be->env);
     if (!kx) {
         return NULL;
     }

@@ -1,3 +1,20 @@
+libhammer (3.0.2-1) unstable; urgency=medium
+
+  * Fix a memory leak in the bind parser by allocating continuation parsers
+    from the parse arena
+
+ -- Mahmoud Elbasiouny <melbasiouny@riversideresearch.org>  Thu, 23 Jul 2026 12:00:00 -0400
+
+libhammer (3.0.1-1) unstable; urgency=medium
+
+  * Add a standalone migration tool for updating Hammer 2.x C and C++ sources
+    to the Hammer 3 public data structures
+  * Support preview, check, and in-place migration modes
+  * Preserve source formatting and avoid rewriting comments, literals, and
+    unrelated member accesses
+
+ -- Mahmoud Elbasiouny <melbasiouny@riversideresearch.org>  Wed, 22 Jul 2026 12:00:00 -0400
+
 libhammer (3.0.0-1) unstable; urgency=medium
 
   * Restore context-free and regular-expression parsing backends
@@ -10,7 +27,6 @@ libhammer (3.0.0-1) unstable; urgency=medium
   * Name public token and timestamp unions and widen token bit lengths to size_t
   * Remove h_arena_free in favor of arena-owned allocation lifetimes
   * Enforce strict C99 compliance
-  * Bump project, package, shared-library, and language-binding versions to 3.0.0
 
  -- Mahmoud Elbasiouny <melbasiouny@riversideresearch.org>  Mon, 20 Jul 2026 12:00:00 -0400
 
@@ -20,11 +36,16 @@ libhammer (2.1.0-1) unstable; urgency=medium
   * Update Debian source and binary package names from libmicrohammer to libhammer
   * Remove obsolete pkg-config variant metadata now that only one Hammer variant ships
   * Add Go language bindings, tests, and documentation
-  * Clean generated Java binding outputs before regeneration to prevent stale SWIG wrappers
-    from breaking binding builds
+  * Add DNS, NTP, and TFTP protocol parser examples
+  * Add DNS valid and malformed packet fixtures and TFTP parser tests
+  * Move legacy examples under examples/old
+  * Update example builds to prefer the checkout-local Hammer build and fall back to pkg-config libhammer
+  * Add gcc to build dependencies and documented prerequisites
+  * Clean generated Java binding outputs before regeneration to prevent stale SWIG wrappers from breaking binding builds
+  * Fix Python binding version detection to read the top-level VERSION file
   * Bump project and Python binding package versions to 2.1.0
 
- -- Mahmoud Elbasiouny <melbasiouny@riversideresearch.org>  Wed, 20 May 2026 12:00:00 -0400
+ -- Mahmoud Elbasiouny <melbasiouny@riversideresearch.org>  Thu, 09 Jul 2026 12:00:00 -0400
 
 libmicrohammer (2.0.1-1) unstable; urgency=medium
 

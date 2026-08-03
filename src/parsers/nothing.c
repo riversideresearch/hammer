@@ -29,4 +29,4 @@ static const HParserVtable nothing_vt = {
 };
 
 HParser *h_nothing_p() { return h_nothing_p__m(&system_allocator); }
-HParser *h_nothing_p__m(HAllocator *mm__) { return h_new_parser(mm__, &nothing_vt, NULL); }
+HParser *h_nothing_p__m(HAllocator *mm__) { return h_new_parser_with_free(mm__, &nothing_vt, NULL, h_no_free_env); }

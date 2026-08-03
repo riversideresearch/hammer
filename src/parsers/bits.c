@@ -108,14 +108,28 @@ static bool bits_ctrvm(HRVMProg *prog, void *env) {
         h_rvm_insert_insn(prog, RVM_STEP, 0);
     }
     h_rvm_insert_insn(prog, RVM_CAPTURE, 0);
-    h_rvm_insert_insn(prog, RVM_ACTION, h_rvm_create_action(prog, h_svm_action_bits, env));
+    struct bits_env *rvm_bits = h_rvm_alloc(prog, sizeof(*rvm_bits));
+    *rvm_bits = *env_;
+    h_rvm_insert_insn(prog,
+                      RVM_ACTION,
+                      h_rvm_create_action(prog, h_svm_action_bits, rvm_bits));
     return true;
+}
+
+static bool bits_isvalidCF(void *env) {
+    struct bits_env *bits = env;
+    return bits->length % 8 == 0;
+}
+
+static bool bits_isvalidRegular(void *env) {
+    struct bits_env *bits = env;
+    return bits->length % 8 == 0;
 }
 
 static const HParserVtable bits_vt = {
     .parse = parse_bits,
-    .isValidRegular = h_true,
-    .isValidCF = h_true,
+    .isValidRegular = bits_isvalidRegular,
+    .isValidCF = bits_isvalidCF,
     .compile_to_rvm = bits_ctrvm,
     .desugar = desugar_bits,
     .higher = false,

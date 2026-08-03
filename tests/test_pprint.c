@@ -5,6 +5,94 @@
 #include <glib.h>
 #include <stdio.h>
 #include <string.h>
+
+static char *read_stream(FILE *f) {
+    long len;
+    char *output;
+
+    g_check_cmp_int(fflush(f), ==, 0);
+    g_check_cmp_int(fseek(f, 0, SEEK_END), ==, 0);
+    len = ftell(f);
+    g_check_cmp_int64(len, >=, 0);
+    if (len < 0)
+        return NULL;
+
+    output = g_malloc((size_t)len + 1);
+    g_check_cmp_int(fseek(f, 0, SEEK_SET), ==, 0);
+    g_check_cmp_size(fread(output, 1, (size_t)len, f), ==, (size_t)len);
+    output[len] = '\0';
+    return output;
+}
+
+static void test_pprint_ast_indexed_null(void) {
+    FILE *f = tmpfile();
+    g_check_cmp_ptr(f, !=, NULL);
+    if (!f)
+        return;
+
+    h_pprint_ast_indexed(f, NULL, 2);
+    char *output = read_stream(f);
+    g_check_string(output, ==, "        NULL\n");
+
+    g_free(output);
+    fclose(f);
+}
+
+static void test_pprint_ast_indexed_scalars(void) {
+    HParsedToken token = {.token_type = TT_SINT, .token_data.sint = -12345};
+    FILE *f = tmpfile();
+    g_check_cmp_ptr(f, !=, NULL);
+    if (!f)
+        return;
+
+    h_pprint_ast_indexed(f, &token, 1);
+    token.token_type = TT_BYTES;
+    token.token_data.bytes.token = (uint8_t *)"a\"\\\x01";
+    token.token_data.bytes.len = 4;
+    h_pprint_ast_indexed(f, &token, 0);
+
+    char *output = read_stream(f);
+    g_check_string(output, ==,
+                   "    TT_SINT = -12345\n"
+                   "TT_BYTES length=4 value=\"a\\\"\\\\\\u0001\"\n");
+
+    g_free(output);
+    fclose(f);
+}
+
+static void test_pprint_ast_indexed_sequence(void) {
+    HArena *arena = h_new_arena(&system_allocator, 4096);
+    HParsedToken root = {.token_type = TT_SEQUENCE};
+    HParsedToken nested = {.token_type = TT_SEQUENCE};
+    HParsedToken value = {.token_type = TT_UINT, .token_data.uint = 42};
+    HParsedToken none = {.token_type = TT_NONE};
+    FILE *f = tmpfile();
+
+    root.token_data.seq = h_carray_new(arena);
+    nested.token_data.seq = h_carray_new(arena);
+    h_carray_append(root.token_data.seq, &value);
+    h_carray_append(root.token_data.seq, &nested);
+    h_carray_append(root.token_data.seq, NULL);
+    h_carray_append(nested.token_data.seq, &none);
+
+    g_check_cmp_ptr(f, !=, NULL);
+    if (f) {
+        h_pprint_ast_indexed(f, &root, 1);
+        char *output = read_stream(f);
+        g_check_string(output, ==,
+                       "    TT_SEQUENCE children=3\n"
+                       "        [0] TT_UINT = 42\n"
+                       "        [1] \n"
+                       "            TT_SEQUENCE children=1\n"
+                       "                [0] TT_NONE\n"
+                       "        [2] NULL\n");
+        g_free(output);
+        fclose(f);
+    }
+
+    h_delete_arena(arena);
+}
+
 static void test_pprint_null(void) {
     FILE *f = tmpfile();
     if (!f)
@@ -328,6 +416,9 @@ static void test_buffer_functions(void) {
 }
 
 void register_pprint_tests(void) {
+    g_test_add_func("/core/pprint/ast_indexed_null", test_pprint_ast_indexed_null);
+    g_test_add_func("/core/pprint/ast_indexed_scalars", test_pprint_ast_indexed_scalars);
+    g_test_add_func("/core/pprint/ast_indexed_sequence", test_pprint_ast_indexed_sequence);
     g_test_add_func("/core/pprint/null", test_pprint_null);
     g_test_add_func("/core/pprint/none", test_pprint_none);
     g_test_add_func("/core/pprint/bytes", test_pprint_bytes);
