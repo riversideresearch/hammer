@@ -6,9 +6,9 @@
 #include <stdint.h>
 #include <string.h>
 
-struct float_env {
+typedef struct {
     int bit_len;
-};
+} float_env;
 
 static bool supports_binary32(void) {
     const float one = 1.0f;
@@ -111,7 +111,7 @@ static HParsedToken *make_float_token(HArena *arena, const HParsedToken *source,
 }
 
 static HParsedToken *reshape_float(const HParseResult *p, void *user_data) {
-    (void)user_data;
+    float_env *env = user_data;
     assert(p->ast);
     assert(p->ast->token_type == TT_SEQUENCE);
 
@@ -133,7 +133,7 @@ static HParsedToken *reshape_float(const HParseResult *p, void *user_data) {
 }
 
 static HParseResult *parse_float(void *env_, HParseState *state) {
-    struct float_env *env = env_;
+    float_env *env = env_;
     const size_t start_index = state->input_stream.index;
     const char start_bit_offset = state->input_stream.bit_offset;
     uint64_t raw_bits;
@@ -164,7 +164,7 @@ static HParseResult *parse_float(void *env_, HParseState *state) {
 }
 
 static void desugar_float(HAllocator *mm__, HCFStack *stk__, void *env) {
-    struct float_env *env_ = env;
+    float_env *env_ = env;
 
     HCharset match_all = new_charset(mm__);
     for (int i = 0; i < 256; i++)
@@ -183,11 +183,54 @@ static void desugar_float(HAllocator *mm__, HCFStack *stk__, void *env) {
     HCFS_END_CHOICE();
 }
 
+static bool h_svm_action_validate_float(HArena *arena, HSVMContext *ctx, void *env) {
+    float_env *float_env_ = env;
+    HParsedToken *captured;
+    uint64_t raw_bits;
+
+    if (!ctx || ctx->stack_count == 0)
+        return false;
+
+    captured = ctx->stack[ctx->stack_count - 1];
+    if (!captured || captured->token_type != TT_BYTES ||
+        captured->token_data.bytes.len != (size_t)float_env_->bit_len / 8)
+        return false;
+
+    raw_bits = 0;
+    for (size_t i = 0; i < captured->token_data.bytes.len; ++i)
+        raw_bits = (raw_bits << 8) | captured->token_data.bytes.token[i];
+
+    HParsedToken *result = make_float_token(arena, captured, float_env_->bit_len, raw_bits);
+    if (!result)
+        return false;
+
+    ctx->stack[ctx->stack_count - 1] = result;
+    return true;
+}
+
+static bool float_ctrvm(HRVMProg *prog, void *env) {
+    float_env *float_env_ = env;
+
+    if (float_env_->bit_len != 16 && float_env_->bit_len != 32 && float_env_->bit_len != 64)
+        return false;
+
+    h_rvm_insert_insn(prog, RVM_PUSH, 0);
+    for (size_t i = 0; i < (size_t)float_env_->bit_len / 8; ++i) {
+        h_rvm_insert_insn(prog, RVM_MATCH, 0xFF00);
+        h_rvm_insert_insn(prog, RVM_STEP, 0);
+    }
+    h_rvm_insert_insn(prog, RVM_CAPTURE, 0);
+    h_rvm_insert_insn(prog, RVM_ACTION,
+                      h_rvm_create_action(prog, h_svm_action_validate_float, env));
+    return true;
+}
+
 static const HParserVtable float_vt = {
     .parse = parse_float,
     .desugar = desugar_float,
     .isValidRegular = h_true,
     .isValidCF = h_true,
+    .compile_to_rvm = float_ctrvm,
     .higher = false,
 };
 
@@ -200,7 +243,7 @@ HParser *h_floating_point__m(HAllocator *mm__, int bit_len) {
 
     if (bit_len == 64 && !supports_binary64())
         return NULL;
-    struct float_env *env = h_new(struct float_env, 1);
+    float_env *env = h_new(float_env, 1);
     env->bit_len = bit_len;
     return h_new_parser(mm__, &float_vt, env);
 }

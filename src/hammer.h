@@ -524,6 +524,20 @@ HParser *h_int_range__m(HAllocator *mm__, const HParser *p, const int64_t lower,
                         const int64_t upper);
 
 /**
+ * @brief Given a float parser, p, and two float bounds, lower and upper, returns a parser that
+ * parses a value within the range
+ *
+ * @param p float parser (h_float16(), h_float32(), h_float64())
+ * @param lower Lower bound (inclusive)
+ * @param upper Upper bound (inclusive)
+ * @return Result token type: Same as p's result type
+ * @note Consumes the same number of bits as p
+ */
+HParser *h_float_range(const HParser *p, const double lower, const double upper);
+HParser *h_float_range__m(HAllocator *mm__, const HParser *p, const double lower,
+                          const double upper);
+
+/**
  * @brief Returns a parser that parses the specified number of bits. sign == true if signed, false
  * if unsigned.
  *
@@ -1101,6 +1115,15 @@ HParser *h_put_value__m(HAllocator *mm__, const HParser *p, const char *name);
  */
 HParser *h_get_value(const char *name);
 HParser *h_get_value__m(HAllocator *mm__, const char *name);
+
+/**
+ * @brief prints the entire abstract syntax tree with proper indexing
+ *
+ * @param stream Output stream
+ * @param tok Token to format
+ * @param indent Initial indentation level
+ */
+void h_pprint_ast_indexed(FILE *stream, const HParsedToken *token, size_t indent);
 
 /**
  * @brief The 'h_free_value' combinator retrieves a named HParseResult that was previously stashed
