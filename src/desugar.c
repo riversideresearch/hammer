@@ -29,6 +29,25 @@ static HDesugarContext *desugar_context_from_allocator(HAllocator *mm__) {
     return NULL;
 }
 
+static HDesugarContext *desugar_context_root(HDesugarContext *ctx) {
+    while (ctx->group_parent)
+        ctx = ctx->group_parent;
+    return ctx;
+}
+
+static void desugar_context_merge(HDesugarContext *host, HDesugarContext *child) {
+    HDesugarContext *host_root = desugar_context_root(host);
+    HDesugarContext *child_root = desugar_context_root(child);
+
+    if (host_root == child_root)
+        return;
+
+    host_root->refs += child_root->refs;
+    host_root->group_tail->group_next = child_root;
+    host_root->group_tail = child_root->group_tail;
+    child_root->group_parent = host_root;
+}
+
 static HDesugarContext *desugar_context_new(HAllocator *owner_mm__) {
     HDesugarContext *ctx = h_alloc(owner_mm__, sizeof(*ctx));
     if (!ctx)
@@ -43,15 +62,20 @@ static HDesugarContext *desugar_context_new(HAllocator *owner_mm__) {
     h_allocator_wrap(&ctx->allocator, &desugar_arena_vtable, ctx);
     ctx->owner_mm__ = owner_mm__;
     ctx->refs = 0;
+    ctx->group_parent = NULL;
+    ctx->group_next = NULL;
+    ctx->group_tail = ctx;
     return ctx;
 }
 
 static void desugar_context_attach(HDesugarContext *ctx, HParser *parser) {
-    if (parser->desugar_ctx)
+    if (parser->desugar_ctx) {
+        desugar_context_merge(ctx, parser->desugar_ctx);
         return;
+    }
 
     parser->desugar_ctx = ctx;
-    ++ctx->refs;
+    ++desugar_context_root(ctx)->refs;
 }
 
 HAllocator *h_desugar_context_allocator(HParser *parser) {
@@ -69,10 +93,15 @@ void h_desugar_context_release(HDesugarContext *ctx) {
     if (!ctx)
         return;
 
-    assert(ctx->refs > 0);
-    if (--ctx->refs == 0) {
-        h_delete_arena(ctx->arena);
-        ctx->owner_mm__->free(ctx->owner_mm__, ctx);
+    HDesugarContext *root = desugar_context_root(ctx);
+    assert(root->refs > 0);
+    if (--root->refs == 0) {
+        for (HDesugarContext *member = root; member;) {
+            HDesugarContext *next = member->group_next;
+            h_delete_arena(member->arena);
+            member->owner_mm__->free(member->owner_mm__, member);
+            member = next;
+        }
     }
 }
 
@@ -106,6 +135,9 @@ HCFChoice *h_desugar(HAllocator *mm__, HCFStack *stk__, const HParser *parser) {
             h_cfstack_free(cfg_mm__, nstk__);
         }
     } else if (stk__ != NULL) {
+        HDesugarContext *ctx = desugar_context_from_allocator(mm__);
+        if (ctx && parser->desugar_ctx)
+            desugar_context_merge(ctx, parser->desugar_ctx);
         HCFS_APPEND(parser->desugared);
     }
 

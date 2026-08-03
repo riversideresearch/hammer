@@ -189,7 +189,10 @@ typedef struct HDesugarContext_ {
     HArena *arena;
     HAllocator allocator;   /* arena-backed allocator */
     HAllocator *owner_mm__;
-    size_t refs;
+    size_t refs;             /* parser references; valid on the group root */
+    struct HDesugarContext_ *group_parent;
+    struct HDesugarContext_ *group_next;
+    struct HDesugarContext_ *group_tail;
 } HDesugarContext;
 // TODO: Make this internal
 typedef struct HParser_ {
