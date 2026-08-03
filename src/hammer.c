@@ -635,6 +635,10 @@ int h_compile__m(HAllocator *mm__, HParser *parser, HParserBackend backend, cons
     if (!ret) {
         parser->backend = backend;
         parser->backend_vtable = backends[backend];
+    } else if (backend == PB_LALR && ret == -2 && parser->backend_data != NULL &&
+               backends[backend]->free != NULL) {
+        /* GLR keeps this table, but a failed direct LALR compile does not. */
+        backends[backend]->free(parser);
     }
     return ret;
 }
@@ -721,4 +725,29 @@ HParseResult *h_parse_finish(HSuspendedParser *s) {
     h_free(s);
 
     return r;
+}
+
+void h_parser_free(HParser *parser) {
+    if (parser == NULL)
+        return;
+    
+    h_parser_free__m(&system_allocator, parser);
+    
+    return;
+}
+
+void h_parser_free__m(HAllocator *mm__, HParser *parser)
+{
+    if (parser == NULL || mm__ == NULL){
+        return;
+    }
+    if (parser->backend_vtable != NULL &&
+        parser->backend_vtable->free != NULL) {
+        parser->backend_vtable->free(parser);
+    }
+
+    if (parser->free_env != NULL) // callback handles explicit environment clenaup
+        parser->free_env(mm__, parser->env);
+    h_desugar_context_release(parser->desugar_ctx);
+    mm__->free(mm__, parser);
 }

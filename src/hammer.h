@@ -182,6 +182,18 @@ typedef struct HCFChoice_ HCFChoice;
 typedef struct HRVMProg_ HRVMProg;
 typedef struct HParserVtable_ HParserVtable;
 
+typedef void (*HParserEnvFree)(HAllocator *mm__, void *);
+
+
+typedef struct HDesugarContext_ {
+    HArena *arena;
+    HAllocator allocator;   /* arena-backed allocator */
+    HAllocator *owner_mm__;
+    size_t refs;             /* parser references; valid on the group root */
+    struct HDesugarContext_ *group_parent;
+    struct HDesugarContext_ *group_next;
+    struct HDesugarContext_ *group_tail;
+} HDesugarContext;
 // TODO: Make this internal
 typedef struct HParser_ {
     const HParserVtable *vtable;
@@ -189,7 +201,11 @@ typedef struct HParser_ {
     HParserBackendVTable *backend_vtable;
     void *backend_data;
     void *env;
+    HParserEnvFree free_env;
     HCFChoice *desugared; /**< if the parser can be desugared, its desugared form */
+    HCFChoice *augmented;
+    HAllocator *owner_mm__;
+    HDesugarContext *desugar_ctx;
 } HParser;
 
 typedef struct HSuspendedParser_ HSuspendedParser;
@@ -1377,6 +1393,21 @@ const char *h_get_token_type_name(HTokenType token_type);
 
 /** Make an allocator that draws from the given memory area. */
 HAllocator *h_sloballoc(void *mem, size_t size);
+
+/**
+ * @brief Free parser p from the heap
+ * 
+ * @param p Parser to free.
+ * @note if the parser has arguments of other parsers, those need to be freed seperately.
+ */
+void h_parser_free(HParser *p);
+
+/**
+ * @brief Free parser p from the heap
+ * @param mm__ Allocator that the parser was created in.
+ * @param p Parser to free.
+ */
+void h_parser_free__m(HAllocator *mm__, HParser *p);
 
 #ifdef __cplusplus
 }

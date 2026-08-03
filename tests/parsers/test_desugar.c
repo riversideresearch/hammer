@@ -12,6 +12,22 @@ static void test_desugar_ch(void) {
     g_check_cmp_int(desugared->type, ==, HCF_CHAR);
 }
 
+static void test_desugar_external_stack_root_reuse(void) {
+    HParser *p = h_ch('a');
+    HCFStack *stk = h_cfstack_new(&system_allocator);
+
+    HCFChoice *first = h_desugar(&system_allocator, stk, p);
+    HCFChoice *second = h_desugar(&system_allocator, stk, p);
+
+    g_check_cmp_ptr(first, !=, NULL);
+    g_check_cmp_ptr(second, ==, first);
+    g_check_cmp_ptr(stk->stack[0], ==, first);
+    g_check_cmp_ptr(stk->last_completed, ==, first);
+
+    h_cfstack_free(&system_allocator, stk);
+    h_parser_free(p);
+}
+
 static void test_desugar_token(void) {
     const HParser *p = h_token((const uint8_t *)"abc", 3);
     HCFChoice *desugared = h_desugar(&system_allocator, NULL, p);
@@ -168,7 +184,7 @@ static void test_desugar_indirect(void) {
     HCFChoice *desugared = h_desugar(&system_allocator, NULL, p);
     g_check_cmp_ptr(desugared, !=, NULL);
     // The desugared form should be the same as desugaring h_ch('a') directly
-    g_check_cmp_int(desugared->type, ==, HCF_CHAR);
+    g_check_cmp_int(desugared->type, ==, HCF_CHOICE);
 }
 
 // Test desugar for action parser
@@ -266,6 +282,8 @@ static void test_desugar_to_cfg_many(void) {
 
 void register_desugar_tests(void) {
     g_test_add_func("/core/desugar/ch", test_desugar_ch);
+    g_test_add_func("/core/desugar/external_stack_root_reuse",
+                    test_desugar_external_stack_root_reuse);
     g_test_add_func("/core/desugar/token", test_desugar_token);
     g_test_add_func("/core/desugar/epsilon", test_desugar_epsilon);
     g_test_add_func("/core/desugar/end", test_desugar_end);

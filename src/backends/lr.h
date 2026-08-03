@@ -124,7 +124,7 @@ HHashValue h_hash_transition(const void *p);
 HLRDFA *h_lr0_dfa(HCFGrammar *g);
 HLRTable *h_lr0_table(HCFGrammar *g, const HLRDFA *dfa);
 
-HCFChoice *h_desugar_augmented(HAllocator *mm__, HParser *parser);
+HCFChoice *h_desugar_augmented(HParser *parser);
 int h_lalr_compile(HAllocator *mm__, HParser *parser, const void *params);
 void h_lalr_free(HParser *parser);
 

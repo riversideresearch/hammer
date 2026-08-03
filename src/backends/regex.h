@@ -63,6 +63,7 @@ typedef struct HSVMAction_ {
 
 struct HRVMProg_ {
     HAllocator *allocator;
+    HArena *arena; // storage for action payloads that outlive their source parsers
     size_t length;
     size_t action_count;
     HRVMInsn *insns;
@@ -75,6 +76,9 @@ bool h_compile_regex(HRVMProg *prog, const HParser *parser);
 
 // These functions are used by the compile_to_rvm method of HParser
 uint16_t h_rvm_create_action(HRVMProg *prog, HSVMActionFunc action_func, void *env);
+
+// Allocate an action payload that remains valid for the lifetime of prog.
+void *h_rvm_alloc(HRVMProg *prog, size_t size);
 
 // returns the address of the instruction just created
 uint16_t h_rvm_insert_insn(HRVMProg *prog, HRVMOp op, uint16_t arg);

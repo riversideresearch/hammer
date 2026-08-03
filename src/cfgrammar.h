@@ -3,6 +3,13 @@
 
 #include "internal.h"
 
+typedef struct HCFStartWrapper_ {
+    HCFChoice choice;
+    HCFSequence *alternatives[2];
+    HCFSequence sequence;
+    HCFChoice *items[2];
+} HCFStartWrapper;
+
 typedef struct HCFGrammar_ {
     HCFChoice *start;   // start symbol (nonterminal)
     HHashSet *nts;      // HCFChoices, each representing the alternative
@@ -17,6 +24,7 @@ typedef struct HCFGrammar_ {
     // these are only members of HCFGrammar because they need a pointer to arena.
     const struct HStringMap_ *singleton_epsilon;
     const struct HStringMap_ *singleton_end;
+    HCFStartWrapper *owned_start;
 } HCFGrammar;
 
 /* Representing input characters (bytes) in HHashTables.

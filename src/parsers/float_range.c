@@ -115,13 +115,17 @@ static bool h_svm_action_validate_float_range(HArena *arena, HSVMContext *ctx, v
 
 static bool fr_ctrvm(HRVMProg *prog, void *env) {
     HFloatRange *r_env = (HFloatRange *)env;
+    HFloatRange *rvm_range = h_rvm_alloc(prog, sizeof(*rvm_range));
+    *rvm_range = *r_env;
+    rvm_range->p = NULL;
+
     h_rvm_insert_insn(prog, RVM_PUSH, 0);
     h_rvm_insert_insn(prog, RVM_ACTION,
-                      h_rvm_create_action(prog, h_svm_action_mark_float_range, env));
+                      h_rvm_create_action(prog, h_svm_action_mark_float_range, rvm_range));
     if (!h_compile_regex(prog, r_env->p))
         return false;
     h_rvm_insert_insn(prog, RVM_ACTION,
-                      h_rvm_create_action(prog, h_svm_action_validate_float_range, env));
+                      h_rvm_create_action(prog, h_svm_action_validate_float_range, rvm_range));
     return true;
 }
 

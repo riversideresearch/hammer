@@ -114,9 +114,9 @@ static HParsedToken *reshape_float(const HParseResult *p, void *user_data) {
     float_env *env = user_data;
     assert(p->ast);
     assert(p->ast->token_type == TT_SEQUENCE);
-    assert(p->ast->token_data.seq->used == (size_t)env->bit_len / 8);
 
     HCountedArray *seq = p->ast->token_data.seq;
+    int bit_len = (int)(seq->used * 8);
     uint64_t bits = 0;
     for (size_t i = 0; i < seq->used; ++i) {
         HParsedToken *token = seq->elements[i];
@@ -129,7 +129,7 @@ static HParsedToken *reshape_float(const HParseResult *p, void *user_data) {
         .bit_offset = p->ast->bit_offset,
         .bit_length = p->bit_length,
     };
-    return make_float_token(p->arena, &source, env->bit_len, bits);
+    return make_float_token(p->arena, &source, bit_len, bits);
 }
 
 static HParseResult *parse_float(void *env_, HParseState *state) {
@@ -178,7 +178,7 @@ static void desugar_float(HAllocator *mm__, HCFStack *stk__, void *env) {
         }
         HCFS_END_SEQ();
         HCFS_THIS_CHOICE->reshape = reshape_float;
-        HCFS_THIS_CHOICE->user_data = env_;
+        HCFS_THIS_CHOICE->user_data = NULL;
     }
     HCFS_END_CHOICE();
 }
@@ -214,6 +214,9 @@ static bool float_ctrvm(HRVMProg *prog, void *env) {
     if (float_env_->bit_len != 16 && float_env_->bit_len != 32 && float_env_->bit_len != 64)
         return false;
 
+    float_env *rvm_float = h_rvm_alloc(prog, sizeof(*rvm_float));
+    *rvm_float = *float_env_;
+
     h_rvm_insert_insn(prog, RVM_PUSH, 0);
     for (size_t i = 0; i < (size_t)float_env_->bit_len / 8; ++i) {
         h_rvm_insert_insn(prog, RVM_MATCH, 0xFF00);
@@ -221,7 +224,7 @@ static bool float_ctrvm(HRVMProg *prog, void *env) {
     }
     h_rvm_insert_insn(prog, RVM_CAPTURE, 0);
     h_rvm_insert_insn(prog, RVM_ACTION,
-                      h_rvm_create_action(prog, h_svm_action_validate_float, env));
+                      h_rvm_create_action(prog, h_svm_action_validate_float, rvm_float));
     return true;
 }
 

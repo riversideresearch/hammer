@@ -15,7 +15,6 @@ static HLRItem *advance_mark(HArena *arena, const HLRItem *item) {
 }
 
 static void expand_to_closure(HCFGrammar *g, HHashSet *items) {
-    HAllocator *mm__ = g->mm__;
     HArena *arena = g->arena;
     HSlist *work = h_slist_new(arena);
 
@@ -45,9 +44,8 @@ static void expand_to_closure(HCFGrammar *g, HHashSet *items) {
             } else if (sym->type == HCF_CHARSET) {
                 for (unsigned int i = 0; i < 256; i++) {
                     if (charset_isset(sym->data.charset, i)) {
-                        // XXX allocate these single-character symbols statically somewhere
-                        HCFChoice **rhs = h_new(HCFChoice *, 2);
-                        rhs[0] = h_new(HCFChoice, 1);
+                        HCFChoice **rhs = h_arena_malloc(arena, 2 * sizeof(*rhs));
+                        rhs[0] = h_arena_malloc(arena, sizeof(*rhs[0]));
                         rhs[0]->type = HCF_CHAR;
                         rhs[0]->data.chr = i;
                         rhs[1] = NULL;
