@@ -50,17 +50,26 @@ static bool h_svm_action_action(HArena *arena, HSVMContext *ctx, void *arg) {
     HParseResult res;
     HParseAction *a = arg;
     assert(ctx->stack_count >= 1);
-    if (ctx->stack[ctx->stack_count - 1]->token_type != TT_MARK) {
-        res.ast = ctx->stack[ctx->stack_count - 1];
-    } else {
-        res.ast = NULL;
-    }
+    HParsedToken *top = ctx->stack[ctx->stack_count - 1];
+    if (top->token_type != TT_MARK &&
+        (ctx->stack_count < 2 || ctx->stack[ctx->stack_count - 2]->token_type != TT_MARK))
+        return false;
+    res.ast = top->token_type == TT_MARK ? NULL : top;
     res.arena = arena;
     HParsedToken *action_result = a->action(&res, a->user_data);
-    if (action_result)
-        ctx->stack[ctx->stack_count - 1] = action_result;
-    else
-        ctx->stack_count--;
+    if (top->token_type == TT_MARK) {
+        if (action_result)
+            ctx->stack[ctx->stack_count - 1] = action_result;
+        else
+            ctx->stack_count--;
+    } else {
+        if (action_result) {
+            ctx->stack[ctx->stack_count - 2] = action_result;
+            ctx->stack_count--;
+        } else {
+            ctx->stack_count -= 2;
+        }
+    }
     return true;
 }
 

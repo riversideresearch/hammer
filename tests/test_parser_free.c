@@ -113,15 +113,20 @@ static bool accept_predicate(HParseResult *result, void *user_data) {
     return true;
 }
 
+static void assert_parser_parses(HParser *parser, const uint8_t *input, size_t length) {
+    HParseResult *result = h_parse(parser, input, length);
+    g_assert_nonnull(result);
+    h_parse_result_free(result);
+}
+
 static void parse_after_freeing_compiled_child(HParser *parent, HParser *child,
                                                HParserBackend backend, const uint8_t *input,
                                                size_t length) {
     g_assert_cmpint(h_compile(parent, backend, NULL), ==, 0);
+    assert_parser_parses(parent, input, length);
     h_parser_free(child);
 
-    HParseResult *result = h_parse(parent, input, length);
-    g_assert_nonnull(result);
-    h_parse_result_free(result);
+    assert_parser_parses(parent, input, length);
 }
 
 static void test_sequence_variants_free_root(void) {

@@ -53,12 +53,20 @@ static bool h_svm_action_attr_bool(HArena *arena, HSVMContext *ctx, void *arg) {
     HParseResult res;
     HAttrBool *ab = arg;
     assert(ctx->stack_count >= 1);
-    if (ctx->stack[ctx->stack_count - 1]->token_type != TT_MARK)
-        res.ast = ctx->stack[ctx->stack_count - 1];
-    else
-        res.ast = NULL;
+    HParsedToken *top = ctx->stack[ctx->stack_count - 1];
+    if (top->token_type == TT_MARK)
+        return false;
+    if (ctx->stack_count < 2 || ctx->stack[ctx->stack_count - 2]->token_type != TT_MARK)
+        return false;
+
+    res.ast = top;
     res.arena = arena;
-    return ab->pred(&res, ab->user_data);
+    if (!ab->pred(&res, ab->user_data))
+        return false;
+
+    ctx->stack[ctx->stack_count - 2] = top;
+    ctx->stack_count--;
+    return true;
 }
 
 static bool ab_ctrvm(HRVMProg *prog, void *env) {

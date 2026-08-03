@@ -90,10 +90,26 @@ static bool h_svm_action_ignoreseq(HArena *arena, HSVMContext *ctx, void *env) {
     HIgnoreSeq *seq = (HIgnoreSeq *)env;
     HParsedToken *save = NULL;
 
-    assert(ctx->stack_count >= seq->len);
-    save = ctx->stack[ctx->stack_count - seq->len + seq->which];
-    ctx->stack_count -= seq->len;
-    ctx->stack[ctx->stack_count++] = save;
+    size_t stack_count = ctx->stack_count;
+    for (size_t i = seq->len; i-- > 0;) {
+        if (stack_count == 0)
+            return false;
+
+        HParsedToken *top = ctx->stack[stack_count - 1];
+        if (top->token_type == TT_MARK) {
+            stack_count--;
+        } else {
+            if (stack_count < 2 || ctx->stack[stack_count - 2]->token_type != TT_MARK)
+                return false;
+            if (i == seq->which)
+                save = top;
+            stack_count -= 2;
+        }
+    }
+
+    ctx->stack_count = stack_count;
+    if (save)
+        ctx->stack[ctx->stack_count++] = save;
     return true;
 }
 
