@@ -108,7 +108,11 @@ static bool bits_ctrvm(HRVMProg *prog, void *env) {
         h_rvm_insert_insn(prog, RVM_STEP, 0);
     }
     h_rvm_insert_insn(prog, RVM_CAPTURE, 0);
-    h_rvm_insert_insn(prog, RVM_ACTION, h_rvm_create_action(prog, h_svm_action_bits, env));
+    struct bits_env *rvm_bits = h_rvm_alloc(prog, sizeof(*rvm_bits));
+    *rvm_bits = *env_;
+    h_rvm_insert_insn(prog,
+                      RVM_ACTION,
+                      h_rvm_create_action(prog, h_svm_action_bits, rvm_bits));
     return true;
 }
 

@@ -69,7 +69,12 @@ static bool action_ctrvm(HRVMProg *prog, void *env) {
     h_rvm_insert_insn(prog, RVM_PUSH, 0);
     if (!h_compile_regex(prog, a->p))
         return false;
-    h_rvm_insert_insn(prog, RVM_ACTION, h_rvm_create_action(prog, h_svm_action_action, a));
+    HParseAction *rvm_action = h_rvm_alloc(prog, sizeof(*rvm_action));
+    *rvm_action = *a;
+    rvm_action->p = NULL;
+    h_rvm_insert_insn(prog,
+                      RVM_ACTION,
+                      h_rvm_create_action(prog, h_svm_action_action, rvm_action));
     return true;
 }
 

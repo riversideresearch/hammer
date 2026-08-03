@@ -357,6 +357,16 @@ uint16_t h_rvm_create_action(HRVMProg *prog, HSVMActionFunc action_func, void *e
     return prog->action_count++;
 }
 
+void *h_rvm_alloc(HRVMProg *prog, size_t size) {
+    if (!prog->arena) {
+        prog->arena = h_new_arena(prog->allocator, 0);
+        if (!prog->arena)
+            longjmp(prog->except, 1);
+        h_arena_set_except(prog->arena, &prog->except);
+    }
+    return h_arena_malloc_noinit(prog->arena, size);
+}
+
 uint16_t h_rvm_insert_insn(HRVMProg *prog, HRVMOp op, uint16_t arg) {
     // Ensure that there's room in the insn array...
     if (!(prog->length & (prog->length + 1))) {
@@ -434,12 +444,18 @@ bool h_compile_regex(HRVMProg *prog, const HParser *parser) {
     return parser->vtable->compile_to_rvm(prog, parser->env);
 }
 
-static void h_regex_free(HParser *parser) {
-    HRVMProg *prog = (HRVMProg *)parser->backend_data;
+static void h_rvm_prog_free(HRVMProg *prog) {
     HAllocator *mm__ = prog->allocator;
     h_free(prog->insns);
     h_free(prog->actions);
+    if (prog->arena)
+        h_delete_arena(prog->arena);
     h_free(prog);
+}
+
+static void h_regex_free(HParser *parser) {
+    HRVMProg *prog = (HRVMProg *)parser->backend_data;
+    h_rvm_prog_free(prog);
     parser->backend_data = NULL;
     parser->backend_vtable = h_get_default_backend_vtable();
     parser->backend = h_get_default_backend();
@@ -454,18 +470,18 @@ static int h_regex_compile(HAllocator *mm__, HParser *parser, const void *params
     prog->insns = NULL;
     prog->actions = NULL;
     prog->allocator = mm__;
+    prog->arena = NULL;
     if (setjmp(prog->except)) {
+        h_rvm_prog_free(prog);
         return 3;
     }
     if (!h_compile_regex(prog, parser)) {
         // this shouldn't normally fail when isValidRegular() returned true
-        h_free(prog->insns);
-        h_free(prog->actions);
-        h_free(prog);
+        h_rvm_prog_free(prog);
         return 2;
     }
-    memset(prog->except, 0, sizeof(prog->except));
     h_rvm_insert_insn(prog, RVM_ACCEPT, 0);
+    memset(prog->except, 0, sizeof(prog->except));
     parser->backend_data = prog;
     return 0;
 }

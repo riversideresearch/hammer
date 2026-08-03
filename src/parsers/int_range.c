@@ -113,8 +113,11 @@ static bool ir_ctrvm(HRVMProg *prog, void *env) {
     HRange *r_env = (HRange *)env;
     if (!h_compile_regex(prog, r_env->p))
         return false;
+    HRange *rvm_range = h_rvm_alloc(prog, sizeof(*rvm_range));
+    *rvm_range = *r_env;
+    rvm_range->p = NULL;
     h_rvm_insert_insn(prog, RVM_ACTION,
-                      h_rvm_create_action(prog, h_svm_action_validate_int_range, env));
+                      h_rvm_create_action(prog, h_svm_action_validate_int_range, rvm_range));
     return true;
 }
 

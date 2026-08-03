@@ -66,7 +66,12 @@ static bool ab_ctrvm(HRVMProg *prog, void *env) {
     h_rvm_insert_insn(prog, RVM_PUSH, 0);
     if (!h_compile_regex(prog, ab->p))
         return false;
-    h_rvm_insert_insn(prog, RVM_ACTION, h_rvm_create_action(prog, h_svm_action_attr_bool, ab));
+    HAttrBool *rvm_attr = h_rvm_alloc(prog, sizeof(*rvm_attr));
+    *rvm_attr = *ab;
+    rvm_attr->p = NULL;
+    h_rvm_insert_insn(prog,
+                      RVM_ACTION,
+                      h_rvm_create_action(prog, h_svm_action_attr_bool, rvm_attr));
     return true;
 }
 

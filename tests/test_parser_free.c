@@ -102,6 +102,28 @@ static HParser *make_drop_from_variant(unsigned variant, HParser *sequence) {
     }
 }
 
+static HParsedToken *identity_action(const HParseResult *result, void *user_data) {
+    (void)user_data;
+    return (HParsedToken *)result->ast;
+}
+
+static bool accept_predicate(HParseResult *result, void *user_data) {
+    (void)result;
+    (void)user_data;
+    return true;
+}
+
+static void parse_after_freeing_compiled_child(HParser *parent, HParser *child,
+                                               HParserBackend backend, const uint8_t *input,
+                                               size_t length) {
+    g_assert_cmpint(h_compile(parent, backend, NULL), ==, 0);
+    h_parser_free(child);
+
+    HParseResult *result = h_parse(parent, input, length);
+    g_assert_nonnull(result);
+    h_parse_result_free(result);
+}
+
 static void test_sequence_variants_free_root(void) {
     TrackingAllocator tracking = {0};
     HAllocator saved = install_tracking_allocator(&tracking);
@@ -242,6 +264,115 @@ static void test_lalr_parent_retains_independently_desugared_child(void) {
     system_allocator = saved;
 }
 
+static void test_contextfree_parent_survives_freed_child_env(void) {
+    TrackingAllocator tracking = {0};
+    HAllocator saved = install_tracking_allocator(&tracking);
+
+    {
+        HParser *child = h_ch_range('a', 'c');
+        HParser *tail = h_ch('x');
+        HParser *parent = h_sequence(child, tail, NULL);
+        const uint8_t input[] = {'b', 'x'};
+
+        g_assert_cmpint(h_compile(child, PB_LALR, NULL), ==, 0);
+        parse_after_freeing_compiled_child(parent, child, PB_LALR, input, sizeof(input));
+        h_parser_free(parent);
+        h_parser_free(tail);
+        g_assert_cmpuint(tracking.live_allocations, ==, 0);
+    }
+
+    {
+        HParser *child = h_float32();
+        HParser *tail = h_ch('x');
+        HParser *parent = h_sequence(child, tail, NULL);
+        const uint8_t input[] = {0, 0, 0, 0, 'x'};
+
+        parse_after_freeing_compiled_child(parent, child, PB_LALR, input, sizeof(input));
+        h_parser_free(parent);
+        h_parser_free(tail);
+        g_assert_cmpuint(tracking.live_allocations, ==, 0);
+    }
+
+    system_allocator = saved;
+}
+
+static void test_regex_parent_survives_freed_child_env(void) {
+    TrackingAllocator tracking = {0};
+    HAllocator saved = install_tracking_allocator(&tracking);
+
+    {
+        HParser *child = h_uint8();
+        HParser *tail = h_ch('x');
+        HParser *parent = h_sequence(child, tail, NULL);
+        const uint8_t input[] = {'a', 'x'};
+
+        parse_after_freeing_compiled_child(parent, child, PB_REGULAR, input, sizeof(input));
+        h_parser_free(parent);
+        h_parser_free(tail);
+        g_assert_cmpuint(tracking.live_allocations, ==, 0);
+    }
+
+    {
+        HParser *atom = h_ch('a');
+        HParser *child = h_action(atom, identity_action, NULL);
+        HParser *tail = h_ch('x');
+        HParser *parent = h_sequence(child, tail, NULL);
+        const uint8_t input[] = {'a', 'x'};
+
+        parse_after_freeing_compiled_child(parent, child, PB_REGULAR, input, sizeof(input));
+        h_parser_free(parent);
+        h_parser_free(tail);
+        h_parser_free(atom);
+        g_assert_cmpuint(tracking.live_allocations, ==, 0);
+    }
+
+    {
+        HParser *atom = h_ch('a');
+        HParser *child = h_attr_bool(atom, accept_predicate, NULL);
+        HParser *tail = h_ch('x');
+        HParser *parent = h_sequence(child, tail, NULL);
+        const uint8_t input[] = {'a', 'x'};
+
+        parse_after_freeing_compiled_child(parent, child, PB_REGULAR, input, sizeof(input));
+        h_parser_free(parent);
+        h_parser_free(tail);
+        h_parser_free(atom);
+        g_assert_cmpuint(tracking.live_allocations, ==, 0);
+    }
+
+    {
+        HParser *left = h_ch('a');
+        HParser *right = h_ch('b');
+        HParser *child = h_left(left, right);
+        HParser *tail = h_ch('x');
+        HParser *parent = h_sequence(child, tail, NULL);
+        const uint8_t input[] = {'a', 'b', 'x'};
+
+        parse_after_freeing_compiled_child(parent, child, PB_REGULAR, input, sizeof(input));
+        h_parser_free(parent);
+        h_parser_free(tail);
+        h_parser_free(left);
+        h_parser_free(right);
+        g_assert_cmpuint(tracking.live_allocations, ==, 0);
+    }
+
+    {
+        HParser *integer = h_uint8();
+        HParser *child = h_int_range(integer, 1, 9);
+        HParser *tail = h_ch('x');
+        HParser *parent = h_sequence(child, tail, NULL);
+        const uint8_t input[] = {5, 'x'};
+
+        parse_after_freeing_compiled_child(parent, child, PB_REGULAR, input, sizeof(input));
+        h_parser_free(parent);
+        h_parser_free(tail);
+        h_parser_free(integer);
+        g_assert_cmpuint(tracking.live_allocations, ==, 0);
+    }
+
+    system_allocator = saved;
+}
+
 void register_parser_free_tests(void) {
     g_test_add_func("/core/parser/free/sequence_variants", test_sequence_variants_free_root);
     g_test_add_func("/core/parser/free/drop_from_variants",
@@ -254,4 +385,7 @@ void register_parser_free_tests(void) {
                     test_lalr_conflict_frees_table);
     g_test_add_func("/core/parser/free/lalr_independently_desugared_child",
                     test_lalr_parent_retains_independently_desugared_child);
+    g_test_add_func("/core/parser/free/contextfree_child_env",
+                    test_contextfree_parent_survives_freed_child_env);
+    g_test_add_func("/core/parser/free/regex_child_env", test_regex_parent_survives_freed_child_env);
 }

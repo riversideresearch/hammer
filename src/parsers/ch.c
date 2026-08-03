@@ -41,7 +41,7 @@ static bool ch_ctrvm(HRVMProg *prog, void *env) {
     h_rvm_insert_insn(prog, RVM_MATCH, c | c << 8);
     h_rvm_insert_insn(prog, RVM_STEP, 0);
     h_rvm_insert_insn(prog, RVM_CAPTURE, 0);
-    h_rvm_insert_insn(prog, RVM_ACTION, h_rvm_create_action(prog, h_svm_action_ch, env));
+    h_rvm_insert_insn(prog, RVM_ACTION, h_rvm_create_action(prog, h_svm_action_ch, NULL));
     return true;
 }
 
