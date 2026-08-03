@@ -635,6 +635,10 @@ int h_compile__m(HAllocator *mm__, HParser *parser, HParserBackend backend, cons
     if (!ret) {
         parser->backend = backend;
         parser->backend_vtable = backends[backend];
+    } else if (backend == PB_LALR && ret == -2 && parser->backend_data != NULL &&
+               backends[backend]->free != NULL) {
+        /* GLR keeps this table, but a failed direct LALR compile does not. */
+        backends[backend]->free(parser);
     }
     return ret;
 }

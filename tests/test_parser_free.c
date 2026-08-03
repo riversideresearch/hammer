@@ -197,6 +197,28 @@ static void test_lalr_desugaring_context_survives_child_frees(void) {
     system_allocator = saved;
 }
 
+static void test_lalr_conflict_frees_table(void) {
+    TrackingAllocator tracking = {0};
+    HAllocator saved = install_tracking_allocator(&tracking);
+    HParser *d = h_ch('d');
+    HParser *expr = h_indirect();
+    HParser *plus = h_ch('+');
+    HParser *sum = h_sequence(expr, plus, expr, NULL);
+    HParser *choice = h_choice(sum, d, NULL);
+
+    h_bind_indirect(expr, choice);
+    g_assert_cmpint(h_compile(expr, PB_LALR, NULL), ==, -2);
+
+    h_parser_free(expr);
+    h_parser_free(choice);
+    h_parser_free(sum);
+    h_parser_free(plus);
+    h_parser_free(d);
+    g_assert_cmpuint(tracking.live_allocations, ==, 0);
+
+    system_allocator = saved;
+}
+
 void register_parser_free_tests(void) {
     g_test_add_func("/core/parser/free/sequence_variants", test_sequence_variants_free_root);
     g_test_add_func("/core/parser/free/drop_from_variants",
@@ -205,4 +227,6 @@ void register_parser_free_tests(void) {
                     test_lalr_desugaring_context_is_freed);
     g_test_add_func("/core/parser/free/lalr_desugaring_context_child_first",
                     test_lalr_desugaring_context_survives_child_frees);
+    g_test_add_func("/core/parser/free/lalr_conflict_table",
+                    test_lalr_conflict_frees_table);
 }
