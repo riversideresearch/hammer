@@ -66,10 +66,10 @@ static inline void h_free_seq_env(
 {
     HSequence *s = environment;
 
-    if (s == NULL)
+    if (!s)
         return;
-
-    allocator->free(allocator, s->p_array);
+    if(s->p_array)
+        allocator->free(allocator, s->p_array);
     allocator->free(allocator, s);
 }
 #endif // HAMMER_PARSER_INTERNAL__H

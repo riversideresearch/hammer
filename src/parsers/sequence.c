@@ -141,7 +141,7 @@ HParser *h_sequence__v(HParser *p, va_list ap) { return h_sequence__mv(&system_a
 HParser *h_sequence__mv(HAllocator *mm__, HParser *p, va_list ap_) {
     HSequence *s = h_new(HSequence, 1);
     s->len = 0;
-
+    s->p_array = NULL;
     if (p) {
         // non-empty sequence
         const HParser *arg;
@@ -169,7 +169,7 @@ HParser *h_sequence__mv(HAllocator *mm__, HParser *p, va_list ap_) {
 
         return h_new_parser_with_free(mm__, &sequence_vt, s, h_free_seq_env);
     }
-    return h_new_parser_with_free(mm__, &sequence_vt, s, h_no_free_env);
+    return h_new_parser_with_free(mm__, &sequence_vt, s, h_free_seq_env);
 }
 
 HParser *h_sequence__a(void *args[]) { return h_sequence__ma(&system_allocator, args); }
