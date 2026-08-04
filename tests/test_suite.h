@@ -38,10 +38,8 @@
 /* Comparison for ptr types; only == and != will work */
 #define g_check_cmp_ptr(p1, op, p2)                                                                \
     do {                                                                                           \
-        const void *_p1 = (p1);                                                                    \
-        const void *_p2 = (p2);                                                                    \
-        if (!(_p1 op _p2)) {                                                                       \
-            g_test_message("Check failed: (%s): (%p %s %p)", #p1 " " #op " " #p2, _p1, #op, _p2);  \
+        if (!(p1 op p2)) {                                                                         \
+            g_test_message("Check failed: (%s)", #p1 " " #op " " #p2);                             \
             g_test_fail();                                                                         \
         }                                                                                          \
     } while (0);

@@ -524,11 +524,23 @@ HParserBackendWithParams *h_get_backend_with_params_by_name(const char *name_wit
 
                 /* use the backend supplied method to extract any params from the input */
                 result->params = NULL;
+                bool invalid_params = false;
                 if (params->len > 0) {
                     if (result->backend_vtable->extract_params) {
-                        result->backend_vtable->extract_params(result, be_w_params);
+                        int extract_status =
+                            result->backend_vtable->extract_params(result, be_w_params);
+                        if (extract_status < 1) {
+                            invalid_params = true;
+                        }
                     }
                 }
+
+                if (invalid_params) {
+                    result->backend = PB_INVALID;
+                    result->backend_vtable = backends[PB_INVALID];
+                    result->params = NULL;
+                }
+
                 // free the parse result
                 h_parse_result_free(r);
                 r = NULL;
@@ -582,7 +594,7 @@ HParseResult *h_parse_debug__m(HAllocator *mm__, const HParser *parser, const ui
     TRACE_SET_ENABLED(true);
     HParseResult *res = h_parse__m(mm__, parser, input, length);
     TRACE_SET_ENABLED(false);
-    if (!res)
+    if (!res) 
         TRACE_GET_ERROR(error);
     return res;
 }

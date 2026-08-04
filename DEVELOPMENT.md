@@ -39,6 +39,119 @@ The repository centralizes the semantic version in the `VERSION` file. Update th
 - Shared library: `libhammer.so.{VERSION}`
 - `pkg-config` entries read the same version
 
+### Riverside Research workflow
+
+If you have access to the internal Riverside Research Bitbucket repository, push your work to a branch there first. Treat the internal repository as the source of truth for integration, then promote approved release branches to the public GitHub repository so the public CI/CD pipeline can run before anything lands on `public/main`.
+
+Configure both remotes in your local checkout so you can move changes between the internal Bitbucket repository and the public GitHub repository without changing clone directories:
+
+```bash
+git remote add internal ssh://git@ssh.bitbucket.riversideresearch.org:7999/secpar/hammer.git
+git remote add public git@github.com:riversideresearch/hammer.git
+git fetch internal
+git fetch public
+git remote -v
+```
+
+If one of those remote names already exists, update its URL instead:
+
+```bash
+git remote set-url internal ssh://git@ssh.bitbucket.riversideresearch.org:7999/secpar/hammer.git
+git remote set-url public git@github.com:riversideresearch/hammer.git
+```
+
+Note: periodically run `git fetch --prune` to remove stale remote-tracking branches that no longer exist on the remote:
+
+```bash
+git fetch internal --prune
+git fetch public --prune
+```
+
+The expected promotion path is:
+
+```text
+internal/<feature-branch>
+  -> internal/release/vX.Y.Z
+  -> internal/main
+  -> public/release/vX.Y.Z
+  -> public/main
+```
+
+Create a feature branch from the current internal main:
+
+```bash
+git fetch internal
+git switch internal-main
+git pull --ff-only internal main
+git switch -c <feature-branch>
+```
+
+Push feature work to the internal Bitbucket repository:
+
+```bash
+git push -u internal <feature-branch>
+```
+
+Create or update the internal release branch:
+
+```bash
+git fetch internal
+git switch -c release/vX.Y.Z internal/main
+git push -u internal release/vX.Y.Z
+```
+
+For an existing release branch, start from its current remote state:
+
+```bash
+git fetch internal
+git switch release/vX.Y.Z
+git pull --ff-only internal release/vX.Y.Z
+```
+
+After review, merge the feature branch into `internal/release/vX.Y.Z`:
+
+```bash
+git fetch internal
+git switch release/vX.Y.Z
+git pull --ff-only internal release/vX.Y.Z
+git merge --no-ff internal/<feature-branch>
+git push internal HEAD:release/vX.Y.Z
+```
+
+Make release commits on `internal/release/vX.Y.Z`, such as incrementing the version or updating changelogs, then merge the finalized release branch into `internal/main` before publishing so the internal and public repositories are promoted from the same release state:
+
+```bash
+git fetch internal
+git switch internal-main
+git pull --ff-only internal main
+git merge --no-ff internal/release/vX.Y.Z
+git push internal HEAD:main
+```
+
+Push the release branch to the public GitHub repository to trigger CI/CD without touching `public/main`:
+
+```bash
+git fetch public
+git push public internal/release/vX.Y.Z:release/vX.Y.Z
+```
+
+Open a GitHub pull request with `release/vX.Y.Z` as the compare branch and `main` as the base branch. After the public CI/CD pipeline passes and the release is approved, fast-forward `public/main` from the public release branch:
+
+```bash
+git fetch public
+git switch main
+git pull --ff-only public main
+git merge --ff-only public/release/vX.Y.Z
+git push public HEAD:main
+```
+
+Before pushing to `public/main`, inspect exactly what will be published:
+
+```bash
+git log --oneline public/main..public/release/vX.Y.Z
+git diff --stat public/main..public/release/vX.Y.Z
+```
+
 ### Test coverage
 
 Install coverage tools:
@@ -187,9 +300,3 @@ In other words, don't let the (memory manager) streams cross.
 ### Compile-Time Options
 
 If `CONSISTENCY_CHECK` is defined, enable a bunch of additional internal consistency checks.
-
-### Parser Combinator Implementation Notes
-
-**Regarding butnot and difference:**
-
-There's a "do what I say, not what I do" variation in how we implemented these (versus how jsparse did it). His `butnot` succeeds if p1 and p2 both match and p1's result is longer than p2's, though the comments say it should succeed if p2's result is longer than p1's. Also, his `difference` succeeds if p1 and p2 both match, full stop, returning the result of p2 if p2's result is shorter than p1's or the result of p1 otherwise, though the comments say it should succeed if p2's result is shorter than p1's. Whatever; we're doing what the comments say.

@@ -228,7 +228,7 @@ static HAllocator deadbeefing_allocator = {
     .env = NULL,
 };
 
-static void test_bug_19() {
+static void test_bug_19(void) {
     void *args[] = {
         h_ch_range__m(&deadbeefing_allocator, '0', '9'),
         h_ch_range__m(&deadbeefing_allocator, 'A', 'Z'),
@@ -258,7 +258,7 @@ static void test_bug_19() {
     g_assert_true(1);
 }
 
-static void test_flatten_null() {
+static void test_flatten_null(void) {
     // h_act_flatten() produces a flat sequence from a nested sequence. it also
     // hapens to produce a one-element sequence when given a non-sequence token.
     // but given a null token (as from h_epsilon_p() or h_ignore()), it would
@@ -354,7 +354,7 @@ static void test_ast_length_index() {
 }
 #endif // 0
 
-static void test_issue91() {
+static void test_issue91(void) {
     // this ambiguous grammar caused intermittent (?) assertion failures when
     // trying to compile with the LALR backend:
     //
@@ -372,7 +372,7 @@ static void test_issue91() {
     g_check_cmp_int(r, ==, 0); // Packrat should compile successfully
 }
 
-static void test_issue87() {
+static void test_issue87(void) {
     HParser *a = h_ch('a');
     HParser *a2 = h_ch_range('a', 'a');
     HParser *p = h_many(h_many(h_choice(a, a2, NULL)));
@@ -381,7 +381,7 @@ static void test_issue87() {
     g_check_cmp_int(r, ==, 0); // Packrat should compile successfully
 }
 
-static void test_issue92() {
+static void test_issue92(void) {
     HParser *a = h_ch('a');
     HParser *b = h_ch('b');
 
@@ -435,7 +435,7 @@ static void test_issue92() {
     g_check_cmp_int(r, ==, 0);
 }
 
-static void test_issue83() {
+static void test_issue83(void) {
     HParser *p = h_sequence(h_sequence(NULL, NULL), h_nothing_p(), NULL);
     /*
      * A -> B
@@ -463,7 +463,7 @@ static void test_issue83() {
  * This is Meg's cut-down bug 60 test case
  */
 
-static void test_bug60() {
+static void test_bug60(void) {
     /* There is probably an even smaller example that shows the issue */
 
     HParser *zed = NULL;
@@ -508,7 +508,7 @@ static void test_bug60() {
 
 #define BUG60_ABNF_SCAN_UP_TO 64
 
-static void test_bug60_abnf() {
+static void test_bug60_abnf(void) {
     HParser *newline = NULL;
     HParser *alpha = NULL;
     HParser *sp = NULL;

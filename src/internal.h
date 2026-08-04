@@ -487,6 +487,7 @@ struct HCFChoice_ {
     HAction action;
     HPredicate pred;
     void *user_data;
+    size_t dispatch_opcode;
 };
 
 struct HCFSequence_ {
@@ -534,20 +535,25 @@ static inline void h_cfstack_add_to_seq(HAllocator *mm__, HCFStack *stk__, HCFCh
     HCFChoice *cur_top = stk__->stack[stk__->count - 1];
     assert(cur_top->type == HCF_CHOICE);
     assert(cur_top->data.seq[0] != NULL); // There must be at least one sequence...
-    stk__->last_completed = item;
+    if (stk__->error)
+        return;
     for (size_t i = 0;; i++) {
         if (cur_top->data.seq[i + 1] == NULL) {
             assert(cur_top->data.seq[i]->items != NULL);
             for (size_t j = 0;; j++) {
+                if (j > SIZE_MAX / sizeof(HCFChoice *) - 2) {
+                    h_platform_errx(1, "CF stack allocation size overflow");
+                }
                 if (cur_top->data.seq[i]->items[j] == NULL) {
-                    cur_top->data.seq[i]->items = mm__->realloc(mm__, cur_top->data.seq[i]->items,
-                                                                sizeof(HCFChoice *) * (j + 2));
-                    if (!cur_top->data.seq[i]->items) {
-                        stk__->error = 1;
-                    }
-                    cur_top->data.seq[i]->items[j] = item;
-                    cur_top->data.seq[i]->items[j + 1] = NULL;
+                    size_t new_count = j + 2;
+                    HCFChoice **new_items = h_realloc(mm__, cur_top->data.seq[i]->items,
+                                                          sizeof(*new_items) * new_count);
+
+                    cur_top->data.seq[i]->items = new_items;
+                    new_items[j] = item;
+                    new_items[j + 1] = NULL;
                     assert(!stk__->error);
+                    stk__->last_completed = item;
                     return;
                 }
             }
@@ -600,11 +606,8 @@ static inline void h_cfstack_begin_choice(HAllocator *mm__, HCFStack *stk__) {
     if (stk__->count + 1 > stk__->cap) {
         assert(stk__->cap > 0);
         stk__->cap *= 2;
-        stk__->stack =
-            mm__->realloc(mm__, stk__->stack, (size_t)(stk__->cap) * sizeof(HCFChoice *));
-        if (!stk__->stack) {
-            stk__->error = 1;
-        }
+        stk__->stack = h_realloc(mm__, stk__->stack,
+                (size_t)stk__->cap * sizeof(*stk__->stack));
     }
     assert(stk__->cap >= 1 && !stk__->error);
     stk__->stack[stk__->count++] = choice;
@@ -614,11 +617,7 @@ static inline void h_cfstack_begin_seq(HAllocator *mm__, HCFStack *stk__) {
     HCFChoice *top = stk__->stack[stk__->count - 1];
     for (size_t i = 0;; i++) {
         if (top->data.seq[i] == NULL) {
-            top->data.seq = mm__->realloc(mm__, top->data.seq, sizeof(HCFSequence *) * (i + 2));
-            if (!top->data.seq) {
-                stk__->error = 1;
-                return;
-            }
+            top->data.seq = h_realloc(mm__, top->data.seq, sizeof(HCFSequence *) * (i + 2));
             HCFSequence *seq = top->data.seq[i] = h_new(HCFSequence, 1);
             top->data.seq[i + 1] = NULL;
             seq->items = h_new(HCFChoice *, 1);
@@ -652,6 +651,7 @@ static inline void h_cfstack_end_choice(HAllocator *mm__, HCFStack *stk__) {
 #define HCFS_END_CHOICE() h_cfstack_end_choice(mm__, stk__)
 #define HCFS_END_SEQ() h_cfstack_end_seq(mm__, stk__)
 #define HCFS_THIS_CHOICE (stk__->stack[stk__->count - 1])
+#define HCFS_SET_DISPATCH_OPCODE(op) (HCFS_THIS_CHOICE->dispatch_opcode = (op))
 
 struct HParserVtable_ {
     HParseResult *(*parse)(void *env, HParseState *state);

@@ -45,6 +45,11 @@ static void test_tt_get_backend_with_params_by_name(void) {
     g_check_maybe_string_eq(be_w_p->requested_name, "llvm");
     h_free_backend_with_params(be_w_p);
 
+    be_w_p = h_get_backend_with_params_by_name("llk(foo)");
+    g_check_inttype("%d", HParserBackend, be_w_p->backend, ==, PB_INVALID);
+    g_check_maybe_string_eq(be_w_p->requested_name, "llk");
+    h_free_backend_with_params(be_w_p);
+
     be_w_p = h_get_backend_with_params_by_name("packrat(0)");
     g_check_inttype("%d", HParserBackend, be_w_p->backend, ==, PB_PACKRAT);
     g_check_maybe_string_eq(be_w_p->requested_name, packrat_name);

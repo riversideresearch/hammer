@@ -19,6 +19,7 @@ void h_trace_begin(size_t input_len);
 void h_trace_enter(const HParser *parser, HParseState *state);
 void h_trace_exit(HParseResult *res, const char *note);
 void h_trace_end(HParseResult *res, HParseState *state);
+void h_trace_file_context(const uint8_t *input, size_t length, size_t highlight_index);
 
 #define TRACE_SET_ENABLED(b)  h_trace_set_enabled((b))
 #define TRACE_GET_ERROR(out)  h_trace_get_error((out))

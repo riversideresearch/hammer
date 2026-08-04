@@ -122,7 +122,7 @@ static void test_sloballoc_hammer(void) {
     static uint8_t mem[N] = {0x58};
     HAllocator *mm = h_sloballoc(mem, N);
     int line = __LINE__;
-    SLOB *slob = ((void *)mm) + sizeof(HAllocator);
+    SLOB *slob = (SLOB *)((unsigned char *)mm + sizeof(HAllocator));
     void *p, *q, *r;
 
     if (!mm) {

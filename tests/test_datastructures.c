@@ -306,6 +306,10 @@ static void test_hashtable_update(void) {
     h_delete_arena(arena);
 }
 
+static void *combine_pointer_values(void *v1, const void *v2) {
+    return (void *)((uintptr_t)v1 + (uintptr_t)v2);
+}
+
 static void test_hashtable_merge(void) {
     HArena *arena = h_new_arena(&system_allocator, 4096);
     HHashTable *ht1 = h_hashtable_new(arena, h_eq_ptr, h_hash_ptr);
@@ -314,8 +318,7 @@ static void test_hashtable_merge(void) {
     h_hashtable_put(ht1, key, (void *)0x5678);
     h_hashtable_put(ht2, key, (void *)0x9ABC);
 
-    void *combine(void *v1, const void *v2) { return (void *)((uintptr_t)v1 + (uintptr_t)v2); }
-    h_hashtable_merge(combine, ht1, ht2);
+    h_hashtable_merge(combine_pointer_values, ht1, ht2);
     void *result = h_hashtable_get(ht1, key);
     g_check_cmp_ptr(result, !=, NULL);
     h_delete_arena(arena);

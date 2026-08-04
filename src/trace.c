@@ -30,6 +30,15 @@
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#include <stdint.h>
+#include <stddef.h>
+#if defined(_WIN32)
+#include <io.h>
+#define ISATTY(fd) _isatty(_fileno(fd))
+#else
+#include <unistd.h>
+#define ISATTY(fd) isatty(fileno(fd))
+#endif
 
 /* Runtime on/off switch (compile gate is HAMMER_TRACE_AST above). Defaults OFF
  * so an ordinary h_parse() stays quiet even when tracing is compiled in; only
@@ -238,6 +247,53 @@ static void trace_token(const HParsedToken *tok) {
     }
 }
 
+#define BYTES_PER_LINE 16
+void h_trace_file_context(const uint8_t *input, size_t length, size_t highlight_index) {
+    const char *color_red = "\x1b[31m";
+    const char *color_reset = "\x1b[0m";
+    int use_color = ISATTY(stderr);
+
+    if (!display_trace)
+        return;
+    fprintf(stderr, "=== h_packrat_parse: input context (%zu bytes) ===\n", length);
+    /*for (size_t i = 0; i < length; i++) {
+        uint8_t c = input[i];
+        char disp[2] = { isprint(c) ? (char)c : '\0', '\0' };
+        fprintf(stderr, "%02x %s\n", c, disp);
+    }*/
+    for (size_t off = 0; off < length; off += BYTES_PER_LINE) {
+        size_t line_len = (length - off < BYTES_PER_LINE) ? (length - off) : BYTES_PER_LINE;
+        fprintf(stderr, "%04zx:  ", off);
+
+        /* Hex bytes, grouped by 4 for readability */
+        for (size_t i = 0; i < BYTES_PER_LINE; ++i) {
+            size_t idx = off + i;
+            if (i < line_len) {
+                int is_highlight = (idx == highlight_index);
+                if (use_color && is_highlight) fputs(color_red, stderr);
+                fprintf(stderr, "%02x", input[idx]);
+                if (use_color && is_highlight) fputs(color_reset, stderr);
+            } else {
+                fputs("  ", stderr);
+            }
+            if ((i & 3) == 3) fputs("  ", stderr);
+            else fputc(' ', stderr);
+        }
+
+        /* ASCII column */
+        fputc(' ', stderr);
+        for (size_t i = 0; i < line_len; ++i) {
+            size_t idx = off + i;
+            uint8_t c = input[idx];
+            int is_highlight = (idx == highlight_index);
+            if (use_color && is_highlight) fputs(color_red, stderr);
+            fputc(isprint(c) ? (char)c : '.', stderr);
+            if (use_color && is_highlight) fputs(color_reset, stderr);
+        }
+        fprintf(stderr, "\n");
+    }
+}
+
 void h_trace_begin(size_t input_len) {
     if (!display_trace)
         return;
@@ -305,8 +361,9 @@ void h_trace_end(HParseResult *res, HParseState *state) {
             fprintf(stdout, "%s%s", i ? ", " : "", trace_max.deepest_parsers[i]);
         fputc(']', stdout);
     }
-
+    
     fprintf(stdout, "\n");
+    h_trace_file_context(state->input_stream.input, state->input_stream.length, trace_max.index);
 }
 
 #endif /* HAMMER_TRACE_AST */

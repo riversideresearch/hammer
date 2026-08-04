@@ -13,7 +13,7 @@ static HParseResult *parse_ignore(void *env, HParseState *state) {
     res->bit_length = 0;
     return res;
 }
-
+// ...
 static bool ignore_isValidRegular(void *env) {
     HParser *p = (HParser *)env;
     return (p->vtable->isValidRegular(p->env));

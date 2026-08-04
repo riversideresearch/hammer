@@ -206,12 +206,12 @@ if not GetOption("in_place"):
     env["BUILD_BASE"] = "build/$VARIANT"
     lib = env.SConscript(["src/SConscript"], variant_dir="$BUILD_BASE/src")
     env.Alias(
-        "examples", env.SConscript(["examples/SConscript"], variant_dir="$BUILD_BASE/examples")
+        "examples", env.SConscript(["examples/old/SConscript"], variant_dir="$BUILD_BASE/examples")
     )
 else:
     env["BUILD_BASE"] = "."
     lib = env.SConscript(["src/SConscript"])
-    env.Alias(env.SConscript(["examples/SConscript"]))
+    env.Alias(env.SConscript(["examples/old/SConscript"]))
 
 for testrun in testruns:
     env.Alias("test", testrun)

@@ -5,18 +5,18 @@
 #include <glib.h>
 #include <stdio.h>
 
-static void test_registry_allocate_token_new_with_unamb(void) {
-    void unamb_sub(const HParsedToken *tok, struct result_buf *buf) {
-        h_append_buf_formatted(buf, "CUSTOM: %d", tok->token_type);
-    }
+static void test_unamb_sub(const HParsedToken *tok, struct result_buf *buf) {
+    h_append_buf_formatted(buf, "CUSTOM: %d", tok->token_type);
+}
 
-    HTokenType id = h_allocate_token_new("test.registry.unamb", unamb_sub, NULL);
+static void test_registry_allocate_token_new_with_unamb(void) {
+    HTokenType id = h_allocate_token_new("test.registry.unamb", test_unamb_sub, NULL);
     g_check_cmp_int(id, >=, TT_USER);
 
     const HTTEntry *entry = h_get_token_type_entry(id);
     g_check_cmp_ptr(entry, !=, NULL);
     if (entry) {
-        g_check_cmp_ptr(entry->unamb_sub, ==, unamb_sub);
+        g_check_cmp_ptr(entry->unamb_sub, ==, test_unamb_sub);
     }
 }
 

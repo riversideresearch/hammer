@@ -1,6 +1,9 @@
 /* Copyright (c) 2026 Riverside Research */
 #include "params.h"
 
+#include <errno.h>
+#include <inttypes.h>
+
 size_t h_get_param_k(void *param) {
     uintptr_t params_int;
 
@@ -66,29 +69,52 @@ char *h_format_name_with_param_k(HAllocator *mm__, const char *backend_name, siz
     return name;
 }
 
-/*TODO better error handling*/
+#define MAX_LENGTH 10
+
 int h_extract_param_k(HParserBackendWithParams *be_with_params,
                       backend_with_params_t *be_with_params_t) {
 
+    if (!be_with_params || !be_with_params_t)
+        return -1; // NULL input
+
     be_with_params->params = NULL;
 
-    int param_0 = -1;
-    int success = 0;
-    uintptr_t param;
-
-    size_t expected_params_len = 1;
     backend_params_t params_t = be_with_params_t->params;
-    size_t actual_params_len = params_t.len;
 
-    if (actual_params_len >= expected_params_len) {
-        backend_param_with_name_t param_t = params_t.params[0];
-        success = sscanf((char *)param_t.param.param, "%d", &param_0);
+    if (params_t.params == NULL || params_t.len == 0) {
+        return -2; // NULL params in be_with_params_t->params
     }
 
-    if (success) {
-        param = (uintptr_t)param_0;
-        be_with_params->params = (void *)param;
-    }
+    backend_param_with_name_t param_t = params_t.params[0];
+    if (param_t.param.param == NULL)
+        return -3; // NULL param
 
-    return success;
+    size_t len = param_t.param.len; // length of the param string
+    if (len > MAX_LENGTH || len == 0)
+        return -4; // param_t.param.len is too large or 0
+
+    // char's can sometimes be non NUL-terminated and will cause an overflow on sscanf, so
+    // nul-termination can be added inside a temp copy to avoid overwriting unowned memory
+    char tmp[MAX_LENGTH + 1];
+    memcpy(tmp, param_t.param.param, len);
+    tmp[len] = '\0';
+
+    errno = 0;
+    char *endptr = NULL;
+
+    intmax_t val = strtoumax(tmp, &endptr, 10);
+
+    if (endptr == tmp) {
+        return 0; // No conversion performed
+    }
+    if (errno == ERANGE) {
+        return -4;
+    }
+    if ((uintmax_t)val > UINTPTR_MAX)
+        return -4; // does not fit in uintptr_t
+
+    uintptr_t param = (uintptr_t)val;
+    be_with_params->params = (void *)param;
+
+    return 1; // Success
 }
