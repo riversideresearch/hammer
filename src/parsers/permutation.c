@@ -15,12 +15,14 @@ static int parse_permutation_tail(const HSequence *s, HCountedArray *seq, const 
         return 1;
 
     HInputStream bak = state->input_stream;
+    HActionPlan *bak_plan = state->action_plan;
 
     // try available parsers as first element of the permutation tail
     HParseResult *match = NULL;
     size_t i;
     for (i = 0; i < n; i++) {
         if (set[i]) {
+            state->action_plan = bak_plan;
             match = h_do_parse(ps[i], state);
 
             if (want_suspend(state))
@@ -45,10 +47,13 @@ static int parse_permutation_tail(const HSequence *s, HCountedArray *seq, const 
                 } else {
                     // place parser back in active set and try the next
                     set[i] = 1;
+                    state->action_plan = bak_plan;
                 }
             }
 
             state->input_stream = bak; // rewind input
+            if (!match)
+                state->action_plan = bak_plan;
         }
     }
 
@@ -60,10 +65,13 @@ static int parse_permutation_tail(const HSequence *s, HCountedArray *seq, const 
                 break;
         }
     }
-    if (i == n) // all were TT_NONE
+    if (i == n) { // all were TT_NONE
+        state->action_plan = bak_plan;
         return 1;
+    }
 
     // permutations exhausted
+    state->action_plan = bak_plan;
     return 0;
 }
 

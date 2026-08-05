@@ -51,6 +51,8 @@ typedef struct HSVMContext_ {
                         // item on the stack.
     size_t stack_capacity;
     size_t input_pos;
+    struct HActionPlan_ *action_plan;
+    void *action_plan_frames;
 } HSVMContext;
 
 // These actions all assume that the items on the stack are not

@@ -734,6 +734,11 @@ typedef struct HActionEntry_ {
 } HActionEntry;
 
 typedef struct {
+    /*
+     * Reserved compatibility fields. Deferred entries are now kept in an
+     * arena-owned, branch-local parse plan; the collection's address is the
+     * stable identity used to match h_action_stash() with h_action_apply().
+     */
     HActionEntry *head;
     HActionEntry *tail;
     size_t count;
@@ -741,32 +746,35 @@ typedef struct {
 } HActionCollection;
 
 /**
- * @brief Given another parser, p, and a function f, returns a parser that applies p, then applies f
- * to everything in the AST of p's result
+ * @brief Parse p and record an action for a matching h_action_apply() scope.
  * @param p Parser to wrap
  * @param a Action function
  * @param user_data Context for action
- * @param collection Collection populated while parsing p.
+ * @param collection Stable identity shared with a matching h_action_apply parser.
  * @return Result token type: any
  */
 HParser *h_action_stash(const HParser *p, const HAction a, void *user_data, HActionCollection *collection);
 HParser *h_action_stash__m(HAllocator *mm__, const HParser *p, const HAction a, void *user_data, HActionCollection *collection);
 
 /**
- * @brief Forget all stashed actions without running them.
+ * @brief Clear the collection's compatibility bookkeeping.
  *
- * The entries are owned by the parse arena and are released with the parse
- * result. This function only clears the collection's references to them.
+ * Deferred entries are owned by the active parse plan and are released with
+ * its parse arena. Calling this function never frees arena storage.
  */
 void h_action_collection_reset(HActionCollection *collection);
 
 /**
- * @brief Parse p and, if it succeeds, run the actions accumulated in collection.
+ * @brief Parse p and run its matching stashed actions once the complete parse
+ * path succeeds.
  * 
  * @param p An HParser containing h_action_stash parsers.
- * @param collection Collection populated while parsing p. 
+ * @param collection Stable identity shared with matching h_action_stash parsers.
  * @return Result token type: any.
- * @note clears collection if p fails. If collection is NULL, it still parses p.
+ * @note If collection is NULL, this still parses p but creates no apply scope.
+ * @note Deferred transformations are committed after the complete parse succeeds;
+ * ordinary actions and predicates executed during parsing see the placeholder's
+ * original value.
  */
 HParser *h_action_apply(HParser *p, HActionCollection *collection);
 HParser *h_action_apply__m(HAllocator *mm__, HParser *p, HActionCollection *collection);

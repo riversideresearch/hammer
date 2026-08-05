@@ -1,6 +1,155 @@
 /* Copyright (c) 2026 Riverside Research */
 #include "parser_internal.h"
 
+typedef enum {
+    HAP_STASH,
+    HAP_CONCAT,
+    HAP_APPLY,
+} HActionPlanType;
+
+struct HActionPlan_ {
+    HActionPlanType type;
+    union {
+        struct {
+            HActionEntry entry;
+            HActionCollection *collection;
+        } stash;
+        struct {
+            HActionPlan *left;
+            HActionPlan *right;
+        } concat;
+        struct {
+            HActionCollection *collection;
+            HActionPlan *child;
+        } apply;
+    } data;
+};
+
+typedef struct HActionPending_ {
+    const HActionEntry *entry;
+    struct HActionPending_ *next;
+} HActionPending;
+
+typedef struct HActionApplyFrame_ {
+    HActionCollection *collection;
+    HActionPending *head;
+    HActionPending *tail;
+    struct HActionApplyFrame_ *parent;
+} HActionApplyFrame;
+
+HActionPlan *h_action_plan_concat(HArena *arena, HActionPlan *left, HActionPlan *right) {
+    if (!left)
+        return right;
+    if (!right)
+        return left;
+
+    HActionPlan *plan = h_arena_malloc_noinit(arena, sizeof(*plan));
+    *plan = (HActionPlan){
+        .type = HAP_CONCAT,
+        .data.concat = {.left = left, .right = right},
+    };
+    return plan;
+}
+
+HActionPlan *h_action_plan_stash(HArena *arena, const HParseResult *result,
+                                 HParsedToken *placeholder, HAction action, void *user_data,
+                                 HActionCollection *collection) {
+    if (!arena || !result || !placeholder || !action || !collection)
+        return NULL;
+
+    HActionPlan *plan = h_arena_malloc_noinit(arena, sizeof(*plan));
+    *plan = (HActionPlan){
+        .type = HAP_STASH,
+        .data.stash = {
+            .entry = {
+                .res = *result,
+                .placeholder = placeholder,
+                .action = action,
+                .user_data = user_data,
+                .next = NULL,
+            },
+            .collection = collection,
+        },
+    };
+    return plan;
+}
+
+HActionPlan *h_action_plan_apply(HArena *arena, HActionCollection *collection,
+                                 HActionPlan *child) {
+    if (!child || !collection)
+        return child;
+
+    HActionPlan *plan = h_arena_malloc_noinit(arena, sizeof(*plan));
+    *plan = (HActionPlan){
+        .type = HAP_APPLY,
+        .data.apply = {.collection = collection, .child = child},
+    };
+    return plan;
+}
+
+static HActionApplyFrame *find_apply_frame(HActionApplyFrame *frame,
+                                           HActionCollection *collection) {
+    for (; frame; frame = frame->parent) {
+        if (frame->collection == collection)
+            return frame;
+    }
+    return NULL;
+}
+
+static bool execute_action_plan(HArena *arena, HActionPlan *plan, HActionApplyFrame *frame) {
+    if (!plan)
+        return true;
+
+    switch (plan->type) {
+    case HAP_STASH: {
+        HActionApplyFrame *owner = find_apply_frame(frame, plan->data.stash.collection);
+        if (!owner)
+            return true;
+
+        HActionPending *pending = h_arena_malloc_noinit(arena, sizeof(*pending));
+        pending->entry = &plan->data.stash.entry;
+        pending->next = NULL;
+        if (owner->tail)
+            owner->tail->next = pending;
+        else
+            owner->head = pending;
+        owner->tail = pending;
+        return true;
+    }
+    case HAP_CONCAT:
+        return execute_action_plan(arena, plan->data.concat.left, frame) &&
+               execute_action_plan(arena, plan->data.concat.right, frame);
+    case HAP_APPLY:
+        break;
+    }
+
+    HActionApplyFrame nested = {
+        .collection = plan->data.apply.collection,
+        .head = NULL,
+        .tail = NULL,
+        .parent = frame,
+    };
+    if (!execute_action_plan(arena, plan->data.apply.child, &nested))
+        return false;
+
+    for (HActionPending *pending = nested.head; pending; pending = pending->next) {
+        const HActionEntry *entry = pending->entry;
+        if (!entry || !entry->action || !entry->placeholder)
+            return false;
+
+        HParsedToken *transformed = entry->action(&entry->res, entry->user_data);
+        if (transformed)
+            *entry->placeholder = *transformed;
+        else
+            entry->placeholder->token_type = TT_NONE;
+    }
+    return true;
+}
+
+bool h_action_plan_execute(HArena *arena, HActionPlan *plan) {
+    return execute_action_plan(arena, plan, NULL);
+}
+
 typedef struct {
     const HParser *p;
     HAction action;
@@ -122,63 +271,6 @@ HParser *h_action__m(HAllocator *mm__, const HParser *p, const HAction a, void *
     env->user_data = user_data;
     return h_new_parser(mm__, &action_vt, env);
 }
-// HActionCollection Append
-
-static bool append_action(
-    HActionCollection *collection,
-    HArena *arena,
-    const HParseResult *result,
-    HParsedToken *placeholder,
-    HAction action,
-    void *user_data
-) {
-    if (!collection || !arena || !result ||
-        !placeholder || !action) {
-        return false;
-    }
-
-    /*
-     * Initialize the collection for this parse.
-     */
-    if (!collection->head) {
-        collection->tail = NULL;
-        collection->count = 0;
-        collection->arena = arena;
-    } else if (collection->arena != arena) {
-        /*
-         * The collection still contains entries belonging to another parse.
-         */
-        return false;
-    }
-
-    HActionEntry *entry =
-        h_arena_malloc(
-            arena,
-            sizeof(*entry)
-        );
-
-    if (!entry)
-        return false;
-
-    *entry = (HActionEntry){
-        .res = *result,
-        .placeholder = placeholder,
-        .action = action,
-        .user_data = user_data,
-        .next = NULL,
-    };
-
-    if (collection->tail) {
-        collection->tail->next = entry;
-    } else {
-        collection->head = entry;
-    }
-
-    collection->tail = entry;
-    collection->count++;
-
-    return true;
-}
 // Collection Reset
 void h_action_collection_reset(
     HActionCollection *collection
@@ -198,35 +290,36 @@ typedef struct {
     const HParser *p;
     HAction action;
     void *user_data;
-    HActionEntry *entry;
     HActionCollection *collection;
 } HParseActionStash;
+
+static HParsedToken *make_action_placeholder(HArena *arena, const HParseResult *result) {
+    HParsedToken *placeholder = h_arena_malloc_noinit(arena, sizeof(*placeholder));
+    if (result->ast) {
+        *placeholder = *result->ast;
+    } else {
+        *placeholder = (HParsedToken){
+            .token_type = TT_NONE,
+            .index = 0,
+            .bit_length = result->bit_length,
+            .bit_offset = 0,
+        };
+    }
+    return placeholder;
+}
 
 static HParseResult *parse_action_stash(void *env, HParseState *state) {
     HParseActionStash *a = (HParseActionStash *)env;
     if (a->p && a->action) {
         HParseResult *tmp = h_do_parse(a->p, state);
         if (tmp) {
-            HParsedToken *placeholder =
-                h_arena_malloc_noinit(state->arena, sizeof(*placeholder));
-            if (tmp->ast) {
-                *placeholder = *tmp->ast;
-            } else {
-                *placeholder = (HParsedToken){
-                    .token_type = TT_NONE,
-                    .index = 0,
-                    .bit_length = 0,
-                    .bit_offset = 0,
-                };
-            }
-            if (!append_action(
-                    a->collection,
-                    state->arena,
-                    tmp,
-                    placeholder,
-                    a->action,
-                    a->user_data))
+            HParsedToken *placeholder = make_action_placeholder(state->arena, tmp);
+            HActionPlan *stash = h_action_plan_stash(state->arena, tmp, placeholder, a->action,
+                                                     a->user_data, a->collection);
+            if (!stash)
                 return NULL;
+            state->action_plan =
+                h_action_plan_concat(state->arena, state->action_plan, stash);
             return make_result(state->arena, placeholder);
         } else
             return NULL;
@@ -238,34 +331,18 @@ static HParseResult *parse_action_stash(void *env, HParseState *state) {
  * Context-free backends invoke this semantic action after the wrapped
  * nonterminal has reduced. Stash the user's action instead of invoking it.
  */
-static HParsedToken *action_stash_cf(const HParseResult *result, void *user_data) {
+static HParsedToken *action_stash_cf(const HParseResult *result, void *user_data,
+                                     HActionPlan **plan) {
     HParseActionStash *a = (HParseActionStash *)user_data;
-    if (!a || !a->action || !a->collection || !result || !result->arena)
+    if (!a || !a->action || !a->collection || !result || !result->arena || !plan)
         return NULL;
 
-    HParsedToken *placeholder =
-        h_arena_malloc_noinit(result->arena, sizeof(*placeholder));
-
-    if (result->ast) {
-        *placeholder = *result->ast;
-    } else {
-        *placeholder = (HParsedToken){
-            .token_type = TT_NONE,
-            .index = 0,
-            .bit_offset = 0,
-            .bit_length = result->bit_length,
-        };
-    }
-
-    if (!append_action(
-            a->collection,
-            result->arena,
-            result,
-            placeholder,
-            a->action,
-            a->user_data)) {
+    HParsedToken *placeholder = make_action_placeholder(result->arena, result);
+    HActionPlan *stash = h_action_plan_stash(result->arena, result, placeholder, a->action,
+                                             a->user_data, a->collection);
+    if (!stash)
         return NULL;
-    }
+    *plan = h_action_plan_concat(result->arena, *plan, stash);
 
     return placeholder;
 }
@@ -277,7 +354,7 @@ static void desugar_action_stash(HAllocator *mm__, HCFStack *stk__, void *env) {
         HCFS_BEGIN_SEQ() { HCFS_DESUGAR(a->p); }
         HCFS_END_SEQ();
         HCFS_THIS_CHOICE->user_data = a;
-        HCFS_THIS_CHOICE->action = action_stash_cf;
+        HCFS_THIS_CHOICE->plan_action = action_stash_cf;
         HCFS_THIS_CHOICE->reshape = h_act_first;
     }
     HCFS_END_CHOICE();
@@ -344,25 +421,26 @@ static bool h_svm_action_action_stash(HArena *arena, HSVMContext *ctx, void *arg
     /* Collapse the private mark and optional child to one placeholder. */
     ctx->stack_count = mark_index + 1;
 
-    if (!append_action(
-            a->collection,
-            arena,
-            &res,
-            placeholder,
-            a->action,
-            a->user_data)) {
+    HActionPlan *stash = h_action_plan_stash(arena, &res, placeholder, a->action,
+                                             a->user_data, a->collection);
+    if (!stash)
         return false;
-    }
+    ctx->action_plan = h_action_plan_concat(arena, ctx->action_plan, stash);
 
     return true;
 }
 
 static bool action_stash_ctrvm(HRVMProg *prog, void *env) {
     HParseActionStash *a = (HParseActionStash *)env;
+    HParseActionStash *rvm_action = h_rvm_alloc(prog, sizeof(*rvm_action));
+    *rvm_action = *a;
+    rvm_action->p = NULL;
+
     h_rvm_insert_insn(prog, RVM_PUSH, 0);
     if (!h_compile_regex(prog, a->p))
         return false;
-    h_rvm_insert_insn(prog, RVM_ACTION, h_rvm_create_action(prog, h_svm_action_action_stash, a));
+    h_rvm_insert_insn(prog, RVM_ACTION,
+                      h_rvm_create_action(prog, h_svm_action_action_stash, rvm_action));
     return true;
 }
 
@@ -388,46 +466,6 @@ HParser *h_action_stash__m(HAllocator *mm__, const HParser *p, const HAction a, 
     return h_new_parser(mm__, &action_stash_vt, env);
 }
 
-static bool apply_actions(HActionCollection *collection) {
-    if (!collection)
-        return false;
-
-    if(!collection->head)
-        return false;
-    HActionEntry *entry = collection->head;
-
-    while (entry) {
-        if (!entry->action || !entry->placeholder)
-            return false;
-
-        HParsedToken *transformed =
-            entry->action(
-                &entry->res,
-                entry->user_data
-            );
-
-        if (transformed) {
-            if (transformed != entry->placeholder)
-                *entry->placeholder = *transformed;
-        } else {
-            entry->placeholder->token_type = TT_NONE;
-        }
-
-        entry = entry->next;
-    }
-
-    /*
-     * The arena owns the entries. Do not free them individually.
-     * Merely stop the collection from referencing them.
-     */
-    collection->head = NULL;
-    collection->tail = NULL;
-    collection->count = 0;
-    collection->arena = NULL;
-
-    return true;
-}
-
 // Action Apply
 typedef struct {
     const HParser *p;
@@ -440,46 +478,22 @@ static HParseResult *parse_action_apply(void *env, HParseState *state) {
     if (!a || !a->p)
         return NULL;
 
-    /*
-     * Parse the wrapped parser first. h_action_stash parsers encountered
-     * inside it populate the collection.
-     */
     HParseResult *res = h_do_parse(a->p, state);
-    if (!res) {
-        if(a->collection){
-            h_action_collection_reset(a->collection);
-            return NULL;
-        }
-    }
+    if (!res)
+        return NULL;
 
-    /*
-     * Only apply the stashed actions after the complete wrapped parser has
-     * succeeded.
-     */
-    if(a->collection){
-        if (!apply_actions(a->collection)) {
-            h_action_collection_reset(a->collection);
-        }
-    }
-
+    state->action_plan =
+        h_action_plan_apply(state->arena, a->collection, state->action_plan);
     return res;
 }
 
-/*
- * The outer h_action_apply reduction occurs only after its wrapped grammar
- * has reduced successfully, so all stash reductions are available here.
- */
-static HParsedToken *action_apply_cf(const HParseResult *result, void *user_data) {
+static HParsedToken *action_apply_cf(const HParseResult *result, void *user_data,
+                                     HActionPlan **plan) {
     HParseActionApply *a = (HParseActionApply *)user_data;
-    if (!a || !result)
+    if (!a || !result || !plan)
         return NULL;
 
-    if(a->collection){
-        if (!apply_actions(a->collection)) {
-            h_action_collection_reset(a->collection);
-        }
-    }
-
+    *plan = h_action_plan_apply(result->arena, a->collection, *plan);
     return (HParsedToken *)result->ast;
 }
 
@@ -490,7 +504,7 @@ static void desugar_action_apply(HAllocator *mm__, HCFStack *stk__, void *env) {
         HCFS_BEGIN_SEQ() { HCFS_DESUGAR(a->p); }
         HCFS_END_SEQ();
         HCFS_THIS_CHOICE->user_data = a;
-        HCFS_THIS_CHOICE->action = action_apply_cf;
+        HCFS_THIS_CHOICE->plan_action = action_apply_cf;
         HCFS_THIS_CHOICE->reshape = h_act_first;
     }
     HCFS_END_CHOICE();
@@ -506,28 +520,51 @@ static bool action_apply_isValidRegular(void *env) {
     return a->p->vtable->isValidRegular(a->p->env);
 }
 
-static bool h_svm_action_action_apply(HArena *arena, HSVMContext *ctx, void *arg) {
-    (void)arena;
-    (void)ctx;
+typedef struct HSVMActionPlanFrame_ {
+    HParseActionApply *owner;
+    HActionPlan *parent_plan;
+    struct HSVMActionPlanFrame_ *parent;
+} HSVMActionPlanFrame;
 
+static bool h_svm_action_begin_apply(HArena *arena, HSVMContext *ctx, void *arg) {
     HParseActionApply *a = (HParseActionApply *)arg;
     if (!a)
         return false;
 
-    if(a->collection){
-        if (!apply_actions(a->collection)) {
-            h_action_collection_reset(a->collection);
-        }
-    }
+    HSVMActionPlanFrame *frame = h_arena_malloc_noinit(arena, sizeof(*frame));
+    frame->owner = a;
+    frame->parent_plan = ctx->action_plan;
+    frame->parent = ctx->action_plan_frames;
+    ctx->action_plan_frames = frame;
+    ctx->action_plan = NULL;
+    return true;
+}
 
+static bool h_svm_action_end_apply(HArena *arena, HSVMContext *ctx, void *arg) {
+    HParseActionApply *a = (HParseActionApply *)arg;
+    HSVMActionPlanFrame *frame = ctx->action_plan_frames;
+
+    if (!a || !frame || frame->owner != a)
+        return false;
+
+    HActionPlan *scoped = h_action_plan_apply(arena, a->collection, ctx->action_plan);
+    ctx->action_plan = h_action_plan_concat(arena, frame->parent_plan, scoped);
+    ctx->action_plan_frames = frame->parent;
     return true;
 }
 
 static bool action_apply_ctrvm(HRVMProg *prog, void *env) {
     HParseActionApply *a = (HParseActionApply *)env;
+    HParseActionApply *rvm_action = h_rvm_alloc(prog, sizeof(*rvm_action));
+    *rvm_action = *a;
+    rvm_action->p = NULL;
+
+    h_rvm_insert_insn(prog, RVM_ACTION,
+                      h_rvm_create_action(prog, h_svm_action_begin_apply, rvm_action));
     if (!h_compile_regex(prog, a->p))
         return false;
-    h_rvm_insert_insn(prog, RVM_ACTION, h_rvm_create_action(prog, h_svm_action_action_apply, a));
+    h_rvm_insert_insn(prog, RVM_ACTION,
+                      h_rvm_create_action(prog, h_svm_action_end_apply, rvm_action));
     return true;
 }
 

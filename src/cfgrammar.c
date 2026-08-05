@@ -96,6 +96,7 @@ HCFGrammar *h_cfgrammar_(HAllocator *mm__, HCFChoice *desugared) {
         nt->data.seq[1] = NULL;
         nt->pred = NULL;
         nt->action = NULL;
+        nt->plan_action = NULL;
         nt->reshape = h_act_first;
         nt->user_data = NULL;
         nt->dispatch_opcode = 0;

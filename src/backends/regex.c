@@ -248,6 +248,8 @@ HParseResult *run_trace(HAllocator *mm__, HRVMProg *orig_prog, HRVMTrace *trace,
     ctx->stack_count = 0;
     ctx->stack_capacity = 16;
     ctx->stack = h_new(HParsedToken *, ctx->stack_capacity);
+    ctx->action_plan = NULL;
+    ctx->action_plan_frames = NULL;
 
     // out of memory handling
     if (!arena || !ctx->stack)
@@ -303,7 +305,11 @@ HParseResult *run_trace(HAllocator *mm__, HRVMProg *orig_prog, HRVMTrace *trace,
         case SVM_ACCEPT:
             if (ctx->stack_count > 1)
                 goto fail;
+            if (ctx->action_plan_frames)
+                goto fail;
             assert(ctx->stack_count <= 1);
+            if (!h_action_plan_execute(arena, ctx->action_plan))
+                goto fail;
             HParseResult *res = a_new0(HParseResult, 1);
             if (ctx->stack_count == 1) {
                 res->ast = ctx->stack[0];

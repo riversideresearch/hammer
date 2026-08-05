@@ -3,10 +3,12 @@
 
 static HParseResult *parse_and(void *env, HParseState *state) {
     HInputStream bak = state->input_stream;
+    HActionPlan *plan = state->action_plan;
     HParseResult *res = h_do_parse((HParser *)env, state);
     if (!res)
         return NULL; // propagate failed input state, esp. overrun
     state->input_stream = bak;
+    state->action_plan = plan;
     return make_result(state->arena, NULL);
 }
 

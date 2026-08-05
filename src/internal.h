@@ -223,6 +223,7 @@ struct HParseState_ {
     HSlist *lr_stack;
     HHashTable *recursion_heads;
     HSlist *symbol_table; // its contents are HHashTables
+    struct HActionPlan_ *action_plan;
 };
 
 struct HSuspendedParser_ {
@@ -285,6 +286,8 @@ typedef struct HParserCacheKey_ {
     const HParser *parser;
 } HParserCacheKey;
 
+typedef struct HActionPlan_ HActionPlan;
+
 /* A value in the cache is either of value Left or Right (this is a
  * holdover from Scala, which used Either here). Left corresponds to
  * HLeftRec, which is for left recursion; Right corresponds to
@@ -315,6 +318,7 @@ typedef struct HRecursionHead_ {
  */
 typedef struct HLeftRec_ {
     HParseResult *seed;
+    HActionPlan *seed_plan;
     const HParser *rule;
     HRecursionHead *head;
 } HLeftRec;
@@ -330,6 +334,7 @@ typedef struct HParserCacheValue_t {
         HParseResult *right;
     } value;
     HInputStream input_stream;
+    HActionPlan *action_plan;
 } HParserCacheValue;
 
 // This file provides the logical inverse of bitreader.c
@@ -382,6 +387,14 @@ static inline size_t h_input_stream_length(HInputStream *state) {
 // need to decide if we want to make this public.
 HParseResult *h_do_parse(const HParser *parser, HParseState *state);
 void put_cached(HParseState *ps, const HParser *p, HParseResult *cached);
+
+HActionPlan *h_action_plan_concat(HArena *arena, HActionPlan *left, HActionPlan *right);
+HActionPlan *h_action_plan_stash(HArena *arena, const HParseResult *result,
+                                 HParsedToken *placeholder, HAction action, void *user_data,
+                                 HActionCollection *collection);
+HActionPlan *h_action_plan_apply(HArena *arena, HActionCollection *collection,
+                                 HActionPlan *child);
+bool h_action_plan_execute(HArena *arena, HActionPlan *plan);
 
 /*
  * Inline this for benefit of h_new_parser() below, then make
@@ -495,6 +508,9 @@ void *h_symbol_free(HParseState *state, const char *key);
 
 typedef struct HCFSequence_ HCFSequence;
 
+typedef HParsedToken *(*HCFPlanAction)(const HParseResult *result, void *user_data,
+                                      HActionPlan **plan);
+
 struct HCFChoice_ {
     enum HCFChoiceType { HCF_END, HCF_CHOICE, HCF_CHARSET, HCF_CHAR } type;
     union {
@@ -505,6 +521,7 @@ struct HCFChoice_ {
     HAction reshape; // take CFG parse tree to HParsedToken of expected form.
                      // to execute before action and pred are applied.
     HAction action;
+    HCFPlanAction plan_action;
     HPredicate pred;
     void *user_data;
     size_t dispatch_opcode;
@@ -583,6 +600,7 @@ static inline HCFChoice *h_cfstack_new_choice_raw(HAllocator *mm__, HCFStack *st
 
     ret->reshape = NULL;
     ret->action = NULL;
+    ret->plan_action = NULL;
     ret->pred = NULL;
     ret->type = ~0; // invalid type
     // Add it to the current sequence...

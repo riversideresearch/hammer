@@ -287,13 +287,17 @@ bool h_lrengine_step(HLREngine *engine, const HLRAction *action) {
         HParsedToken *value = h_arena_malloc(arena, sizeof(HParsedToken));
         value->token_type = TT_SEQUENCE;
         value->token_data.seq = h_carray_new_sized(arena, len);
+        HActionPlan *plan = NULL;
 
         // pull values off the stack, rewinding state accordingly
         HParsedToken *v = NULL;
         for (size_t i = 0; i < len; i++) {
             if (h_slist_empty(stack))
                 return false;
-            v = h_slist_drop(stack);
+            HLRSemanticValue *child = h_slist_drop(stack);
+            if (!child)
+                return false;
+            v = child->ast;
             if (h_slist_empty(stack))
                 return false;
             engine->state = (uintptr_t)h_slist_drop(stack);
@@ -301,6 +305,10 @@ bool h_lrengine_step(HLREngine *engine, const HLRAction *action) {
             // collect values in result sequence
             value->token_data.seq->elements[len - 1 - i] = v;
             value->token_data.seq->used++;
+
+            // Values are popped right-to-left. Prepend this child's plan so
+            // deferred actions retain their left-to-right parse order.
+            plan = h_action_plan_concat(arena, child->plan, plan);
         }
         if (v) {
             // result position equals position of left-most symbol
@@ -326,7 +334,9 @@ bool h_lrengine_step(HLREngine *engine, const HLRAction *action) {
         // call validation and semantic action, if present
         if (symbol->pred && !symbol->pred(make_result(tarena, value), symbol->user_data))
             return false; // validation failed -> no parse; terminate
-        if (symbol->action)
+        if (symbol->plan_action)
+            value = symbol->plan_action(make_result(arena, value), symbol->user_data, &plan);
+        else if (symbol->action)
             value = symbol->action(make_result(arena, value), symbol->user_data);
 
         // this is LR, building a right-most derivation bottom-up, so no reduce can
@@ -340,8 +350,11 @@ bool h_lrengine_step(HLREngine *engine, const HLRAction *action) {
             return false;
 
         // piggy-back the shift right here, never touching the input
+        HLRSemanticValue *semantic = h_arena_malloc(tarena, sizeof(*semantic));
+        semantic->ast = value;
+        semantic->plan = plan;
         h_slist_push(stack, (void *)(uintptr_t)engine->state);
-        h_slist_push(stack, value);
+        h_slist_push(stack, semantic);
         engine->state = shift->data.nextstate;
 
         // check for success
@@ -354,8 +367,11 @@ bool h_lrengine_step(HLREngine *engine, const HLRAction *action) {
     } else {
         assert(action->type == HLR_SHIFT);
         HParsedToken *value = consume_input(engine);
+        HLRSemanticValue *semantic = h_arena_malloc(tarena, sizeof(*semantic));
+        semantic->ast = value;
+        semantic->plan = NULL;
         h_slist_push(stack, (void *)(uintptr_t)engine->state);
-        h_slist_push(stack, value);
+        h_slist_push(stack, semantic);
         engine->state = action->data.nextstate;
     }
 
@@ -369,13 +385,25 @@ HParseResult *h_lrengine_result(HLREngine *engine) {
         assert(!h_slist_empty(engine->stack));
         if (h_slist_empty(engine->stack))
             return NULL;
-        HParsedToken *tok = engine->stack->head->elem;
-        HParseResult *res = make_result(engine->arena, tok);
+        HLRSemanticValue *value = engine->stack->head->elem;
+        if (!value)
+            return NULL;
+        HParseResult *res = make_result(engine->arena, value->ast);
         res->bit_length = (engine->input.pos + engine->input.index) * 8;
         return res;
     } else {
         return NULL;
     }
+}
+
+bool h_lrengine_execute_plan(HLREngine *engine) {
+    if (!engine || engine->state != HLR_SUCCESS || h_slist_empty(engine->stack))
+        return false;
+
+    HLRSemanticValue *value = engine->stack->head->elem;
+    if (!value)
+        return false;
+    return h_action_plan_execute(engine->arena, value->plan);
 }
 
 HParseResult *h_lr_parse(HAllocator *mm__, const HParser *parser, HInputStream *stream) {
@@ -402,6 +430,8 @@ HParseResult *h_lr_parse(HAllocator *mm__, const HParser *parser, HInputStream *
         ;
 
     HParseResult *result = h_lrengine_result(engine);
+    if (result && !h_lrengine_execute_plan(engine))
+        result = NULL;
     if (!result)
         h_delete_arena(arena);
     h_delete_arena(tarena);
@@ -483,6 +513,8 @@ HParseResult *h_lr_parse_finish(HSuspendedParser *s) {
         return NULL;
 
     HParseResult *result = h_lrengine_result(engine);
+    if (result && !h_lrengine_execute_plan(engine))
+        result = NULL;
     if (!result)
         h_delete_arena(engine->arena);
     h_delete_arena(engine->tarena);

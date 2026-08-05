@@ -65,11 +65,16 @@ typedef struct HLREnhGrammar_ {
     HArena *arena;
 } HLREnhGrammar;
 
+typedef struct HLRSemanticValue_ {
+    HParsedToken *ast;
+    HActionPlan *plan;
+} HLRSemanticValue;
+
 typedef struct HLREngine_ {
     const HLRTable *table;
     size_t state;
 
-    HSlist *stack; // holds pairs: (saved state, semantic value)
+    HSlist *stack; // holds pairs: (saved state, HLRSemanticValue *)
     HInputStream input;
 
     struct HLREngine_ *merged[2]; // ancestors merged into this engine
@@ -131,6 +136,7 @@ void h_lalr_free(HParser *parser);
 const HLRAction *h_lrengine_action(const HLREngine *engine);
 bool h_lrengine_step(HLREngine *engine, const HLRAction *action);
 HParseResult *h_lrengine_result(HLREngine *engine);
+bool h_lrengine_execute_plan(HLREngine *engine);
 HParseResult *h_lr_parse(HAllocator *mm__, const HParser *parser, HInputStream *stream);
 void h_lr_parse_start(HSuspendedParser *s);
 bool h_lr_parse_chunk(HSuspendedParser *s, HInputStream *stream);
