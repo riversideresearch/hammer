@@ -725,6 +725,60 @@ HParser *h_middle__m(HAllocator *mm__, const HParser *p, const HParser *x, const
 HParser *h_action(const HParser *p, const HAction a, void *user_data);
 HParser *h_action__m(HAllocator *mm__, const HParser *p, const HAction a, void *user_data);
 
+typedef struct HActionEntry_ {
+    HParseResult res;
+    HParsedToken *placeholder;
+    HAction action;
+    void *user_data;
+    struct HActionEntry_ *next;
+} HActionEntry;
+
+typedef struct {
+    /*
+     * Reserved compatibility fields. Deferred entries are now kept in an
+     * arena-owned, branch-local parse plan; the collection's address is the
+     * stable identity used to match h_action_stash() with h_action_apply().
+     */
+    HActionEntry *head;
+    HActionEntry *tail;
+    size_t count;
+    HArena *arena;
+} HActionCollection;
+
+/**
+ * @brief Parse p and record an action for a matching h_action_apply() scope.
+ * @param p Parser to wrap
+ * @param a Action function
+ * @param user_data Context for action
+ * @param collection Stable identity shared with a matching h_action_apply parser.
+ * @return Result token type: any
+ */
+HParser *h_action_stash(const HParser *p, const HAction a, void *user_data, HActionCollection *collection);
+HParser *h_action_stash__m(HAllocator *mm__, const HParser *p, const HAction a, void *user_data, HActionCollection *collection);
+
+/**
+ * @brief Clear the collection's compatibility bookkeeping.
+ *
+ * Deferred entries are owned by the active parse plan and are released with
+ * its parse arena. Calling this function never frees arena storage.
+ */
+void h_action_collection_reset(HActionCollection *collection);
+
+/**
+ * @brief Parse p and run its matching stashed actions once the complete parse
+ * path succeeds.
+ * 
+ * @param p An HParser containing h_action_stash parsers.
+ * @param collection Stable identity shared with matching h_action_stash parsers.
+ * @return Result token type: any.
+ * @note If collection is NULL, this still parses p but creates no apply scope.
+ * @note Deferred transformations are committed after the complete parse succeeds;
+ * ordinary actions and predicates executed during parsing see the placeholder's
+ * original value.
+ */
+HParser *h_action_apply(HParser *p, HActionCollection *collection);
+HParser *h_action_apply__m(HAllocator *mm__, HParser *p, HActionCollection *collection);
+
 /**
  * @brief Parse a single byte that is in the given charset. Always attempts to
  * consume exactly one byte from the input; advances the cursor by one byte on

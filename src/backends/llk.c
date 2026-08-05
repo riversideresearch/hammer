@@ -291,6 +291,7 @@ typedef struct {
     HArena *tarena; // tmp, deleted after parse
     HSlist *stack;
     HCountedArray *seq; // accumulates current parse result
+    HActionPlan *action_plan;
 
     uint8_t *buf;     // for lookahead across chunk boundaries
                       // allocated to size 2*kmax
@@ -333,6 +334,7 @@ static HLLkState *llk_parse_start_(HAllocator *mm__, const HParser *parser) {
     }
     s->stack = h_slist_new(s->tarena);
     s->seq = h_carray_new(s->arena);
+    s->action_plan = NULL;
     s->buf = h_arena_malloc(s->tarena, 2 * table->kmax);
 
     s->win.input = s->buf;
@@ -418,6 +420,7 @@ static bool save_win(size_t kmax, HLLkState *s, HInputStream *stream) {
 // returns partial result or NULL (no parse)
 static HCountedArray *llk_parse_chunk_(HLLkState *s, const HParser *parser, HInputStream *chunk) {
     HParsedToken *tok = NULL; // will hold result token
+    HActionPlan *tok_plan = NULL;
     HCFChoice *x = NULL;      // current symbol (from top of stack)
     HInputStream *stream;
 
@@ -447,6 +450,7 @@ static HCountedArray *llk_parse_chunk_(HLLkState *s, const HParser *parser, HInp
         goto no_parse;
 
     HCountedArray *seq = s->seq;
+    HActionPlan *plan = s->action_plan;
 
     if (s->win.length > 0) {
         if (!append_win(kmax, s, chunk))
@@ -459,6 +463,7 @@ static HCountedArray *llk_parse_chunk_(HLLkState *s, const HParser *parser, HInp
     // when we empty the stack, the parse is complete.
     while (!h_slist_empty(stack)) {
         tok = NULL;
+        tok_plan = NULL;
 
         // pop top of stack for inspection
         x = h_slist_pop(stack);
@@ -484,11 +489,13 @@ static HCountedArray *llk_parse_chunk_(HLLkState *s, const HParser *parser, HInp
 
             // push stack frame
             h_slist_push(stack, seq);          // save current partial value
+            h_slist_push(stack, plan);         // save its deferred action plan
             h_slist_push(stack, x);            // save the nonterminal
             h_slist_push(stack, (void *)MARK); // frame delimiter
 
             // open a fresh result sequence
             seq = h_carray_new(arena);
+            plan = NULL;
 
             // push production's rhs onto the stack (in reverse order)
             HCFChoice **s;
@@ -510,9 +517,13 @@ static HCountedArray *llk_parse_chunk_(HLLkState *s, const HParser *parser, HInp
             // XXX would have to set token pos but we've forgotten pos of seq
 
             // recover original nonterminal and result sequence
+            tok_plan = plan;
             if (h_slist_empty(stack))
                 goto no_parse;
             x = h_slist_pop(stack);
+            if (h_slist_empty(stack))
+                goto no_parse;
+            plan = h_slist_pop(stack);
             if (h_slist_empty(stack))
                 goto no_parse;
             seq = h_slist_pop(stack);
@@ -582,11 +593,14 @@ static HCountedArray *llk_parse_chunk_(HLLkState *s, const HParser *parser, HInp
         // call validation and semantic action, if present
         if (x->pred && !x->pred(make_result(tarena, tok), x->user_data))
             goto no_parse; // validation failed -> no parse
-        if (x->action)
+        if (x->plan_action)
+            tok = x->plan_action(make_result(arena, tok), x->user_data, &tok_plan);
+        else if (x->action)
             tok = (HParsedToken *)x->action(make_result(arena, tok), x->user_data);
 
         // append to result sequence
         h_carray_append(seq, tok);
+        plan = h_action_plan_concat(arena, plan, tok_plan);
     }
 
     // success
@@ -597,12 +611,14 @@ static HCountedArray *llk_parse_chunk_(HLLkState *s, const HParser *parser, HInp
     assert(seq->used == 1);
 
 end:
+    s->action_plan = plan;
     h_arena_set_except(arena, NULL);
     h_arena_set_except(tarena, NULL);
     return seq;
 
 no_parse:
     seq = NULL;
+    plan = NULL;
     goto end;
 
 need_input:
@@ -623,7 +639,12 @@ static HParseResult *llk_parse_finish_(HAllocator *mm__, HLLkState *s) {
             res = NULL;
         } else {
             assert(s->seq->used == 1);
-            res = make_result(s->arena, s->seq->elements[0]);
+            if (!h_action_plan_execute(s->arena, s->action_plan)) {
+                h_delete_arena(s->arena);
+                res = NULL;
+            } else {
+                res = make_result(s->arena, s->seq->elements[0]);
+            }
         }
     } else {
         h_delete_arena(s->arena);

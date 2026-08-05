@@ -58,7 +58,9 @@ Legend:
 | `h_ignore` | Yes | If child | If child | If child | If child | Suppresses the child result. |
 | `h_whitespace` | Yes | If child | If child | If child | If child | Wraps another parser with whitespace handling. |
 | `h_action` | Yes | If child | If child | If child | If child | Semantic action is preserved by RVM and CFG backends. |
-| `h_attr_bool` | Yes | No | If child | If child | If child | Predicate is preserved by RVM and CFG backends. |
+| `h_action_stash` | Yes | If child | If child | If child | If child | Semantic action is preserved by RVM and CFG backends. |
+| `h_action_apply` | Yes | If child | If child | If child | If child | Semantic action is preserved by RVM and CFG backends. |
+| `h_attr_bool` | Yes | If child | If child | If child | If child | Predicate is preserved by RVM and CFG backends. |
 | `h_epsilon_p` | Yes | Yes | Yes | Yes | Yes | Empty success. |
 | `h_end_p` | Yes | Yes | Yes | Yes | Yes | End-of-input marker. |
 | `h_nothing_p` | Yes | Yes | Yes | Yes | Yes | Always fails. |

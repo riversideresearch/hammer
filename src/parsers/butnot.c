@@ -17,6 +17,7 @@ static HParseResult *parse_butnot(void *env, HParseState *state) {
     }
     // cache the state after parse #1, since we might have to back up to it
     HInputStream after_p1_state = state->input_stream;
+    HActionPlan *after_p1_plan = state->action_plan;
     state->input_stream = start_state;
     HParseResult *r2 = h_do_parse(parsers->p2, state);
     // don't touch the input state (overrun flag) if we must suspend
@@ -25,6 +26,7 @@ static HParseResult *parse_butnot(void *env, HParseState *state) {
     }
     // in all other cases, the input stream should be in the post-p1 state
     state->input_stream = after_p1_state;
+    state->action_plan = after_p1_plan;
     if (NULL == r2) {
         return r1;
     }
