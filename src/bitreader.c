@@ -29,10 +29,11 @@
 
 int64_t h_read_bits(HInputStream *state, int count, char signed_p) {
     // BUG: Does not
-    int64_t out = 0;
+    int original_count = count;
+    uint64_t out = 0;
     int offset = 0;
     int final_shift = 0;
-    int64_t msb = ((signed_p ? 1LL : 0) << (count - 1)); // 0 if unsigned, else 1 << (nbits - 1)
+    uint64_t msb = signed_p && original_count > 0 ? (UINT64_C(1) << (original_count - 1)) : 0;
 
     // overflow check...
     int bits_left = (state->length - state->index); // well, bytes for now
@@ -63,7 +64,7 @@ int64_t h_read_bits(HInputStream *state, int count, char signed_p) {
             int i;
             for (i = 0; count > 0; i += 8) {
                 count -= 8;
-                out |= (int64_t)state->input[state->index++] << i;
+                out |= (uint64_t)state->input[state->index++] << i;
             }
         }
     } else {
@@ -104,14 +105,14 @@ int64_t h_read_bits(HInputStream *state, int count, char signed_p) {
             if (state->endianness & BYTE_BIG_ENDIAN) {
                 out = out << segment_len | segment;
             } else { // BYTE_LITTLE_ENDIAN
-                out |= (int64_t)segment << offset;
+                out |= (uint64_t)segment << offset;
                 offset += segment_len;
             }
             count -= segment_len;
         }
     }
     out <<= final_shift;
-    return (out ^ msb) - msb; // perform sign extension
+    return (int64_t)((out ^ msb) - msb); // perform sign extension
 }
 
 void h_skip_bits(HInputStream *stream, size_t count) {
