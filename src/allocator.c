@@ -180,36 +180,24 @@ static void *h_arena_malloc_raw(HArena *arena, size_t size, bool need_zero) {
 #endif
     } else if (size > arena->block_size) {
         /*
-         * We need a new, dedicated block for it, because it won't fit in a
-         * standard sized one.
-         *
-         * NOTE:
-         *
-         * We used to do a silly casting dance to treat blocks like this
-         * as special cases and make the used/free fields part of the allocated
-         * block, but the old code was not really proper portable C and depended
-         * on a bunch of implementation-specific behavior.  We could have done it
-         * better with a union in struct arena_link, but the memory savings is
-         * only 0.39% for a 64-bit machine, a 4096-byte block size and all
-         * large allocations *only just one byte* over the block size, so I
-         * question the utility of it.  We do still slip the large block in
-         * one position behind the list head so it doesn't cut off a partially
-         * filled list head.
-         *
-         * -- andrea
+         * Keep dedicated blocks behind the current head so they do not displace
+         * a partially filled standard block. Attach the link before allocating
+         * its block so h_delete_arena() owns it if allocation longjmps.
          */
-        link = (struct arena_link *)alloc_block(arena, sizeof(struct arena_link));
-        if (link == NULL) {
+        link = (struct arena_link *)alloc_block(arena, sizeof(*link));
+        if (!link)
             return NULL;
-        }
+
+        link->block = NULL;
+        link->next = arena->head->next;
+        arena->head->next = link;
+
         uint8_t *block = (uint8_t *)alloc_block(arena, size);
-        arena->used += size;
-        arena->wasted += sizeof(struct arena_link);
         link->block = block;
         link->used = size;
         link->free = 0;
-        link->next = arena->head->next;
-        arena->head->next = link;
+        arena->used += size;
+        arena->wasted += sizeof(struct arena_link);
         ret = link->block;
 
 #ifdef DETAILED_ARENA_STATS
@@ -225,20 +213,22 @@ static void *h_arena_malloc_raw(HArena *arena, size_t size, bool need_zero) {
 #endif
     } else {
         /* we just need to allocate an ordinary new block. */
-        link = (struct arena_link *)alloc_block(arena, sizeof(struct arena_link));
-        if (link == NULL) {
+        link = (struct arena_link *)alloc_block(arena, sizeof(*link));
+        if (!link)
             return NULL;
-        }
+
+        link->block = NULL;
+        link->next = arena->head;
+        arena->head = link;
+
         uint8_t *block = (uint8_t *)alloc_block(arena, arena->block_size);
+        link->block = block;
+        link->free = arena->block_size - size;
+        link->used = size;
 #ifdef DETAILED_ARENA_STATS
         arena->mm_malloc_count += 2; /* link and block allocations */
         arena->mm_malloc_bytes += sizeof(struct arena_link) + arena->block_size;
 #endif
-        link->block = block;
-        link->free = arena->block_size - size;
-        link->used = size;
-        link->next = arena->head;
-        arena->head = link;
         arena->used += size;
         arena->wasted += sizeof(struct arena_link) + arena->block_size - size;
         ret = link->block;

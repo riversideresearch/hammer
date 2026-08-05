@@ -7,6 +7,117 @@
 #include <glib.h>
 #include <string.h>
 
+typedef struct {
+    HAllocator allocator;
+    void *fail_realloc_ptr;
+    void *failed_realloc_ptr;
+    bool fail_next_realloc;
+} CFStackOOMAllocator;
+
+static void *cfstack_oom_alloc(HAllocator *mm__, size_t size) {
+    (void)mm__;
+    return system_allocator.alloc(&system_allocator, size);
+}
+
+static void *cfstack_oom_realloc(HAllocator *mm__, void *ptr, size_t size) {
+    CFStackOOMAllocator *state = (CFStackOOMAllocator *)mm__;
+    if (state->fail_next_realloc || ptr == state->fail_realloc_ptr) {
+        state->fail_next_realloc = false;
+        state->failed_realloc_ptr = ptr;
+        return NULL;
+    }
+    return system_allocator.realloc(&system_allocator, ptr, size);
+}
+
+static void cfstack_oom_free(HAllocator *mm__, void *ptr) {
+    (void)mm__;
+    system_allocator.free(&system_allocator, ptr);
+}
+
+static CFStackOOMAllocator cfstack_oom_allocator(void) {
+    CFStackOOMAllocator state = {
+        .allocator = {cfstack_oom_alloc, cfstack_oom_realloc, cfstack_oom_free, NULL, NULL},
+        .fail_realloc_ptr = NULL,
+        .failed_realloc_ptr = NULL,
+        .fail_next_realloc = false,
+    };
+    return state;
+}
+
+static void test_cfstack_begin_seq_realloc_failure(void) {
+    if (g_test_subprocess()) {
+        CFStackOOMAllocator state = cfstack_oom_allocator();
+        HAllocator *mm__ = &state.allocator;
+        HCFStack *stack = h_cfstack_new(mm__);
+
+        h_cfstack_begin_choice(mm__, stack);
+        HCFChoice *choice = stack->stack[0];
+        HCFSequence **old_seq = choice->data.seq;
+        state.fail_realloc_ptr = old_seq;
+
+        h_cfstack_begin_seq(mm__, stack);
+
+        /*
+         * Reached only if h_cfstack_begin_seq() unexpectedly returns after
+         * the failed realloc. Restore the original allocation before forcing
+         * failure so this regression path remains sanitizer-clean.
+         */
+        if (!choice->data.seq)
+            choice->data.seq = old_seq;
+        mm__->free(mm__, choice->data.seq);
+        mm__->free(mm__, choice);
+        h_cfstack_free(mm__, stack);
+        g_error("h_cfstack_begin_seq returned after realloc failure");
+    }
+
+    g_test_trap_subprocess(NULL, 0, G_TEST_SUBPROCESS_DEFAULT);
+    g_test_trap_assert_failed();
+    g_test_trap_assert_stderr("*memory reallocation failed*");
+}
+
+static void test_cfstack_begin_choice_realloc_failure(void) {
+    if (g_test_subprocess()) {
+        CFStackOOMAllocator state = cfstack_oom_allocator();
+        HAllocator *mm__ = &state.allocator;
+        HCFStack *stack = h_cfstack_new(mm__);
+
+        /* Fill the four-entry stack with valid nested choices. */
+        for (size_t i = 0; i < 4; i++) {
+            h_cfstack_begin_choice(mm__, stack);
+            h_cfstack_begin_seq(mm__, stack);
+        }
+        assert(stack->count == stack->cap);
+        state.fail_realloc_ptr = stack->stack;
+
+        h_cfstack_begin_choice(mm__, stack);
+        g_error("h_cfstack_begin_choice returned after realloc failure");
+    }
+
+    g_test_trap_subprocess(NULL, 0, G_TEST_SUBPROCESS_DEFAULT);
+    g_test_trap_assert_failed();
+    g_test_trap_assert_stderr("*memory reallocation failed*");
+}
+
+static void test_desugar_uses_context_arena_for_cf_storage(void) {
+    CFStackOOMAllocator state = cfstack_oom_allocator();
+    HAllocator *mm__ = &state.allocator;
+    HParser *parser = h_epsilon_p__m(mm__);
+
+    /*
+     * Desugared CFG storage is arena-owned by the parser's desugar context.
+     * A pending realloc failure on the parser owner allocator must not be
+     * consumed by the internal CF stack growth path.
+     */
+    state.fail_next_realloc = true;
+    HCFChoice *choice = h_desugar(mm__, NULL, parser);
+
+    g_check_cmp_ptr(choice, !=, NULL);
+    g_check_cmp_ptr(state.failed_realloc_ptr, ==, NULL);
+    g_check_cmp_int(state.fail_next_realloc, ==, true);
+
+    h_parser_free__m(mm__, parser);
+}
+
 // Helper continuation functions for testing bind parser
 static HParser *bind_cont(HAllocator *mm__, const HParsedToken *x, void *user_data) {
     (void)mm__;
@@ -187,9 +298,9 @@ static void test_desugar_context_lifetime(void) {
     HParser *sequence = h_sequence(p1, p2, NULL);
 
     g_check_cmp_ptr(h_desugar(&system_allocator, NULL, sequence), !=, NULL);
-    //g_check_cmp_ptr(sequence->desugar_ctx, !=, NULL);
-    //g_check_cmp_ptr(p1->desugar_ctx, ==, sequence->desugar_ctx);
-    //g_check_cmp_ptr(p2->desugar_ctx, ==, sequence->desugar_ctx);
+    // g_check_cmp_ptr(sequence->desugar_ctx, !=, NULL);
+    // g_check_cmp_ptr(p1->desugar_ctx, ==, sequence->desugar_ctx);
+    // g_check_cmp_ptr(p2->desugar_ctx, ==, sequence->desugar_ctx);
 
     h_parser_free(sequence);
     g_check_cmp_ptr(p1->desugared, !=, NULL);
@@ -439,6 +550,12 @@ static void test_reshape_bits_direct(void) {
 void register_internal_tests(void) {
     // Skip unimplemented test due to crash - it's already tested in test_unimplemented.c
     // g_test_add_func("/core/internal/unimplemented", test_unimplemented_parser);
+    g_test_add_func("/core/internal/cfstack_begin_seq_realloc_failure",
+                    test_cfstack_begin_seq_realloc_failure);
+    g_test_add_func("/core/internal/cfstack_begin_choice_realloc_failure",
+                    test_cfstack_begin_choice_realloc_failure);
+    g_test_add_func("/core/internal/desugar_uses_context_arena_for_cf_storage",
+                    test_desugar_uses_context_arena_for_cf_storage);
     g_test_add_func("/core/internal/reshape_bits_unsigned", test_reshape_bits_unsigned);
     g_test_add_func("/core/internal/reshape_bits_signed", test_reshape_bits_signed);
     g_test_add_func("/core/internal/reshape_bits_signed_positive",
@@ -448,6 +565,5 @@ void register_internal_tests(void) {
     g_test_add_func("/core/internal/ignoreseq_isValidCF", test_ignoreseq_isValidCF);
     g_test_add_func("/core/internal/indirect_isValidCF", test_indirect_isValidCF);
     g_test_add_func("/core/internal/desugar_context_lifetime", test_desugar_context_lifetime);
-    g_test_add_func("/core/internal/indirect_desugar_own_cfg",
-                    test_indirect_desugar_has_own_cfg);
+    g_test_add_func("/core/internal/indirect_desugar_own_cfg", test_indirect_desugar_has_own_cfg);
 }
