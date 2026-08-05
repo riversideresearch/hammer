@@ -290,7 +290,7 @@ HParsedToken *h_carray_index(const HCountedArray *a, size_t i); /**< XXX -> inte
  * @return Result token type: TT_UINT
  * @note Only works on Packrat backend
  */
-#define H_BIT0() h_int_range(h_bits(1, false), 0, 0) 
+#define H_BIT0() h_int_range(h_bits(1, false), 0, 0)
 
 /** Sequence modification... */
 

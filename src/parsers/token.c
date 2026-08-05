@@ -8,10 +8,7 @@ typedef struct {
     size_t len;
 } HToken;
 
-static void free_env(
-    HAllocator *allocator,
-    void *environment)
-{
+static void free_env(HAllocator *allocator, void *environment) {
     HToken *token = environment;
 
     if (token == NULL)

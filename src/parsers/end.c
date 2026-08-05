@@ -36,4 +36,6 @@ static const HParserVtable end_vt = {
 
 HParser *h_end_p() { return h_end_p__m(&system_allocator); }
 
-HParser *h_end_p__m(HAllocator *mm__) { return h_new_parser_with_free(mm__, &end_vt, NULL, h_no_free_env); }
+HParser *h_end_p__m(HAllocator *mm__) {
+    return h_new_parser_with_free(mm__, &end_vt, NULL, h_no_free_env);
+}

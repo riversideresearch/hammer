@@ -421,7 +421,7 @@ static bool save_win(size_t kmax, HLLkState *s, HInputStream *stream) {
 static HCountedArray *llk_parse_chunk_(HLLkState *s, const HParser *parser, HInputStream *chunk) {
     HParsedToken *tok = NULL; // will hold result token
     HActionPlan *tok_plan = NULL;
-    HCFChoice *x = NULL;      // current symbol (from top of stack)
+    HCFChoice *x = NULL; // current symbol (from top of stack)
     HInputStream *stream;
 
     if (chunk->index != 0 || chunk->bit_offset != 0)

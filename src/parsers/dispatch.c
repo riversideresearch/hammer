@@ -30,8 +30,7 @@ typedef struct {
     size_t size;
 } HDispatch;
 
-static void free_env(HAllocator *allocator, void *environment)
-{
+static void free_env(HAllocator *allocator, void *environment) {
     HDispatch *dispatch = environment;
 
     if (dispatch == NULL)

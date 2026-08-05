@@ -50,8 +50,7 @@ static void desugar_ab(HAllocator *mm__, HCFStack *stk__, void *env) {
 static bool h_svm_action_mark_attr_bool(HArena *arena, HSVMContext *ctx, void *arg) {
     (void)arena;
 
-    if (ctx->stack_count == 0 ||
-        ctx->stack[ctx->stack_count - 1]->token_type != TT_MARK)
+    if (ctx->stack_count == 0 || ctx->stack[ctx->stack_count - 1]->token_type != TT_MARK)
         return false;
 
     ctx->stack[ctx->stack_count - 1]->token_data.user = arg;
@@ -70,10 +69,8 @@ static bool h_svm_action_attr_bool(HArena *arena, HSVMContext *ctx, void *arg) {
             break;
     }
 
-    if (boundary == ctx->stack_count ||
-        ctx->stack[boundary]->token_type != TT_MARK ||
-        ctx->stack[boundary]->token_data.user != ab ||
-        boundary + 1 >= ctx->stack_count)
+    if (boundary == ctx->stack_count || ctx->stack[boundary]->token_type != TT_MARK ||
+        ctx->stack[boundary]->token_data.user != ab || boundary + 1 >= ctx->stack_count)
         return false;
 
     HParsedToken *head = ctx->stack[ctx->stack_count - 1];
@@ -101,8 +98,7 @@ static bool ab_ctrvm(HRVMProg *prog, void *env) {
                       h_rvm_create_action(prog, h_svm_action_mark_attr_bool, rvm_attr));
     if (!h_compile_regex(prog, ab->p))
         return false;
-    h_rvm_insert_insn(prog,
-                      RVM_ACTION,
+    h_rvm_insert_insn(prog, RVM_ACTION,
                       h_rvm_create_action(prog, h_svm_action_attr_bool, rvm_attr));
     return true;
 }

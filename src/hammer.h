@@ -184,12 +184,11 @@ typedef struct HParserVtable_ HParserVtable;
 
 typedef void (*HParserEnvFree)(HAllocator *mm__, void *);
 
-
 typedef struct HDesugarContext_ {
     HArena *arena;
-    HAllocator allocator;   /* arena-backed allocator */
+    HAllocator allocator; /* arena-backed allocator */
     HAllocator *owner_mm__;
-    size_t refs;             /* parser references; valid on the group root */
+    size_t refs; /* parser references; valid on the group root */
     struct HDesugarContext_ *group_parent;
     struct HDesugarContext_ *group_next;
     struct HDesugarContext_ *group_tail;
@@ -545,6 +544,9 @@ HParser *h_float_range__m(HAllocator *mm__, const HParser *p, const double lower
  * @param sign true for signed, false for unsigned
  * @return Result token type: TT_SINT if sign == true, TT_UINT if sign == false
  * @note Consumes 'len' bits from the input stream
+ * @note Result values are represented as 64-bit integers. Use len <= 64 for a value-preserving
+ * parse; wider parses still consume len bits but only retain the low 64 bits in the returned
+ * integer token. Use h_bytes() or a sequence of smaller integer parsers for wider fields.
  */
 HParser *h_bits(size_t len, _Bool sign);
 HParser *h_bits__m(HAllocator *mm__, size_t len, _Bool sign);
@@ -753,8 +755,10 @@ typedef struct {
  * @param collection Stable identity shared with a matching h_action_apply parser.
  * @return Result token type: any
  */
-HParser *h_action_stash(const HParser *p, const HAction a, void *user_data, HActionCollection *collection);
-HParser *h_action_stash__m(HAllocator *mm__, const HParser *p, const HAction a, void *user_data, HActionCollection *collection);
+HParser *h_action_stash(const HParser *p, const HAction a, void *user_data,
+                        HActionCollection *collection);
+HParser *h_action_stash__m(HAllocator *mm__, const HParser *p, const HAction a, void *user_data,
+                           HActionCollection *collection);
 
 /**
  * @brief Clear the collection's compatibility bookkeeping.
@@ -767,7 +771,7 @@ void h_action_collection_reset(HActionCollection *collection);
 /**
  * @brief Parse p and run its matching stashed actions once the complete parse
  * path succeeds.
- * 
+ *
  * @param p An HParser containing h_action_stash parsers.
  * @param collection Stable identity shared with matching h_action_stash parsers.
  * @return Result token type: any.
@@ -1450,7 +1454,7 @@ HAllocator *h_sloballoc(void *mem, size_t size);
 
 /**
  * @brief Free parser p from the heap
- * 
+ *
  * @param p Parser to free.
  * @note if the parser has arguments of other parsers, those need to be freed seperately.
  */

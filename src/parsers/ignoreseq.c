@@ -16,15 +16,12 @@ typedef struct HIgnoreSeq_ {
     size_t which; // whose result to return
 } HIgnoreSeq;
 
-static void free_env(
-    HAllocator *allocator,
-    void *environment)
-{
+static void free_env(HAllocator *allocator, void *environment) {
     HIgnoreSeq *s = environment;
 
     if (s == NULL)
         return;
-    
+
     allocator->free(allocator, s->parsers);
     allocator->free(allocator, s);
 }
@@ -123,9 +120,7 @@ static bool is_ctrvm(HRVMProg *prog, void *env) {
     HIgnoreSeq *rvm_seq = h_rvm_alloc(prog, sizeof(*rvm_seq));
     *rvm_seq = *seq;
     rvm_seq->parsers = NULL;
-    h_rvm_insert_insn(prog,
-                      RVM_ACTION,
-                      h_rvm_create_action(prog, h_svm_action_ignoreseq, rvm_seq));
+    h_rvm_insert_insn(prog, RVM_ACTION, h_rvm_create_action(prog, h_svm_action_ignoreseq, rvm_seq));
     return true;
 }
 

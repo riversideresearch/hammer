@@ -85,8 +85,7 @@ static inline HParseResult *perform_lowlevel_parse(HParseState *state, const HPa
 static inline HParseResult *select_result(HParseState *state, HParseResult *result,
                                           HActionPlan *action_plan) {
     if (result) {
-        state->action_plan =
-            h_action_plan_concat(state->arena, state->action_plan, action_plan);
+        state->action_plan = h_action_plan_concat(state->arena, state->action_plan, action_plan);
     }
     return result;
 }
@@ -283,8 +282,8 @@ HParseResult *h_do_parse(const HParser *parser, HParseState *state) {
          */
         if (!base || NULL == base->head) {
             if (parser->vtable->higher) {
-                h_hashtable_put_precomp(
-                    state->cache, key, cached_result(state, tmp_res, selected_plan), keyhash);
+                h_hashtable_put_precomp(state->cache, key,
+                                        cached_result(state, tmp_res, selected_plan), keyhash);
             }
             return select_result(state, tmp_res, selected_plan);
         } else {
@@ -298,8 +297,7 @@ HParseResult *h_do_parse(const HParser *parser, HParseState *state) {
         state->input_stream = m->input_stream;
         if (PC_LEFT == m->value_type) {
             setupLR(parser, state, m->value.left);
-            selected_plan =
-                m->value.left->seed ? m->value.left->seed_plan : NULL;
+            selected_plan = m->value.left->seed ? m->value.left->seed_plan : NULL;
             return select_result(state, m->value.left->seed, selected_plan);
         } else {
             selected_plan = m->value.right ? m->action_plan : NULL;

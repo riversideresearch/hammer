@@ -13,6 +13,12 @@ static HParseResult *parse_bits(void *env, HParseState *state) {
     struct bits_env *env_ = env;
     HParsedToken *result = a_new(HParsedToken, 1);
     result->token_type = (env_->signedp ? TT_SINT : TT_UINT);
+    /*
+     * h_bits returns an integer token, so values wider than 64 bits are
+     * truncated by the integer accumulator. The parser still consumes the
+     * requested bit count; callers that need wider fields should use h_bytes()
+     * or compose smaller parsers.
+     */
     // h_read_bits takes int; cast is required by its signature
     if (env_->signedp)
         result->token_data.sint = h_read_bits(&state->input_stream, (int)env_->length, true);
@@ -29,6 +35,7 @@ static HParsedToken *reshape_bits(const HParseResult *p, void *signedp_p) {
     bool signedp = (signedp_p != NULL);
     // XXX works only for whole bytes
     // XXX assumes big-endian
+    // Values wider than 64 bits are truncated by the integer accumulator.
     assert(p->ast);
     assert(p->ast->token_type == TT_SEQUENCE);
 
@@ -110,9 +117,7 @@ static bool bits_ctrvm(HRVMProg *prog, void *env) {
     h_rvm_insert_insn(prog, RVM_CAPTURE, 0);
     struct bits_env *rvm_bits = h_rvm_alloc(prog, sizeof(*rvm_bits));
     *rvm_bits = *env_;
-    h_rvm_insert_insn(prog,
-                      RVM_ACTION,
-                      h_rvm_create_action(prog, h_svm_action_bits, rvm_bits));
+    h_rvm_insert_insn(prog, RVM_ACTION, h_rvm_create_action(prog, h_svm_action_bits, rvm_bits));
     return true;
 }
 

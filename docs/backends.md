@@ -37,7 +37,7 @@ Legend:
 | `h_in` | Yes | Yes | Yes | Yes | Yes | Charset terminal. |
 | `h_not_in` | Yes | Yes | Yes | Yes | Yes | Complement charset terminal. |
 | `h_token`, `h_literal` | Yes | Yes | Yes | Yes | Yes | Fixed byte string. |
-| `h_bits` | Yes | Limited | Limited | Limited | Limited | Regex and CFG paths only handle whole-byte bit lengths. |
+| `h_bits` | Yes | Limited | Limited | Limited | Limited | Result is a 64-bit integer token; wider parses consume the requested bits but retain only the low 64 bits. Regex and CFG paths only handle whole-byte bit lengths. |
 | `h_int8`, `h_uint8` | Yes | Yes | Yes | Yes | Yes | Whole-byte integer parser. |
 | `h_int16`, `h_uint16` | Yes | Yes | Yes | Yes | Yes | Whole-byte integer parser. |
 | `h_int32`, `h_uint32` | Yes | Yes | Yes | Yes | Yes | Whole-byte integer parser. |
@@ -153,7 +153,7 @@ Limitations:
 
 - only regular-marked combinators with RVM emitters are supported
 - chunked parsing is not currently exposed for this backend
-- `h_bits` and integer parser support is limited to whole-byte widths
+- `h_bits` and integer parser support is limited to whole-byte widths and 64-bit integer result values
 - `h_bytes` is not currently RVM-compiled; use `h_token` for fixed byte strings
 
 ### LL(k)

@@ -392,8 +392,7 @@ HActionPlan *h_action_plan_concat(HArena *arena, HActionPlan *left, HActionPlan 
 HActionPlan *h_action_plan_stash(HArena *arena, const HParseResult *result,
                                  HParsedToken *placeholder, HAction action, void *user_data,
                                  HActionCollection *collection);
-HActionPlan *h_action_plan_apply(HArena *arena, HActionCollection *collection,
-                                 HActionPlan *child);
+HActionPlan *h_action_plan_apply(HArena *arena, HActionCollection *collection, HActionPlan *child);
 bool h_action_plan_execute(HArena *arena, HActionPlan *plan);
 
 /*
@@ -414,12 +413,8 @@ static inline HParserBackendVTable *h_get_missing_backend_vtable__int(void) {
 
 int h_copy_numeric_param(HAllocator *mm__, void **out, void *in);
 
-static inline HParser *h_new_parser_with_free(
-    HAllocator *mm__,
-    const HParserVtable *vt,
-    void *env,
-    HParserEnvFree free_env)
-{
+static inline HParser *h_new_parser_with_free(HAllocator *mm__, const HParserVtable *vt, void *env,
+                                              HParserEnvFree free_env) {
     HParser *p = h_new(HParser, 1);
     memset(p, 0, sizeof(*p));
 
@@ -433,16 +428,11 @@ static inline HParser *h_new_parser_with_free(
     return p;
 }
 
-static inline void h_free_env(HAllocator *allocator,
-    void *environment){
+static inline void h_free_env(HAllocator *allocator, void *environment) {
     allocator->free(allocator, environment);
 }
 
-static inline HParser *h_new_parser(
-    HAllocator *mm__,
-    const HParserVtable *vt,
-    void *env)
-{
+static inline HParser *h_new_parser(HAllocator *mm__, const HParserVtable *vt, void *env) {
     return h_new_parser_with_free(mm__, vt, env, h_free_env);
 }
 
@@ -509,7 +499,7 @@ void *h_symbol_free(HParseState *state, const char *key);
 typedef struct HCFSequence_ HCFSequence;
 
 typedef HParsedToken *(*HCFPlanAction)(const HParseResult *result, void *user_data,
-                                      HActionPlan **plan);
+                                       HActionPlan **plan);
 
 struct HCFChoice_ {
     enum HCFChoiceType { HCF_END, HCF_CHOICE, HCF_CHARSET, HCF_CHAR } type;

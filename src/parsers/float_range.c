@@ -67,8 +67,7 @@ static void desugar_float_range(HAllocator *mm__, HCFStack *stk__, void *env) {
 static bool h_svm_action_mark_float_range(HArena *arena, HSVMContext *ctx, void *env) {
     (void)arena;
 
-    if (ctx->stack_count == 0 ||
-        ctx->stack[ctx->stack_count - 1]->token_type != TT_MARK)
+    if (ctx->stack_count == 0 || ctx->stack[ctx->stack_count - 1]->token_type != TT_MARK)
         return false;
 
     ctx->stack[ctx->stack_count - 1]->token_data.user = env;

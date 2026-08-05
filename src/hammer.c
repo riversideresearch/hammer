@@ -730,19 +730,17 @@ HParseResult *h_parse_finish(HSuspendedParser *s) {
 void h_parser_free(HParser *parser) {
     if (parser == NULL)
         return;
-    
+
     h_parser_free__m(&system_allocator, parser);
-    
+
     return;
 }
 
-void h_parser_free__m(HAllocator *mm__, HParser *parser)
-{
-    if (parser == NULL || mm__ == NULL){
+void h_parser_free__m(HAllocator *mm__, HParser *parser) {
+    if (parser == NULL || mm__ == NULL) {
         return;
     }
-    if (parser->backend_vtable != NULL &&
-        parser->backend_vtable->free != NULL) {
+    if (parser->backend_vtable != NULL && parser->backend_vtable->free != NULL) {
         parser->backend_vtable->free(parser);
     }
 

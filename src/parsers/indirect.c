@@ -26,9 +26,7 @@ static void desugar_indirect(HAllocator *mm__, HCFStack *stk__, void *env) {
     HIndirectEnv *indirect = env;
 
     HCFS_BEGIN_CHOICE() {
-        HCFS_BEGIN_SEQ() {
-            HCFS_DESUGAR(indirect->parser);
-        }
+        HCFS_BEGIN_SEQ() { HCFS_DESUGAR(indirect->parser); }
         HCFS_END_SEQ();
         HCFS_THIS_CHOICE->reshape = h_act_first;
     }

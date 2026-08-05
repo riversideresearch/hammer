@@ -60,22 +60,23 @@ HActionPlan *h_action_plan_stash(HArena *arena, const HParseResult *result,
     HActionPlan *plan = h_arena_malloc_noinit(arena, sizeof(*plan));
     *plan = (HActionPlan){
         .type = HAP_STASH,
-        .data.stash = {
-            .entry = {
-                .res = *result,
-                .placeholder = placeholder,
-                .action = action,
-                .user_data = user_data,
-                .next = NULL,
+        .data.stash =
+            {
+                .entry =
+                    {
+                        .res = *result,
+                        .placeholder = placeholder,
+                        .action = action,
+                        .user_data = user_data,
+                        .next = NULL,
+                    },
+                .collection = collection,
             },
-            .collection = collection,
-        },
     };
     return plan;
 }
 
-HActionPlan *h_action_plan_apply(HArena *arena, HActionCollection *collection,
-                                 HActionPlan *child) {
+HActionPlan *h_action_plan_apply(HArena *arena, HActionCollection *collection, HActionPlan *child) {
     if (!child || !collection)
         return child;
 
@@ -196,8 +197,7 @@ static bool action_isValidCF(void *env) {
 static bool h_svm_action_mark_action(HArena *arena, HSVMContext *ctx, void *arg) {
     (void)arena;
 
-    if (ctx->stack_count == 0 ||
-        ctx->stack[ctx->stack_count - 1]->token_type != TT_MARK)
+    if (ctx->stack_count == 0 || ctx->stack[ctx->stack_count - 1]->token_type != TT_MARK)
         return false;
 
     ctx->stack[ctx->stack_count - 1]->token_data.user = arg;
@@ -216,13 +216,11 @@ static bool h_svm_action_action(HArena *arena, HSVMContext *ctx, void *arg) {
             break;
     }
 
-    if (boundary == ctx->stack_count ||
-        ctx->stack[boundary]->token_type != TT_MARK ||
+    if (boundary == ctx->stack_count || ctx->stack[boundary]->token_type != TT_MARK ||
         ctx->stack[boundary]->token_data.user != a)
         return false;
 
-    res.ast =
-        boundary + 1 < ctx->stack_count ? ctx->stack[ctx->stack_count - 1] : NULL;
+    res.ast = boundary + 1 < ctx->stack_count ? ctx->stack[ctx->stack_count - 1] : NULL;
     res.arena = arena;
     HParsedToken *action_result = a->action(&res, a->user_data);
     if (action_result) {
@@ -245,9 +243,7 @@ static bool action_ctrvm(HRVMProg *prog, void *env) {
                       h_rvm_create_action(prog, h_svm_action_mark_action, rvm_action));
     if (!h_compile_regex(prog, a->p))
         return false;
-    h_rvm_insert_insn(prog,
-                      RVM_ACTION,
-                      h_rvm_create_action(prog, h_svm_action_action, rvm_action));
+    h_rvm_insert_insn(prog, RVM_ACTION, h_rvm_create_action(prog, h_svm_action_action, rvm_action));
     return true;
 }
 
@@ -272,9 +268,7 @@ HParser *h_action__m(HAllocator *mm__, const HParser *p, const HAction a, void *
     return h_new_parser(mm__, &action_vt, env);
 }
 // Collection Reset
-void h_action_collection_reset(
-    HActionCollection *collection
-) {
+void h_action_collection_reset(HActionCollection *collection) {
     if (!collection)
         return;
 
@@ -318,8 +312,7 @@ static HParseResult *parse_action_stash(void *env, HParseState *state) {
                                                      a->user_data, a->collection);
             if (!stash)
                 return NULL;
-            state->action_plan =
-                h_action_plan_concat(state->arena, state->action_plan, stash);
+            state->action_plan = h_action_plan_concat(state->arena, state->action_plan, stash);
             return make_result(state->arena, placeholder);
         } else
             return NULL;
@@ -396,8 +389,7 @@ static bool h_svm_action_action_stash(HArena *arena, HSVMContext *ctx, void *arg
 
     size_t mark_index = ctx->stack_count - child_count - 1;
     HParsedToken *placeholder = ctx->stack[mark_index];
-    HParsedToken *child =
-        child_count ? ctx->stack[mark_index + 1] : NULL;
+    HParsedToken *child = child_count ? ctx->stack[mark_index + 1] : NULL;
     size_t start = placeholder->index;
     size_t bit_length = (ctx->input_pos - start) * 8;
 
@@ -421,8 +413,8 @@ static bool h_svm_action_action_stash(HArena *arena, HSVMContext *ctx, void *arg
     /* Collapse the private mark and optional child to one placeholder. */
     ctx->stack_count = mark_index + 1;
 
-    HActionPlan *stash = h_action_plan_stash(arena, &res, placeholder, a->action,
-                                             a->user_data, a->collection);
+    HActionPlan *stash =
+        h_action_plan_stash(arena, &res, placeholder, a->action, a->user_data, a->collection);
     if (!stash)
         return false;
     ctx->action_plan = h_action_plan_concat(arena, ctx->action_plan, stash);
@@ -457,7 +449,8 @@ HParser *h_action_stash(const HParser *p, const HAction a, void *user_data, HAct
     return h_action_stash__m(&system_allocator, p, a, user_data, ac);
 }
 
-HParser *h_action_stash__m(HAllocator *mm__, const HParser *p, const HAction a, void *user_data, HActionCollection *ac) {
+HParser *h_action_stash__m(HAllocator *mm__, const HParser *p, const HAction a, void *user_data,
+                           HActionCollection *ac) {
     HParseActionStash *env = h_new(HParseActionStash, 1);
     env->p = p;
     env->action = a;
@@ -482,8 +475,7 @@ static HParseResult *parse_action_apply(void *env, HParseState *state) {
     if (!res)
         return NULL;
 
-    state->action_plan =
-        h_action_plan_apply(state->arena, a->collection, state->action_plan);
+    state->action_plan = h_action_plan_apply(state->arena, a->collection, state->action_plan);
     return res;
 }
 
@@ -581,7 +573,7 @@ HParser *h_action_apply(HParser *p, HActionCollection *collection) {
     return h_action_apply__m(&system_allocator, p, collection);
 }
 
-HParser *h_action_apply__m(HAllocator *mm__, HParser *p,  HActionCollection *collection) {
+HParser *h_action_apply__m(HAllocator *mm__, HParser *p, HActionCollection *collection) {
     if (!mm__ || !p)
         return NULL;
 
@@ -594,6 +586,6 @@ HParser *h_action_apply__m(HAllocator *mm__, HParser *p,  HActionCollection *col
         env->collection = collection;
     else
         env->collection = NULL;
-    
+
     return h_new_parser(mm__, &action_apply_vt, env);
 }
