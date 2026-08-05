@@ -40,27 +40,54 @@
 #define ISATTY(fd) isatty(fileno(fd))
 #endif
 
+#if defined(_MSC_VER)
+#define H_TRACE_THREAD_LOCAL __declspec(thread)
+#elif defined(__clang__) || defined(__GNUC__)
+#define H_TRACE_THREAD_LOCAL __thread
+#else
+#define H_TRACE_THREAD_LOCAL
+#endif
+
 /* Runtime on/off switch (compile gate is HAMMER_TRACE_AST above). Defaults OFF
  * so an ordinary h_parse() stays quiet even when tracing is compiled in; only
  * h_parse_debug() turns it on -- via h_trace_set_enabled() -- for the duration
  * of a single parse. */
-bool display_trace = false;
+H_TRACE_THREAD_LOCAL bool display_trace = false;
+static H_TRACE_THREAD_LOCAL unsigned trace_enable_depth = 0;
 
 /* Toggle the runtime trace. Exposed (see trace.h) so h_parse_debug() can enable
  * tracing for just its own call and switch it back off afterward. */
 void h_trace_set_enabled(bool enabled) {
-    display_trace = enabled;
+    if (enabled)
+        trace_enable_depth++;
+    else if (trace_enable_depth > 0)
+        trace_enable_depth--;
+    display_trace = trace_enable_depth > 0;
 }
 
-int h_trace_depth = 0;
+typedef struct HTraceFrame_ {
+    const HParser *parser;
+    const char *name;
+    size_t start;
+    uint8_t start_bit;
+    unsigned long failure_serial;
+} HTraceFrame;
 
-/* The furthest-failure record (HParseError) is defined in hammer.h, because
- * h_parse_debug() hands a copy back to callers. We track every distinct
- * primitive parser that reached the deepest input position, not just the last
- * one: several combinators can bottom out at the same furthest offset and all
- * of them are worth reporting. Names are deduped by pointer (trace_vt_name()
- * returns a stable per-vtable string). */
-static HParseError trace_max;
+#define H_TRACE_MAX_FRAMES 256
+typedef struct HTraceContext_ {
+    const uint8_t *input;
+    size_t input_len;
+    size_t depth;
+    size_t frame_count;
+    size_t overflow_frames;
+    unsigned long failure_serial;
+    HTraceFrame frames[H_TRACE_MAX_FRAMES];
+    HParseError error;
+    struct HTraceContext_ *parent;
+} HTraceContext;
+
+static H_TRACE_THREAD_LOCAL HTraceContext *trace_context;
+static H_TRACE_THREAD_LOCAL HParseError trace_completed;
 
 /* Copy the current furthest-failure record out to the caller (see trace.h).
  * out receives its own copy of the struct -- not a pointer into the global --
@@ -68,8 +95,15 @@ static HParseError trace_max;
  * deepest_parsers[] entries still point into the tracer's own long-lived name
  * cache, so this shallow copy is safe and needs no ownership transfer. */
 void h_trace_get_error(HParseError *out) {
-    if (out)
-        memcpy(out, &trace_max, sizeof(*out));
+    if (!out)
+        return;
+    memcpy(out, &trace_completed, sizeof(*out));
+    if (out->parser)
+        out->parser = strdup(out->parser);
+    for (size_t i = 0; i < out->n_deepest; i++)
+        out->deepest_parsers[i] = strdup(out->deepest_parsers[i]);
+    for (size_t i = 0; i < out->n_context; i++)
+        out->context[i] = strdup(out->context[i]);
 }
 
 static const char *trace_tt_name(HTokenType t) {
@@ -87,7 +121,8 @@ static const char *trace_tt_name(HTokenType t) {
 }
 
 static void trace_indent(void) {
-    for (int i = 0; i < h_trace_depth; i++)
+    size_t depth = trace_context ? trace_context->depth : 0;
+    for (size_t i = 0; i < depth; i++)
         fputs("  ", stderr);
 }
 
@@ -156,11 +191,11 @@ static char *resolve_fn_name(void *addr) {
     return result;
 }
 
-static struct {
+static H_TRACE_THREAD_LOCAL struct {
     const HParserVtable *vt;
     const char *name;
 } h_namecache[64];
-static size_t h_namecache_len = 0;
+static H_TRACE_THREAD_LOCAL size_t h_namecache_len = 0;
 
 static const char *trace_vt_name(const HParserVtable *vt) {
     for (size_t i = 0; i < h_namecache_len; i++)
@@ -182,44 +217,20 @@ static const char *trace_vt_name(const HParserVtable *vt) {
 
 /* Append a parser name to the deepest-position set, skipping duplicates and
  * silently capping at H_PARSE_ERROR_MAX_PARSERS entries. */
-static void trace_max_add_parser(const char *name) {
-    for (size_t i = 0; i < trace_max.n_deepest; i++)
-        if (trace_max.deepest_parsers[i] == name)
+static void trace_error_add_parser(HParseError *error, const char *name) {
+    for (size_t i = 0; i < error->n_deepest; i++)
+        if (error->deepest_parsers[i] == name)
             return;
-    if (trace_max.n_deepest < H_PARSE_ERROR_MAX_PARSERS)
-        trace_max.deepest_parsers[trace_max.n_deepest++] = name;
+    if (error->n_deepest < H_PARSE_ERROR_MAX_PARSERS)
+        error->deepest_parsers[error->n_deepest++] = name;
 }
 
-static void trace_pos(const HParser *parser, HParseState *state) {
+static void trace_pos(HParseState *state) {
     HInputStream *in = &state->input_stream;
     size_t abs = in->pos + in->index;
-
-    /* Only primitive parsers -- the leaves that actually consume input -- are
-     * recorded as the deepest-position parsers. Higher-order combinators merely
-     * delegate to their children, so naming them in the failure message adds
-     * noise without pointing at what actually failed to match. */
-    if (!parser->vtable->higher) {
-        const char *name = trace_vt_name(parser->vtable);
-
-        if (abs > trace_max.index ||
-            (abs == trace_max.index && in->bit_offset > trace_max.bit_offset)) {
-            /* strictly deeper (further byte, or same byte + further bit): this is
-             * a new furthest position, so discard the old set and start over */
-            trace_max.index = abs;
-            trace_max.bit_offset = in->bit_offset;
-            trace_max.actual = in->input[in->index];
-            trace_max.n_deepest = 0;
-            trace_max_add_parser(name);
-        } else if (abs == trace_max.index && in->bit_offset == trace_max.bit_offset) {
-            /* another parser tied at the current furthest position: record it too */
-            trace_max.actual = in->input[in->index];
-            trace_max_add_parser(name);
-        }
-    }
-
-    fprintf(stderr, "@%zu", trace_max.index);
-    if (trace_max.bit_offset)
-        fprintf(stderr, ".%db", trace_max.bit_offset);
+    fprintf(stderr, "@%zu", abs);
+    if (in->bit_offset)
+        fprintf(stderr, ".%db", in->bit_offset);
 }
 
 // print a one-line summary of the token an HParseResult carries
@@ -294,11 +305,16 @@ void h_trace_file_context(const uint8_t *input, size_t length, size_t highlight_
     }
 }
 
-void h_trace_begin(size_t input_len) {
+void h_trace_begin(const uint8_t *input, size_t input_len) {
     if (!display_trace)
         return;
-    h_trace_depth = 0;
-    memset(&trace_max, 0, sizeof(trace_max));
+    HTraceContext *context = calloc(1, sizeof(*context));
+    if (!context)
+        return;
+    context->input = input;
+    context->input_len = input_len;
+    context->parent = trace_context;
+    trace_context = context;
     fprintf(stderr, "\n=== h_packrat_parse: begin (%zu bytes of input) ===\n", input_len);
 }
 
@@ -308,16 +324,88 @@ void h_trace_enter(const HParser *parser, HParseState *state) {
     trace_indent();
     fprintf(stderr, "-> %-20s %-9s ", trace_vt_name(parser->vtable),
             parser->vtable->higher ? "higher" : "primitive");
-    trace_pos(parser, state);
+    trace_pos(state);
     fputc('\n', stderr);
-    h_trace_depth++;
+    if (trace_context && trace_context->frame_count < H_TRACE_MAX_FRAMES) {
+        HTraceFrame *frame = &trace_context->frames[trace_context->frame_count];
+        frame->parser = parser;
+        frame->name = trace_vt_name(parser->vtable);
+        frame->start = state->input_stream.pos + state->input_stream.index;
+        frame->start_bit = state->input_stream.bit_offset;
+        frame->failure_serial = trace_context->failure_serial;
+        trace_context->frame_count++;
+    } else if (trace_context) {
+        trace_context->overflow_frames++;
+    }
+    if (trace_context)
+        trace_context->depth++;
 }
 
-void h_trace_exit(HParseResult *res, const char *note) {
+static HParseErrorKind trace_failure_kind(const HParser *parser, const char *name,
+                                          size_t index, size_t length) {
+    if (strcmp(name, "parse_attr_bool") == 0)
+        return H_PARSE_ERROR_SEMANTIC_PREDICATE;
+    if (strcmp(name, "parse_int_range") == 0)
+        return H_PARSE_ERROR_RANGE;
+    if (index >= length)
+        return H_PARSE_ERROR_UNEXPECTED_EOF;
+    return parser->vtable->higher ? H_PARSE_ERROR_HIGHER_ORDER
+                                  : H_PARSE_ERROR_PRIMITIVE_MISMATCH;
+}
+
+static void trace_record_failure(const HParser *parser, HParseState *state,
+                                 const HTraceFrame *frame) {
+    HTraceContext *context = trace_context;
+    HParseError *error = &context->error;
+    size_t end = state->input_stream.pos + state->input_stream.index;
+    size_t index = parser->vtable->higher ? end : frame->start;
+    HParseErrorKind kind = trace_failure_kind(parser, frame->name, index, context->input_len);
+    bool replace = error->kind == H_PARSE_ERROR_NONE || index > error->index ||
+                   (index == error->index && parser->vtable->higher &&
+                    error->kind == H_PARSE_ERROR_PRIMITIVE_MISMATCH);
+
+    if (replace) {
+        memset(error, 0, sizeof(*error));
+        error->index = index;
+        error->end_index = end;
+        error->bit_offset = parser->vtable->higher ? state->input_stream.bit_offset
+                                                   : frame->start_bit;
+        error->kind = kind;
+        error->parser = frame->name;
+        if (index < context->input_len) {
+            error->actual = context->input[index];
+            error->has_actual = true;
+        }
+        trace_error_add_parser(error, frame->name);
+        for (size_t i = context->frame_count; i > 0 && error->n_context < H_PARSE_ERROR_MAX_PARSERS; i--)
+            error->context[error->n_context++] = context->frames[i - 1].name;
+    } else if (index == error->index && kind == error->kind) {
+        trace_error_add_parser(error, frame->name);
+    }
+}
+
+void h_trace_exit(const HParser *parser, HParseState *state, HParseResult *res,
+                  const char *note) {
     if (!display_trace)
         return;
-    if (h_trace_depth > 0)
-        h_trace_depth--;
+    HTraceFrame frame = {0};
+    bool have_frame = trace_context && trace_context->frame_count > 0 &&
+                      trace_context->overflow_frames == 0;
+    if (trace_context && trace_context->depth > 0)
+        trace_context->depth--;
+    if (trace_context && trace_context->overflow_frames > 0) {
+        trace_context->overflow_frames--;
+    }
+    if (have_frame) {
+        frame = trace_context->frames[trace_context->frame_count - 1];
+        trace_context->frame_count--;
+    }
+    if (!res && have_frame) {
+        bool originated_here = frame.failure_serial == trace_context->failure_serial;
+        trace_context->failure_serial++;
+        if (originated_here)
+            trace_record_failure(parser, state, &frame);
+    }
     trace_indent();
     if (res) {
         fputs("<= OK   ast=", stderr);
@@ -337,33 +425,43 @@ void h_trace_end(HParseResult *res, HParseState *state) {
 
     fprintf(stderr, "=== h_packrat_parse: end (%s) ===\n", res ? "SUCCESS" : "FAILURE");
 
-    if (res)
+    HTraceContext *context = trace_context;
+    if (!context)
         return;
 
-    HInputStream *in = &state->input_stream;
-
-    if (trace_max.index < in->length) {
-        uint8_t c = trace_max.actual;
+    HParseError *error = &context->error;
+    if (!res && error->kind != H_PARSE_ERROR_NONE) {
+    if (error->kind == H_PARSE_ERROR_SEMANTIC_PREDICATE) {
+        fprintf(stdout, "error: semantic predicate failed");
+    } else if (error->kind == H_PARSE_ERROR_RANGE) {
+        fprintf(stdout, "error: integer outside permitted range");
+    } else if (error->has_actual) {
+        uint8_t c = error->actual;
         char disp[2] = { isprint(c) ? (char)c : '\0', '\0' };
         fprintf(stdout, "error: unexpected byte(s): '%s' (0x%02x = %d)", disp, c, c);
     } else {
         fprintf(stdout, "error: unexpected end of input");
     }
 
-    fprintf(stdout, " starting at index %zu", trace_max.index);
+    fprintf(stdout, " starting at index %zu", error->index);
 
-    if (trace_max.bit_offset)
-        fprintf(stdout, ".%db", trace_max.bit_offset);
+    if (error->bit_offset)
+        fprintf(stdout, ".%db", error->bit_offset);
 
-    if (trace_max.n_deepest > 0) {
+    if (error->n_deepest > 0) {
         fputs(" while running [", stdout);
-        for (size_t i = 0; i < trace_max.n_deepest; i++)
-            fprintf(stdout, "%s%s", i ? ", " : "", trace_max.deepest_parsers[i]);
+        for (size_t i = 0; i < error->n_deepest; i++)
+            fprintf(stdout, "%s%s", i ? ", " : "", error->deepest_parsers[i]);
         fputc(']', stdout);
     }
-    
     fprintf(stdout, "\n");
-    h_trace_file_context(state->input_stream.input, state->input_stream.length, trace_max.index);
+    h_trace_file_context(context->input, context->input_len, error->index);
+    }
+
+    HTraceContext *parent = context->parent;
+    trace_completed = context->error;
+    trace_context = parent;
+    free(context);
 }
 
 #endif /* HAMMER_TRACE_AST */

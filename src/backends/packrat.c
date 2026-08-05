@@ -241,8 +241,10 @@ HParseResult *h_do_parse(const HParser *parser, HParseState *state) {
             h_slist_pop(state->lr_stack);
             /* update the cached value to our new position */
             cached = h_hashtable_get_precomp(state->cache, key, keyhash);
-            if (cached == NULL)
+            if (cached == NULL) {
+                TRACE_EXIT(parser, state, tmp_res, "computed (cache removed)");
                 return tmp_res;
+            }
             assert(cached != NULL);
             cached->input_stream = state->input_stream;
         }
@@ -255,12 +257,12 @@ HParseResult *h_do_parse(const HParser *parser, HParseState *state) {
             if (parser->vtable->higher) {
                 h_hashtable_put_precomp(state->cache, key, cached_result(state, tmp_res), keyhash);
             }
-            TRACE_EXIT(tmp_res, parser->vtable->higher ? "computed" : "primitive");
+            TRACE_EXIT(parser, state, tmp_res, parser->vtable->higher ? "computed" : "primitive");
             return tmp_res;
         } else {
             base->seed = tmp_res;
             HParseResult *res = lr_answer(key, state, base);
-            TRACE_EXIT(res, "left-recursion answer");
+            TRACE_EXIT(parser, state, res, "left-recursion answer");
             return res;
         }
     } else {
@@ -268,10 +270,10 @@ HParseResult *h_do_parse(const HParser *parser, HParseState *state) {
         state->input_stream = m->input_stream;
         if (PC_LEFT == m->value_type) {
             setupLR(parser, state, m->value.left);
-            TRACE_EXIT(m->value.left->seed, "memoized (LR seed)");
+            TRACE_EXIT(parser, state, m->value.left->seed, "memoized (LR seed)");
             return m->value.left->seed;
         } else {
-            TRACE_EXIT(m->value.right, "memoized (cache hit)");
+            TRACE_EXIT(parser, state, m->value.right, "memoized (cache hit)");
             return m->value.right;
         }
     }
@@ -322,7 +324,7 @@ static bool pos_equal(const void *key1, const void *key2) {
 }
 
 HParseResult *h_packrat_parse(HAllocator *mm__, const HParser *parser, HInputStream *input_stream) {
-    TRACE_BEGIN(input_stream->length);
+    TRACE_BEGIN(input_stream->input, input_stream->length);
     HArena *arena = h_new_arena(mm__, 0);
 
     // out-of-memory handling

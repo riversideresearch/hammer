@@ -4,6 +4,7 @@
 #include "test_suite.h"
 
 #include <stdio.h>
+#include <string.h>
 
 #include <glib.h>
 
@@ -49,8 +50,11 @@ static void test_trace_debug_error_on_failure(gconstpointer backend) {
     if (err.n_deepest > 0) {
         g_check_cmp_size(err.index, ==, 1);
         g_check_cmp_int(err.actual, ==, 'x');
+        g_check_cmp_int(err.has_actual, ==, true);
+        g_check_cmp_int(err.kind, ==, H_PARSE_ERROR_PRIMITIVE_MISMATCH);
         g_check_cmp_ptr(err.deepest_parsers[0], !=, NULL);
     }
+    h_parse_error_free(&err);
 }
 
 // Passing a NULL error out-parameter is allowed and must not crash; the parse
@@ -112,15 +116,13 @@ static void test_trace_sequence_truncated(gconstpointer backend) {
     HParser *p = h_sequence(h_uint8(), h_uint8(), NULL);
     h_compile(p, be, NULL);
 
-    // Only one byte is offered (length 1). The trailing 0 is padding: on an
-    // end-of-input failure the tracer reads input[length], so a byte must exist
-    // there to keep this test free of out-of-bounds reads.
     uint8_t input[] = {1};
     HParseError err;
     HParseResult *res = h_parse_debug(p, input, 1, &err);
     g_check_cmp_ptr(res, ==, NULL);
     g_check_cmp_size(err.index, ==, 1);
-    g_check_cmp_int(err.actual, ==, 0);
+    g_check_cmp_int(err.has_actual, ==, false);
+    g_check_cmp_int(err.kind, ==, H_PARSE_ERROR_UNEXPECTED_EOF);
     g_check_cmp_ptr(err.deepest_parsers[0], !=, NULL);
 
 }
@@ -202,7 +204,10 @@ static void test_trace_int_range_reject(gconstpointer backend) {
     if (err.n_deepest > 0) {
         g_check_cmp_size(err.index, ==, 0);
         g_check_cmp_int(err.actual, ==, 0xFF);
+        g_check_cmp_int(err.kind, ==, H_PARSE_ERROR_RANGE);
+        g_check_string(err.parser, ==, "parse_int_range");
     }
+    h_parse_error_free(&err);
 }
 
 // debugtest/parser9.c: h_attr_bool() checksum predicate; 0x55/0xAA does not
@@ -220,9 +225,101 @@ static void test_trace_attr_bool_checksum(gconstpointer backend) {
     g_check_cmp_ptr(res, ==, NULL);
     g_check_cmp_int(err.n_deepest, >, 0);
     if (err.n_deepest > 0) {
-        g_check_cmp_size(err.index, ==, 1);
-        g_check_cmp_int(err.actual, ==, 0xAA);
+        g_check_cmp_size(err.index, ==, 2);
+        g_check_cmp_size(err.end_index, ==, 2);
+        g_check_cmp_int(err.has_actual, ==, false);
+        g_check_cmp_int(err.kind, ==, H_PARSE_ERROR_SEMANTIC_PREDICATE);
+        g_check_string(err.parser, ==, "parse_attr_bool");
     }
+    h_parse_error_free(&err);
+}
+
+static HParser *trace_nested_parser;
+static HParseError trace_nested_error;
+
+static bool trace_nested_success_then_reject(HParseResult *p, void *user_data) {
+    (void)p;
+    (void)user_data;
+    uint8_t nested[] = {7};
+    HParseResult *result = h_parse(trace_nested_parser, nested, sizeof(nested));
+    g_assert_nonnull(result);
+    h_parse_result_free(result);
+    return false;
+}
+
+static bool trace_nested_debug_failure_then_reject(HParseResult *p, void *user_data) {
+    (void)p;
+    (void)user_data;
+    uint8_t nested[] = {7};
+    HParseResult *result = h_parse_debug(trace_nested_parser, nested, 0, &trace_nested_error);
+    g_assert_null(result);
+    return false;
+}
+
+static void test_trace_nested_parse_isolation(gconstpointer backend) {
+    HParserBackend be = (HParserBackend)GPOINTER_TO_INT(backend);
+    trace_nested_parser = h_sequence(h_uint8(), h_end_p(), NULL);
+    HParser *outer = h_attr_bool(h_sequence(h_uint8(), h_uint8(), NULL),
+                                 trace_nested_success_then_reject, NULL);
+    h_compile(trace_nested_parser, be, NULL);
+    h_compile(outer, be, NULL);
+
+    uint8_t input[] = {1, 2};
+    HParseError err;
+    HParseResult *result = h_parse_debug(outer, input, sizeof(input), &err);
+    g_check_cmp_ptr(result, ==, NULL);
+    g_check_cmp_int(err.kind, ==, H_PARSE_ERROR_SEMANTIC_PREDICATE);
+    g_check_cmp_size(err.index, ==, 2);
+    g_check_string(err.parser, ==, "parse_attr_bool");
+    h_parse_error_free(&err);
+}
+
+static void test_trace_nested_debug_restores_outer(gconstpointer backend) {
+    HParserBackend be = (HParserBackend)GPOINTER_TO_INT(backend);
+    memset(&trace_nested_error, 0, sizeof(trace_nested_error));
+    trace_nested_parser = h_uint8();
+    HParser *outer = h_attr_bool(h_sequence(h_uint8(), h_uint8(), NULL),
+                                 trace_nested_debug_failure_then_reject, NULL);
+    h_compile(trace_nested_parser, be, NULL);
+    h_compile(outer, be, NULL);
+
+    uint8_t input[] = {1, 2};
+    HParseError err;
+    HParseResult *result = h_parse_debug(outer, input, sizeof(input), &err);
+    g_check_cmp_ptr(result, ==, NULL);
+    g_check_cmp_int(trace_nested_error.kind, ==, H_PARSE_ERROR_UNEXPECTED_EOF);
+    g_check_cmp_size(trace_nested_error.index, ==, 0);
+    g_check_cmp_int(err.kind, ==, H_PARSE_ERROR_SEMANTIC_PREDICATE);
+    g_check_cmp_size(err.index, ==, 2);
+    h_parse_error_free(&trace_nested_error);
+    h_parse_error_free(&err);
+}
+
+static void test_trace_repeated_parses_and_nul_byte(gconstpointer backend) {
+    HParserBackend be = (HParserBackend)GPOINTER_TO_INT(backend);
+    HParser *parser = h_ch('x');
+    h_compile(parser, be, NULL);
+
+    uint8_t bad[] = {0};
+    HParseError err;
+    HParseResult *result = h_parse_debug(parser, bad, sizeof(bad), &err);
+    g_check_cmp_ptr(result, ==, NULL);
+    g_check_cmp_int(err.has_actual, ==, true);
+    g_check_cmp_int(err.actual, ==, 0);
+    g_check_cmp_int(err.kind, ==, H_PARSE_ERROR_PRIMITIVE_MISMATCH);
+    h_parse_error_free(&err);
+
+    result = h_parse_debug(parser, (const uint8_t *)"x", 1, &err);
+    g_check_cmp_ptr(result, !=, NULL);
+    g_check_cmp_int(err.kind, ==, H_PARSE_ERROR_NONE);
+    g_check_cmp_size(err.n_deepest, ==, 0);
+    h_parse_result_free(result);
+
+    result = h_parse_debug(parser, bad, sizeof(bad), &err);
+    g_check_cmp_ptr(result, ==, NULL);
+    g_check_cmp_int(err.has_actual, ==, true);
+    g_check_cmp_int(err.actual, ==, 0);
+    h_parse_error_free(&err);
 }
 
 // debugtest/parser10.c: h_action() sums a pair of bytes; 10 + 20 = 30.
@@ -288,6 +385,12 @@ void register_trace_tests(void) {
                          GINT_TO_POINTER(PB_PACKRAT), test_trace_int_range_reject);
     g_test_add_data_func("/core/parser/packrat/trace_attr_bool_checksum",
                          GINT_TO_POINTER(PB_PACKRAT), test_trace_attr_bool_checksum);
+    g_test_add_data_func("/core/parser/packrat/trace_nested_parse_isolation",
+                         GINT_TO_POINTER(PB_PACKRAT), test_trace_nested_parse_isolation);
+    g_test_add_data_func("/core/parser/packrat/trace_nested_debug_restores_outer",
+                         GINT_TO_POINTER(PB_PACKRAT), test_trace_nested_debug_restores_outer);
+    g_test_add_data_func("/core/parser/packrat/trace_repeated_parses_and_nul_byte",
+                         GINT_TO_POINTER(PB_PACKRAT), test_trace_repeated_parses_and_nul_byte);
     g_test_add_data_func("/core/parser/packrat/trace_action_sum", GINT_TO_POINTER(PB_PACKRAT),
                          test_trace_action_sum);
     g_test_add_data_func("/core/parser/packrat/trace_nested_list", GINT_TO_POINTER(PB_PACKRAT),

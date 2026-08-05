@@ -616,6 +616,13 @@ void h_parse_error_free(HParseError *error) {
         error->deepest_parsers[i] = NULL;
     }
     error->n_deepest = 0;
+    free((void *)error->parser);
+    error->parser = NULL;
+    for (size_t i = 0; i < error->n_context; i++) {
+        free((void *)error->context[i]);
+        error->context[i] = NULL;
+    }
+    error->n_context = 0;
 }
 
 bool h_false(void *env) {

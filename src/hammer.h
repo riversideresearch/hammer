@@ -175,24 +175,38 @@ typedef struct HParseResult_ {
  *  reached during a traced parse. See ::HParseError and h_parse_debug(). */
 #define H_PARSE_ERROR_MAX_PARSERS 16
 
+typedef enum HParseErrorKind_ {
+    H_PARSE_ERROR_NONE = 0,
+    H_PARSE_ERROR_PRIMITIVE_MISMATCH,
+    H_PARSE_ERROR_UNEXPECTED_EOF,
+    H_PARSE_ERROR_SEMANTIC_PREDICATE,
+    H_PARSE_ERROR_RANGE,
+    H_PARSE_ERROR_HIGHER_ORDER
+} HParseErrorKind;
+
 /**
  * @struct HParseError
  * @brief Structured furthest-failure information from a traced parse.
  *
  * Filled in by h_parse_debug() so callers can inspect where and why a parse got
  * stuck programmatically, instead of scraping the textual trace from
- * stderr/stdout. It records how far into the input the parse advanced and which
- * primitive parsers were being attempted at that furthest position. Most useful
- * when the parse fails (h_parse_debug returns NULL); on success it simply
- * reflects the deepest position reached.
+ * stderr/stdout. It records the originating failed parser, its location and
+ * kind, tied failures, and enclosing parser context. On a successful parse the
+ * structure is left empty.
  */
 typedef struct HParseError_ {
     size_t index;       /**< Furthest byte offset reached in the input. */
+    size_t end_index;   /**< End position for a failure after consuming input. */
     uint8_t actual;     /**< Input byte at that offset (0 at end of input). */
+    bool has_actual;    /**< Whether actual contains an input byte. */
     uint8_t bit_offset; /**< Sub-byte bit position, for bitwise grammars. */
-    /** Names of the primitive parsers tied at the furthest position. */
+    HParseErrorKind kind;
+    const char *parser;
+    /** Names of originating parsers tied at the selected failure position. */
     const char *deepest_parsers[H_PARSE_ERROR_MAX_PARSERS];
     size_t n_deepest;   /**< Number of valid entries in deepest_parsers. */
+    const char *context[H_PARSE_ERROR_MAX_PARSERS];
+    size_t n_context;
 } HParseError;
 
 /**
