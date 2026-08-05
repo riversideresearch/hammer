@@ -60,7 +60,7 @@ void *h_rvm_run__m(HAllocator *mm__, HRVMProg *prog, const uint8_t *input, size_
     HSArray *heads_a = h_sarray_new(mm__, prog->length), // Both of these contain HRVMTrace*'s
         *heads_b = h_sarray_new(mm__, prog->length);
 
-    HRVMTrace *ret_trace = NULL;
+    HRVMTrace *volatile ret_trace = NULL;
     HParseResult *ret = NULL;
 
     // out of memory handling
