@@ -60,7 +60,7 @@ void *h_rvm_run__m(HAllocator *mm__, HRVMProg *prog, const uint8_t *input, size_
     HSArray *heads_a = h_sarray_new(mm__, prog->length), // Both of these contain HRVMTrace*'s
         *heads_b = h_sarray_new(mm__, prog->length);
 
-    HRVMTrace *ret_trace = NULL;
+    HRVMTrace *volatile ret_trace = NULL;
     HParseResult *ret = NULL;
 
     // out of memory handling
@@ -248,6 +248,8 @@ HParseResult *run_trace(HAllocator *mm__, HRVMProg *orig_prog, HRVMTrace *trace,
     ctx->stack_count = 0;
     ctx->stack_capacity = 16;
     ctx->stack = h_new(HParsedToken *, ctx->stack_capacity);
+    ctx->action_plan = NULL;
+    ctx->action_plan_frames = NULL;
 
     // out of memory handling
     if (!arena || !ctx->stack)
@@ -303,7 +305,11 @@ HParseResult *run_trace(HAllocator *mm__, HRVMProg *orig_prog, HRVMTrace *trace,
         case SVM_ACCEPT:
             if (ctx->stack_count > 1)
                 goto fail;
+            if (ctx->action_plan_frames)
+                goto fail;
             assert(ctx->stack_count <= 1);
+            if (!h_action_plan_execute(arena, ctx->action_plan))
+                goto fail;
             HParseResult *res = a_new0(HParseResult, 1);
             if (ctx->stack_count == 1) {
                 res->ast = ctx->stack[0];
@@ -355,6 +361,16 @@ uint16_t h_rvm_create_action(HRVMProg *prog, HSVMActionFunc action_func, void *e
     action->action = action_func;
     action->env = env;
     return prog->action_count++;
+}
+
+void *h_rvm_alloc(HRVMProg *prog, size_t size) {
+    if (!prog->arena) {
+        prog->arena = h_new_arena(prog->allocator, 0);
+        if (!prog->arena)
+            longjmp(prog->except, 1);
+        h_arena_set_except(prog->arena, &prog->except);
+    }
+    return h_arena_malloc_noinit(prog->arena, size);
 }
 
 uint16_t h_rvm_insert_insn(HRVMProg *prog, HRVMOp op, uint16_t arg) {
@@ -434,12 +450,18 @@ bool h_compile_regex(HRVMProg *prog, const HParser *parser) {
     return parser->vtable->compile_to_rvm(prog, parser->env);
 }
 
-static void h_regex_free(HParser *parser) {
-    HRVMProg *prog = (HRVMProg *)parser->backend_data;
+static void h_rvm_prog_free(HRVMProg *prog) {
     HAllocator *mm__ = prog->allocator;
     h_free(prog->insns);
     h_free(prog->actions);
+    if (prog->arena)
+        h_delete_arena(prog->arena);
     h_free(prog);
+}
+
+static void h_regex_free(HParser *parser) {
+    HRVMProg *prog = (HRVMProg *)parser->backend_data;
+    h_rvm_prog_free(prog);
     parser->backend_data = NULL;
     parser->backend_vtable = h_get_default_backend_vtable();
     parser->backend = h_get_default_backend();
@@ -454,18 +476,18 @@ static int h_regex_compile(HAllocator *mm__, HParser *parser, const void *params
     prog->insns = NULL;
     prog->actions = NULL;
     prog->allocator = mm__;
+    prog->arena = NULL;
     if (setjmp(prog->except)) {
+        h_rvm_prog_free(prog);
         return 3;
     }
     if (!h_compile_regex(prog, parser)) {
         // this shouldn't normally fail when isValidRegular() returned true
-        h_free(prog->insns);
-        h_free(prog->actions);
-        h_free(prog);
+        h_rvm_prog_free(prog);
         return 2;
     }
-    memset(prog->except, 0, sizeof(prog->except));
     h_rvm_insert_insn(prog, RVM_ACCEPT, 0);
+    memset(prog->except, 0, sizeof(prog->except));
     parser->backend_data = prog;
     return 0;
 }

@@ -182,6 +182,17 @@ typedef struct HCFChoice_ HCFChoice;
 typedef struct HRVMProg_ HRVMProg;
 typedef struct HParserVtable_ HParserVtable;
 
+typedef void (*HParserEnvFree)(HAllocator *mm__, void *);
+
+typedef struct HDesugarContext_ {
+    HArena *arena;
+    HAllocator allocator; /* arena-backed allocator */
+    HAllocator *owner_mm__;
+    size_t refs; /* parser references; valid on the group root */
+    struct HDesugarContext_ *group_parent;
+    struct HDesugarContext_ *group_next;
+    struct HDesugarContext_ *group_tail;
+} HDesugarContext;
 // TODO: Make this internal
 typedef struct HParser_ {
     const HParserVtable *vtable;
@@ -189,7 +200,11 @@ typedef struct HParser_ {
     HParserBackendVTable *backend_vtable;
     void *backend_data;
     void *env;
+    HParserEnvFree free_env;
     HCFChoice *desugared; /**< if the parser can be desugared, its desugared form */
+    HCFChoice *augmented;
+    HAllocator *owner_mm__;
+    HDesugarContext *desugar_ctx;
 } HParser;
 
 typedef struct HSuspendedParser_ HSuspendedParser;
@@ -508,6 +523,20 @@ HParser *h_int_range__m(HAllocator *mm__, const HParser *p, const int64_t lower,
                         const int64_t upper);
 
 /**
+ * @brief Given a float parser, p, and two float bounds, lower and upper, returns a parser that
+ * parses a value within the range
+ *
+ * @param p float parser (h_float16(), h_float32(), h_float64())
+ * @param lower Lower bound (inclusive)
+ * @param upper Upper bound (inclusive)
+ * @return Result token type: Same as p's result type
+ * @note Consumes the same number of bits as p
+ */
+HParser *h_float_range(const HParser *p, const double lower, const double upper);
+HParser *h_float_range__m(HAllocator *mm__, const HParser *p, const double lower,
+                          const double upper);
+
+/**
  * @brief Returns a parser that parses the specified number of bits. sign == true if signed, false
  * if unsigned.
  *
@@ -515,6 +544,9 @@ HParser *h_int_range__m(HAllocator *mm__, const HParser *p, const int64_t lower,
  * @param sign true for signed, false for unsigned
  * @return Result token type: TT_SINT if sign == true, TT_UINT if sign == false
  * @note Consumes 'len' bits from the input stream
+ * @note Result values are represented as 64-bit integers. Use len <= 64 for a value-preserving
+ * parse; wider parses still consume len bits but only retain the low 64 bits in the returned
+ * integer token. Use h_bytes() or a sequence of smaller integer parsers for wider fields.
  */
 HParser *h_bits(size_t len, _Bool sign);
 HParser *h_bits__m(HAllocator *mm__, size_t len, _Bool sign);
@@ -694,6 +726,62 @@ HParser *h_middle__m(HAllocator *mm__, const HParser *p, const HParser *x, const
  */
 HParser *h_action(const HParser *p, const HAction a, void *user_data);
 HParser *h_action__m(HAllocator *mm__, const HParser *p, const HAction a, void *user_data);
+
+typedef struct HActionEntry_ {
+    HParseResult res;
+    HParsedToken *placeholder;
+    HAction action;
+    void *user_data;
+    struct HActionEntry_ *next;
+} HActionEntry;
+
+typedef struct {
+    /*
+     * Reserved compatibility fields. Deferred entries are now kept in an
+     * arena-owned, branch-local parse plan; the collection's address is the
+     * stable identity used to match h_action_stash() with h_action_apply().
+     */
+    HActionEntry *head;
+    HActionEntry *tail;
+    size_t count;
+    HArena *arena;
+} HActionCollection;
+
+/**
+ * @brief Parse p and record an action for a matching h_action_apply() scope.
+ * @param p Parser to wrap
+ * @param a Action function
+ * @param user_data Context for action
+ * @param collection Stable identity shared with a matching h_action_apply parser.
+ * @return Result token type: any
+ */
+HParser *h_action_stash(const HParser *p, const HAction a, void *user_data,
+                        HActionCollection *collection);
+HParser *h_action_stash__m(HAllocator *mm__, const HParser *p, const HAction a, void *user_data,
+                           HActionCollection *collection);
+
+/**
+ * @brief Clear the collection's compatibility bookkeeping.
+ *
+ * Deferred entries are owned by the active parse plan and are released with
+ * its parse arena. Calling this function never frees arena storage.
+ */
+void h_action_collection_reset(HActionCollection *collection);
+
+/**
+ * @brief Parse p and run its matching stashed actions once the complete parse
+ * path succeeds.
+ *
+ * @param p An HParser containing h_action_stash parsers.
+ * @param collection Stable identity shared with matching h_action_stash parsers.
+ * @return Result token type: any.
+ * @note If collection is NULL, this still parses p but creates no apply scope.
+ * @note Deferred transformations are committed after the complete parse succeeds;
+ * ordinary actions and predicates executed during parsing see the placeholder's
+ * original value.
+ */
+HParser *h_action_apply(HParser *p, HActionCollection *collection);
+HParser *h_action_apply__m(HAllocator *mm__, HParser *p, HActionCollection *collection);
 
 /**
  * @brief Parse a single byte that is in the given charset. Always attempts to
@@ -1087,6 +1175,15 @@ HParser *h_get_value(const char *name);
 HParser *h_get_value__m(HAllocator *mm__, const char *name);
 
 /**
+ * @brief prints the entire abstract syntax tree with proper indexing
+ *
+ * @param stream Output stream
+ * @param tok Token to format
+ * @param indent Initial indentation level
+ */
+void h_pprint_ast_indexed(FILE *stream, const HParsedToken *token, size_t indent);
+
+/**
  * @brief The 'h_free_value' combinator retrieves a named HParseResult that was previously stashed
  * in the parse state and deletes it from the symbol table
  *
@@ -1354,6 +1451,21 @@ const char *h_get_token_type_name(HTokenType token_type);
 
 /** Make an allocator that draws from the given memory area. */
 HAllocator *h_sloballoc(void *mem, size_t size);
+
+/**
+ * @brief Free parser p from the heap
+ *
+ * @param p Parser to free.
+ * @note if the parser has arguments of other parsers, those need to be freed seperately.
+ */
+void h_parser_free(HParser *p);
+
+/**
+ * @brief Free parser p from the heap
+ * @param mm__ Allocator that the parser was created in.
+ * @param p Parser to free.
+ */
+void h_parser_free__m(HAllocator *mm__, HParser *p);
 
 #ifdef __cplusplus
 }

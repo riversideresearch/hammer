@@ -23,7 +23,14 @@ static bool indirect_isValidCF(void *env) {
 }
 
 static void desugar_indirect(HAllocator *mm__, HCFStack *stk__, void *env) {
-    HCFS_DESUGAR(((HIndirectEnv *)env)->parser);
+    HIndirectEnv *indirect = env;
+
+    HCFS_BEGIN_CHOICE() {
+        HCFS_BEGIN_SEQ() { HCFS_DESUGAR(indirect->parser); }
+        HCFS_END_SEQ();
+        HCFS_THIS_CHOICE->reshape = h_act_first;
+    }
+    HCFS_END_CHOICE();
 }
 
 static const HParserVtable indirect_vt = {

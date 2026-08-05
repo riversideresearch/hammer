@@ -251,7 +251,6 @@ For WSL, use `wslview` instead of `xdg-open`.
 - Add consistency check to the bitreader
 - We should support the use of parse-table-based parse methods; add a parse_compile method that must be called before the newly-created parser is used.
 - Implement datastructure linearization func
-- Implement free func for parsers
 
 ## Hacking Guidelines (previously HACKING)
 

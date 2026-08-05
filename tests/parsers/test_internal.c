@@ -58,10 +58,10 @@ static void test_cfstack_begin_seq_realloc_failure(void) {
         h_cfstack_begin_seq(mm__, stack);
 
         /*
-        * Reached only if h_cfstack_begin_seq() unexpectedly returns after
-        * the failed realloc. Restore the original allocation before forcing
-        * failure so this regression path remains sanitizer-clean.
-        */
+         * Reached only if h_cfstack_begin_seq() unexpectedly returns after
+         * the failed realloc. Restore the original allocation before forcing
+         * failure so this regression path remains sanitizer-clean.
+         */
         if (!choice->data.seq)
             choice->data.seq = old_seq;
         mm__->free(mm__, choice->data.seq);
@@ -98,32 +98,24 @@ static void test_cfstack_begin_choice_realloc_failure(void) {
     g_test_trap_assert_stderr("*memory reallocation failed*");
 }
 
-static void test_desugar_realloc_failure_is_fatal(void) {
-    if (g_test_subprocess()) {
-        CFStackOOMAllocator state = cfstack_oom_allocator();
-        HAllocator *mm__ = &state.allocator;
-        HParser *parser = h_epsilon_p__m(mm__);
+static void test_desugar_uses_context_arena_for_cf_storage(void) {
+    CFStackOOMAllocator state = cfstack_oom_allocator();
+    HAllocator *mm__ = &state.allocator;
+    HParser *parser = h_epsilon_p__m(mm__);
 
-        /*
-         * Epsilon desugaring's first realloc grows the initial choice's
-         * sequence array in h_cfstack_begin_seq().
-         */
-        state.fail_next_realloc = true;
-        HCFChoice *choice = h_desugar(mm__, NULL, parser);
-    
-        if (choice) {
-            if (!choice->data.seq)
-                choice->data.seq = state.failed_realloc_ptr;
-            mm__->free(mm__, choice->data.seq);
-            mm__->free(mm__, choice);
-        }
-        mm__->free(mm__, parser);
-        g_error("h_desugar returned after realloc failure");
-    }
+    /*
+     * Desugared CFG storage is arena-owned by the parser's desugar context.
+     * A pending realloc failure on the parser owner allocator must not be
+     * consumed by the internal CF stack growth path.
+     */
+    state.fail_next_realloc = true;
+    HCFChoice *choice = h_desugar(mm__, NULL, parser);
 
-    g_test_trap_subprocess(NULL, 0, G_TEST_SUBPROCESS_DEFAULT);
-    g_test_trap_assert_failed();
-    g_test_trap_assert_stderr("*memory reallocation failed*");
+    g_check_cmp_ptr(choice, !=, NULL);
+    g_check_cmp_ptr(state.failed_realloc_ptr, ==, NULL);
+    g_check_cmp_int(state.fail_next_realloc, ==, true);
+
+    h_parser_free__m(mm__, parser);
 }
 
 // Helper continuation functions for testing bind parser
@@ -298,6 +290,36 @@ static void test_indirect_isValidCF(void) {
     // The indirect_isValidCF function will try to dereference NULL parser
     // which would cause a crash. The touched flag prevents infinite recursion
     // but doesn't protect against NULL dereference.
+}
+
+static void test_desugar_context_lifetime(void) {
+    HParser *p1 = h_ch('a');
+    HParser *p2 = h_ch('b');
+    HParser *sequence = h_sequence(p1, p2, NULL);
+
+    g_check_cmp_ptr(h_desugar(&system_allocator, NULL, sequence), !=, NULL);
+    // g_check_cmp_ptr(sequence->desugar_ctx, !=, NULL);
+    // g_check_cmp_ptr(p1->desugar_ctx, ==, sequence->desugar_ctx);
+    // g_check_cmp_ptr(p2->desugar_ctx, ==, sequence->desugar_ctx);
+
+    h_parser_free(sequence);
+    g_check_cmp_ptr(p1->desugared, !=, NULL);
+    g_check_cmp_ptr(p2->desugared, !=, NULL);
+
+    h_parser_free(p1);
+    h_parser_free(p2);
+}
+
+static void test_indirect_desugar_has_own_cfg(void) {
+    HParser *inner = h_ch('a');
+    HParser *indirect = h_indirect();
+    h_bind_indirect(indirect, inner);
+
+    g_check_cmp_ptr(h_desugar(&system_allocator, NULL, indirect), !=, NULL);
+    g_check_cmp_ptr(indirect->desugared, !=, inner->desugared);
+
+    h_parser_free(indirect);
+    h_parser_free(inner);
 }
 
 static void test_reshape_bits_direct(void) {
@@ -532,8 +554,8 @@ void register_internal_tests(void) {
                     test_cfstack_begin_seq_realloc_failure);
     g_test_add_func("/core/internal/cfstack_begin_choice_realloc_failure",
                     test_cfstack_begin_choice_realloc_failure);
-    g_test_add_func("/core/internal/desugar_realloc_failure_is_fatal",
-                    test_desugar_realloc_failure_is_fatal);
+    g_test_add_func("/core/internal/desugar_uses_context_arena_for_cf_storage",
+                    test_desugar_uses_context_arena_for_cf_storage);
     g_test_add_func("/core/internal/reshape_bits_unsigned", test_reshape_bits_unsigned);
     g_test_add_func("/core/internal/reshape_bits_signed", test_reshape_bits_signed);
     g_test_add_func("/core/internal/reshape_bits_signed_positive",
@@ -542,4 +564,6 @@ void register_internal_tests(void) {
     g_test_add_func("/core/internal/ignoreseq_isValidRegular", test_ignoreseq_isValidRegular);
     g_test_add_func("/core/internal/ignoreseq_isValidCF", test_ignoreseq_isValidCF);
     g_test_add_func("/core/internal/indirect_isValidCF", test_indirect_isValidCF);
+    g_test_add_func("/core/internal/desugar_context_lifetime", test_desugar_context_lifetime);
+    g_test_add_func("/core/internal/indirect_desugar_own_cfg", test_indirect_desugar_has_own_cfg);
 }

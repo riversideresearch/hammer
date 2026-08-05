@@ -1,3 +1,17 @@
+libhammer (3.1.0-1) unstable; urgency=medium
+
+  * Add h_parser_free support and parser ownership cleanup across combinators
+    and backends
+  * Add indexed AST pretty-printing with h_pprint_ast_indexed()
+  * Add H_BIT0 and H_BIT1 convenience macros and improve bit/int-range
+    context-free and regular backend support
+  * Add h_float_range parser support
+  * Add deferred h_action_stash and h_action_apply support across packrat,
+    regex, LL(k), LALR, and GLR backends
+  * Clarify h_bits 64-bit result-value behavior in public documentation
+
+ -- Mahmoud Elbasiouny <melbasiouny@riversideresearch.org>  Wed, 05 Aug 2026 12:00:00 -0400
+
 libhammer (3.0.2-1) unstable; urgency=medium
 
   * Fix a memory leak in the bind parser by allocating continuation parsers

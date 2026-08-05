@@ -3,11 +3,6 @@
 
 #include <stdarg.h>
 
-typedef struct {
-    size_t len;
-    HParser **p_array;
-} HSequence;
-
 // main recursion, used by parse_permutation below
 static int parse_permutation_tail(const HSequence *s, HCountedArray *seq, const size_t k, char *set,
                                   HParseState *state) {
@@ -20,12 +15,14 @@ static int parse_permutation_tail(const HSequence *s, HCountedArray *seq, const 
         return 1;
 
     HInputStream bak = state->input_stream;
+    HActionPlan *bak_plan = state->action_plan;
 
     // try available parsers as first element of the permutation tail
     HParseResult *match = NULL;
     size_t i;
     for (i = 0; i < n; i++) {
         if (set[i]) {
+            state->action_plan = bak_plan;
             match = h_do_parse(ps[i], state);
 
             if (want_suspend(state))
@@ -50,10 +47,13 @@ static int parse_permutation_tail(const HSequence *s, HCountedArray *seq, const 
                 } else {
                     // place parser back in active set and try the next
                     set[i] = 1;
+                    state->action_plan = bak_plan;
                 }
             }
 
             state->input_stream = bak; // rewind input
+            if (!match)
+                state->action_plan = bak_plan;
         }
     }
 
@@ -65,10 +65,13 @@ static int parse_permutation_tail(const HSequence *s, HCountedArray *seq, const 
                 break;
         }
     }
-    if (i == n) // all were TT_NONE
+    if (i == n) { // all were TT_NONE
+        state->action_plan = bak_plan;
         return 1;
+    }
 
     // permutations exhausted
+    state->action_plan = bak_plan;
     return 0;
 }
 
@@ -153,7 +156,7 @@ HParser *h_permutation__mv(HAllocator *mm__, HParser *p, va_list ap_) {
     va_end(ap);
 
     s->len = len;
-    return h_new_parser(mm__, &permutation_vt, s);
+    return h_new_parser_with_free(mm__, &permutation_vt, s, h_free_seq_env);
 }
 
 HParser *h_permutation__a(void *args[]) { return h_permutation__ma(&system_allocator, args); }
@@ -174,11 +177,7 @@ HParser *h_permutation__ma(HAllocator *mm__, void *args[]) {
     }
 
     s->len = len;
-    HParser *ret = h_new(HParser, 1);
-    ret->vtable = &permutation_vt;
-    ret->env = (void *)s;
-    ret->backend = h_get_default_backend();
-    ret->backend_vtable = h_get_default_backend_vtable();
+    HParser *ret = h_new_parser_with_free(mm__, &permutation_vt, s, h_free_seq_env);
     ret->desugared = NULL;
     return ret;
 }

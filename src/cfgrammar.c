@@ -38,6 +38,7 @@ HCFGrammar *h_cfgrammar_new(HAllocator *mm__) {
     g->geneps = NULL;
     g->first = h_hashtable_new(g->arena, eq_k_nt, hash_k_nt);
     g->follow = h_hashtable_new(g->arena, eq_k_nt, hash_k_nt);
+    g->owned_start = NULL;
 
     HStringMap *eps = h_stringmap_new(g->arena);
     h_stringmap_put_epsilon(eps, INSET);
@@ -52,6 +53,8 @@ HCFGrammar *h_cfgrammar_new(HAllocator *mm__) {
 
 void h_cfgrammar_free(HCFGrammar *g) {
     HAllocator *mm__ = g->mm__;
+    if (g->owned_start)
+        h_free(g->owned_start);
     h_delete_arena(g->arena);
     h_free(g);
 }
@@ -81,17 +84,22 @@ HCFGrammar *h_cfgrammar_(HAllocator *mm__, HCFChoice *desugared) {
     collect_nts(g, desugared);
     if (h_hashset_empty(g->nts)) {
         // desugared is a terminal. wrap it in a singleton HCF_CHOICE.
-        HCFChoice *nt = h_new(HCFChoice, 1);
+        HCFStartWrapper *wrapper = h_new(HCFStartWrapper, 1);
+        HCFChoice *nt = &wrapper->choice;
+        g->owned_start = wrapper;
         nt->type = HCF_CHOICE;
-        nt->data.seq = h_new(HCFSequence *, 2);
-        nt->data.seq[0] = h_new(HCFSequence, 1);
-        nt->data.seq[0]->items = h_new(HCFChoice *, 2);
+        nt->data.seq = wrapper->alternatives;
+        nt->data.seq[0] = &wrapper->sequence;
+        nt->data.seq[0]->items = wrapper->items;
         nt->data.seq[0]->items[0] = desugared;
         nt->data.seq[0]->items[1] = NULL;
         nt->data.seq[1] = NULL;
         nt->pred = NULL;
         nt->action = NULL;
+        nt->plan_action = NULL;
         nt->reshape = h_act_first;
+        nt->user_data = NULL;
+        nt->dispatch_opcode = 0;
         h_hashset_put(g->nts, nt);
         g->start = nt;
     } else {

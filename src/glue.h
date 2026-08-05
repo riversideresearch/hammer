@@ -276,6 +276,22 @@ HParsedToken *h_seq_index_vpath(const HParsedToken *p, size_t i, va_list va);
 /** Lower-level helper for h_seq_index. */
 HParsedToken *h_carray_index(const HCountedArray *a, size_t i); /**< XXX -> internal */
 
+/** Common Bit flag checking combinators **/
+/**
+ * @brief parse that parses a single bit and fails if it is 0
+ *
+ * @return Result token type: TT_UINT
+ * @note Only works on Packrat backend
+ */
+#define H_BIT1() h_int_range(h_bits(1, false), 1, 1)
+/**
+ * @brief parse that parses a single bit and fails if it is 1
+ *
+ * @return Result token type: TT_UINT
+ * @note Only works on Packrat backend
+ */
+#define H_BIT0() h_int_range(h_bits(1, false), 0, 0)
+
 /** Sequence modification... */
 
 /**

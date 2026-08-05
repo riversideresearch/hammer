@@ -37,12 +37,13 @@ Legend:
 | `h_in` | Yes | Yes | Yes | Yes | Yes | Charset terminal. |
 | `h_not_in` | Yes | Yes | Yes | Yes | Yes | Complement charset terminal. |
 | `h_token`, `h_literal` | Yes | Yes | Yes | Yes | Yes | Fixed byte string. |
-| `h_bits` | Yes | Limited | Limited | Limited | Limited | Regex and CFG paths only handle whole-byte bit lengths. |
+| `h_bits` | Yes | Limited | Limited | Limited | Limited | Result is a 64-bit integer token; wider parses consume the requested bits but retain only the low 64 bits. Regex and CFG paths only handle whole-byte bit lengths. |
 | `h_int8`, `h_uint8` | Yes | Yes | Yes | Yes | Yes | Whole-byte integer parser. |
 | `h_int16`, `h_uint16` | Yes | Yes | Yes | Yes | Yes | Whole-byte integer parser. |
 | `h_int32`, `h_uint32` | Yes | Yes | Yes | Yes | Yes | Whole-byte integer parser. |
 | `h_int64`, `h_uint64` | Yes | Yes | Yes | Yes | Yes | Whole-byte integer parser. |
-| `h_int_range` | Yes | Limited | Limited | Limited | Limited | Assumes a whole-byte integer parser. |
+| `h_float_range` | Yes | If child | If child | If child | If child | Can handle float parser wrapped in a higher parser. |
+| `h_int_range` | Yes |  If child  | If children | If children | If children | Can handle whole byte int parser wrapped in a higher parser. |
 | `h_bytes` | Yes | Yes | Yes | Yes | Yes | Desugars to a charset. |
 | `h_sequence` | Yes | If children | If children | If children | If children | Grammar shape can still affect LL/LALR compilation. |
 | `h_choice` | Yes | If children | If children | If children | If children | LL may require larger `k`; LALR may report conflicts. |
@@ -57,7 +58,9 @@ Legend:
 | `h_ignore` | Yes | If child | If child | If child | If child | Suppresses the child result. |
 | `h_whitespace` | Yes | If child | If child | If child | If child | Wraps another parser with whitespace handling. |
 | `h_action` | Yes | If child | If child | If child | If child | Semantic action is preserved by RVM and CFG backends. |
-| `h_attr_bool` | Yes | No | If child | If child | If child | Predicate is preserved by RVM and CFG backends. |
+| `h_action_stash` | Yes | If child | If child | If child | If child | Semantic action is preserved by RVM and CFG backends. |
+| `h_action_apply` | Yes | If child | If child | If child | If child | Semantic action is preserved by RVM and CFG backends. |
+| `h_attr_bool` | Yes | If child | If child | If child | If child | Predicate is preserved by RVM and CFG backends. |
 | `h_epsilon_p` | Yes | Yes | Yes | Yes | Yes | Empty success. |
 | `h_end_p` | Yes | Yes | Yes | Yes | Yes | End-of-input marker. |
 | `h_nothing_p` | Yes | Yes | Yes | Yes | Yes | Always fails. |
@@ -150,7 +153,7 @@ Limitations:
 
 - only regular-marked combinators with RVM emitters are supported
 - chunked parsing is not currently exposed for this backend
-- `h_bits` and integer parser support is limited to whole-byte widths
+- `h_bits` and integer parser support is limited to whole-byte widths and 64-bit integer result values
 - `h_bytes` is not currently RVM-compiled; use `h_token` for fixed byte strings
 
 ### LL(k)

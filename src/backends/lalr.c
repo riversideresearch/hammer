@@ -263,8 +263,14 @@ static bool match_any_production(const HLRTable *table, HLREnhGrammar *eg, const
 
 // desugar parser with a fresh start symbol
 // this guarantees that the start symbol will not occur in any productions
-HCFChoice *h_desugar_augmented(HAllocator *mm__, HParser *parser) {
-    HCFChoice *augmented = h_new(HCFChoice, 1);
+
+HCFChoice *h_desugar_augmented(HParser *parser) {
+    if (parser->augmented)
+        return parser->augmented;
+    HAllocator *mm__ = h_desugar_context_allocator(parser);
+    if (!mm__)
+        return NULL;
+    HCFChoice *augmented = h_alloc(mm__, sizeof(*augmented));
 
     HCFStack *stk__ = h_cfstack_new(mm__);
     stk__->prealloc = augmented;
@@ -275,7 +281,7 @@ HCFChoice *h_desugar_augmented(HAllocator *mm__, HParser *parser) {
     }
     HCFS_END_CHOICE();
     h_cfstack_free(mm__, stk__);
-
+    parser->augmented = augmented;
     return augmented;
 }
 
@@ -289,7 +295,7 @@ int h_lalr_compile(HAllocator *mm__, HParser *parser, const void *params) {
     if (!parser->vtable->isValidCF(parser->env)) {
         return -1;
     }
-    HCFGrammar *g = h_cfgrammar_(mm__, h_desugar_augmented(mm__, parser));
+    HCFGrammar *g = h_cfgrammar_(mm__, h_desugar_augmented(parser));
     if (g == NULL) // backend not suitable (language not context-free)
         return 2;
 

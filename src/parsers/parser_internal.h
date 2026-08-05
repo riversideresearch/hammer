@@ -47,4 +47,23 @@ static inline void desugar_epsilon(HAllocator *mm__, HCFStack *stk__, void *env)
     HCFS_END_CHOICE();
 }
 
+static inline void h_no_free_env(HAllocator *allocator, void *environment) {
+    (void)allocator;
+    (void)environment;
+}
+
+typedef struct HSequence {
+    size_t len;
+    HParser **p_array;
+} HSequence;
+
+static inline void h_free_seq_env(HAllocator *allocator, void *environment) {
+    HSequence *s = environment;
+
+    if (!s)
+        return;
+    if (s->p_array)
+        allocator->free(allocator, s->p_array);
+    allocator->free(allocator, s);
+}
 #endif // HAMMER_PARSER_INTERNAL__H

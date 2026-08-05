@@ -91,7 +91,9 @@ static const HParserVtable tell_vt = {
 
 HParser *h_skip(size_t n) { return h_skip__m(&system_allocator, n); }
 
-HParser *h_skip__m(HAllocator *mm__, size_t n) { return h_new_parser(mm__, &skip_vt, (void *)n); }
+HParser *h_skip__m(HAllocator *mm__, size_t n) {
+    return h_new_parser_with_free(mm__, &skip_vt, (void *)n, h_no_free_env);
+}
 
 HParser *h_seek(ssize_t offset, int whence) { return h_seek__m(&system_allocator, offset, whence); }
 
