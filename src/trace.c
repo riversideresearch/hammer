@@ -3,8 +3,9 @@
 #define _GNU_SOURCE /* dladdr(), strdup() used by the AST tracer below */
 #endif
 
-#include "internal.h"
 #include "trace.h"
+
+#include "internal.h"
 
 /* ------------------------------------------------------------------------- *
  * AST-construction trace.
@@ -19,19 +20,19 @@
  * ------------------------------------------------------------------------- */
 #if HAMMER_TRACE_AST
 
-#include <ctype.h>    // isprint()
-#include <dlfcn.h>    // dladdr()
-#include <elf.h>      // Elf64_* for reading .symtab
+#include <ctype.h> // isprint()
+#include <dlfcn.h> // dladdr()
+#include <elf.h>   // Elf64_* for reading .symtab
 #include <fcntl.h>
 #include <inttypes.h> // PRIu64 etc.
+#include <stddef.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>   // memcmp(), memset(), strdup()
+#include <string.h> // memcmp(), memset(), strdup()
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <unistd.h>
-#include <stdint.h>
-#include <stddef.h>
 #if defined(_WIN32)
 #include <io.h>
 #define ISATTY(fd) _isatty(_fileno(fd))
@@ -108,15 +109,24 @@ void h_trace_get_error(HParseError *out) {
 
 static const char *trace_tt_name(HTokenType t) {
     switch (t) {
-    case TT_NONE:     return "NONE";
-    case TT_BYTES:    return "BYTES";
-    case TT_SINT:     return "SINT";
-    case TT_UINT:     return "UINT";
-    case TT_DOUBLE:   return "DOUBLE";
-    case TT_FLOAT:    return "FLOAT";
-    case TT_SEQUENCE: return "SEQUENCE";
-    case TT_ERR:      return "ERR";
-    default:          return (t >= TT_USER) ? "USER" : "INVALID";
+    case TT_NONE:
+        return "NONE";
+    case TT_BYTES:
+        return "BYTES";
+    case TT_SINT:
+        return "SINT";
+    case TT_UINT:
+        return "UINT";
+    case TT_DOUBLE:
+        return "DOUBLE";
+    case TT_FLOAT:
+        return "FLOAT";
+    case TT_SEQUENCE:
+        return "SEQUENCE";
+    case TT_ERR:
+        return "ERR";
+    default:
+        return (t >= TT_USER) ? "USER" : "INVALID";
     }
 }
 
@@ -196,7 +206,7 @@ static char *fn_name_to_h(const char *name) {
     if (!name) {
         return NULL;
     }
-    
+
     size_t len = strlen(name);
     const char *remainder = (len > 5) ? name + 5 : "";
 
@@ -209,7 +219,7 @@ static char *fn_name_to_h(const char *name) {
 
     hname[0] = 'h';
 
-    memcpy(hname + 1, remainder, rlen + 1);  /* copy including NUL */
+    memcpy(hname + 1, remainder, rlen + 1); /* copy including NUL */
 
     return hname;
 }
@@ -264,7 +274,8 @@ static void trace_token(const HParsedToken *tok) {
     }
     switch (tok->token_type) {
     case TT_UINT:
-        fprintf(stderr, "UINT %" PRIu64 " (0x%02" PRIx64 ")", tok->token_data.uint, tok->token_data.uint);
+        fprintf(stderr, "UINT %" PRIu64 " (0x%02" PRIx64 ")", tok->token_data.uint,
+                tok->token_data.uint);
         break;
     case TT_SINT:
         fprintf(stderr, "SINT %" PRId64, tok->token_data.sint);
@@ -273,7 +284,8 @@ static void trace_token(const HParsedToken *tok) {
         fprintf(stderr, "BYTES[%zu]", tok->token_data.bytes.len);
         break;
     case TT_SEQUENCE:
-        fprintf(stderr, "SEQUENCE[%zu children]", tok->token_data.seq ? tok->token_data.seq->used : (size_t)0);
+        fprintf(stderr, "SEQUENCE[%zu children]",
+                tok->token_data.seq ? tok->token_data.seq->used : (size_t)0);
         break;
     default:
         fputs(trace_tt_name(tok->token_type), stderr);
@@ -304,14 +316,18 @@ void h_trace_file_context(const uint8_t *input, size_t length, size_t highlight_
             size_t idx = off + i;
             if (i < line_len) {
                 int is_highlight = (idx == highlight_index);
-                if (use_color && is_highlight) fputs(color_red, stderr);
+                if (use_color && is_highlight)
+                    fputs(color_red, stderr);
                 fprintf(stderr, "%02x", input[idx]);
-                if (use_color && is_highlight) fputs(color_reset, stderr);
+                if (use_color && is_highlight)
+                    fputs(color_reset, stderr);
             } else {
                 fputs("  ", stderr);
             }
-            if ((i & 3) == 3) fputs("  ", stderr);
-            else fputc(' ', stderr);
+            if ((i & 3) == 3)
+                fputs("  ", stderr);
+            else
+                fputc(' ', stderr);
         }
 
         /* ASCII column */
@@ -320,9 +336,11 @@ void h_trace_file_context(const uint8_t *input, size_t length, size_t highlight_
             size_t idx = off + i;
             uint8_t c = input[idx];
             int is_highlight = (idx == highlight_index);
-            if (use_color && is_highlight) fputs(color_red, stderr);
+            if (use_color && is_highlight)
+                fputs(color_red, stderr);
             fputc(isprint(c) ? (char)c : '.', stderr);
-            if (use_color && is_highlight) fputs(color_reset, stderr);
+            if (use_color && is_highlight)
+                fputs(color_reset, stderr);
         }
         fprintf(stderr, "\n");
     }
@@ -364,16 +382,15 @@ void h_trace_enter(const HParser *parser, HParseState *state) {
         trace_context->depth++;
 }
 
-static HParseErrorKind trace_failure_kind(const HParser *parser, const char *name,
-                                          size_t index, size_t length) {
+static HParseErrorKind trace_failure_kind(const HParser *parser, const char *name, size_t index,
+                                          size_t length) {
     if (strcmp(name, "parse_attr_bool") == 0)
         return H_PARSE_ERROR_SEMANTIC_PREDICATE;
     if (strcmp(name, "parse_int_range") == 0)
         return H_PARSE_ERROR_RANGE;
     if (index >= length)
         return H_PARSE_ERROR_UNEXPECTED_EOF;
-    return parser->vtable->higher ? H_PARSE_ERROR_HIGHER_ORDER
-                                  : H_PARSE_ERROR_PRIMITIVE_MISMATCH;
+    return parser->vtable->higher ? H_PARSE_ERROR_HIGHER_ORDER : H_PARSE_ERROR_PRIMITIVE_MISMATCH;
 }
 
 static void trace_record_failure(const HParser *parser, HParseState *state,
@@ -391,8 +408,8 @@ static void trace_record_failure(const HParser *parser, HParseState *state,
         memset(error, 0, sizeof(*error));
         error->index = index;
         error->end_index = end;
-        error->bit_offset = parser->vtable->higher ? state->input_stream.bit_offset
-                                                   : frame->start_bit;
+        error->bit_offset =
+            parser->vtable->higher ? state->input_stream.bit_offset : frame->start_bit;
         error->kind = kind;
         error->parser = frame->name;
         if (index < context->input_len) {
@@ -400,20 +417,20 @@ static void trace_record_failure(const HParser *parser, HParseState *state,
             error->has_actual = true;
         }
         trace_error_add_parser(error, frame->name);
-        for (size_t i = context->frame_count; i > 0 && error->n_context < H_PARSE_ERROR_MAX_PARSERS; i--)
+        for (size_t i = context->frame_count; i > 0 && error->n_context < H_PARSE_ERROR_MAX_PARSERS;
+             i--)
             error->context[error->n_context++] = context->frames[i - 1].name;
     } else if (index == error->index && kind == error->kind) {
         trace_error_add_parser(error, frame->name);
     }
 }
 
-void h_trace_exit(const HParser *parser, HParseState *state, HParseResult *res,
-                  const char *note) {
+void h_trace_exit(const HParser *parser, HParseState *state, HParseResult *res, const char *note) {
     if (!display_trace)
         return;
     HTraceFrame frame = {0};
-    bool have_frame = trace_context && trace_context->frame_count > 0 &&
-                      trace_context->overflow_frames == 0;
+    bool have_frame =
+        trace_context && trace_context->frame_count > 0 && trace_context->overflow_frames == 0;
     if (trace_context && trace_context->depth > 0)
         trace_context->depth--;
     if (trace_context && trace_context->overflow_frames > 0) {
@@ -457,8 +474,8 @@ void h_trace_end(HParseResult *res, HParseState *state) {
         size_t index;       /< Furthest byte offset reached in the input.
         size_t end_index;   /< End position for a failure after consuming input.
         uint8_t actual;     /< Input byte at that offset (0 at end of input).
-        bool has_actual;    /< Whether actual contains an input byte. 
-        uint8_t bit_offset; /< Sub-byte bit position, for bitwise grammars. 
+        bool has_actual;    /< Whether actual contains an input byte.
+        uint8_t bit_offset; /< Sub-byte bit position, for bitwise grammars.
         HParseErrorKind kind;
         const char *parser;
         /Names of originating parsers tied at the selected failure position.
@@ -476,7 +493,7 @@ void h_trace_end(HParseResult *res, HParseState *state) {
             fprintf(stdout, "error: integer outside permitted range");
         } else if (error->has_actual) {
             uint8_t c = error->actual;
-            char disp[2] = { isprint(c) ? (char)c : '\0', '\0' };
+            char disp[2] = {isprint(c) ? (char)c : '\0', '\0'};
             fprintf(stdout, "error: unexpected byte(s): '%s' (0x%02x = %d)\n", disp, c, c);
         } else {
             fprintf(stdout, "error: unexpected end of input");
