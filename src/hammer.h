@@ -927,7 +927,7 @@ HParser *h_permutation__ma(HAllocator *mm__, void *args[]);
 /**
  * @brief Given two parsers, p1 and p2, this parser succeeds in the following cases:
  * - if p1 succeeds and p2 fails
- * - if both succeed but p1's result is as long as or longer than p2's
+ * - if both succeed and p2's result is shorter than p1's
  *
  * @param p1 First parser
  * @param p2 Second parser
@@ -939,7 +939,7 @@ HParser *h_butnot__m(HAllocator *mm__, const HParser *p1, const HParser *p2);
 /**
  * @brief Given two parsers, p1 and p2, this parser succeeds in the following cases:
  * - if p1 succeeds and p2 fails
- * - if both succeed but p2's result is shorter than p1's
+ * - if both succeed and p1's result is as long as or longer than p2's
  *
  * @param p1 First parser
  * @param p2 Second parser

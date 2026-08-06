@@ -32,7 +32,7 @@ static HParseResult *parse_butnot(void *env, HParseState *state) {
     }
     size_t r1len = token_length(r1);
     size_t r2len = token_length(r2);
-    // if both match but p1's text no longer than p2's, fail
+    // if both match but p1's text isn't longer than p2's, fail
     if (r1len <= r2len) {
         return NULL;
     } else {
@@ -43,7 +43,7 @@ static HParseResult *parse_butnot(void *env, HParseState *state) {
 static const HParserVtable butnot_vt = {
     .parse = parse_butnot,
     .isValidRegular = h_false,
-    .isValidCF = h_false, // XXX should this be true if both p1 and p2 are CF?
+    .isValidCF = h_false,
     .higher = true,
 };
 
