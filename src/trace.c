@@ -494,8 +494,26 @@ void h_trace_end(HParseResult *res, HParseState *state) {
         } else if (error->has_actual) {
             uint8_t c = error->actual;
             char disp[2] = {isprint(c) ? (char)c : '\0', '\0'};
-            fprintf(stdout, "error: unexpected byte(s): '%s' (0x%02x = %d)\n", disp, c, c);
+            // Data Type Parsers require error message, byte value doesn't matter only length.
+            if(strcmp(error->parser, "parse_bits") == 0 )
+                fprintf(stdout, "error: ran out of bits to parse");
+            else if(strcmp(error->parser, "parse_bytes") == 0)
+                fprintf(stdout, "error: ran out of bytes to parse");
+            else if(strcmp(error->parser, "parse_xor") == 0) // Filtering parsers require specific error messages
+                fprintf(stdout, "error: both or neither parser passed");
+            else if(strcmp(error->parser, "parse_difference") == 0) // if p1 fails it won't reach this error message
+                fprintf(stdout, "error: p2's result is not shorter than p1's result");
+            else if(strcmp(error->parser, "parse_butnot") == 0) // if p1 fails it won't reach this error message
+                fprintf(stdout, "error: p1's result is shorter than p2's result");
+            else if(strcmp(error->parser, "parse_not") == 0) // parse_not fails on a successful parse
+                fprintf(stdout, "error: inner parse succeeded at byte(s):'%s' (0x%02x = %d)", disp, c, c);
+            else if(strcmp(error->parser, "parse_nothing") == 0) // h_nothing_p always fails
+                fprintf(stdout, "Always fail reached");
+            else
+                fprintf(stdout, "error: unexpected byte(s): '%s' (0x%02x = %d)\n", disp, c, c);
+            // TODO: fix default case is very vague, NULL params has nothing to do with an unexpected byte(s)
         } else {
+            // Sequential Parsers will reach this error message
             fprintf(stdout, "error: unexpected end of input");
         }
 
