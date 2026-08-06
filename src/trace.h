@@ -3,6 +3,7 @@
 #define HAMMER_BACKENDS_TRACE__H
 
 #include "internal.h" /* HParser, HParseState, HParseResult */
+#include "backends/regex.h"
 
 /* Compile-time master switch for the AST tracer.
  *
@@ -13,6 +14,7 @@
 #define HAMMER_TRACE_AST 1
 #if HAMMER_TRACE_AST
 
+// packrat trace functions
 void h_trace_set_enabled(bool enabled);
 void h_trace_get_error(HParseError *out);
 void h_trace_begin(const uint8_t *input, size_t input_len);
@@ -20,6 +22,11 @@ void h_trace_enter(const HParser *parser, HParseState *state);
 void h_trace_exit(const HParser *parser, HParseState *state, HParseResult *res, const char *note);
 void h_trace_end(HParseResult *res, HParseState *state);
 void h_trace_file_context(const uint8_t *input, size_t length, size_t highlight_index);
+
+// regex trace functions
+char *getsym(HSVMActionFunc addr);
+void dump_rvm_prog(HRVMProg *prog, const uint8_t *input, size_t input_len);
+void dump_svm_prog(HRVMProg *prog, HRVMTrace *trace);
 
 #define TRACE_SET_ENABLED(b)  h_trace_set_enabled((b))
 #define TRACE_GET_ERROR(out)  h_trace_get_error((out))

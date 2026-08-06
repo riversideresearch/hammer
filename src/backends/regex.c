@@ -1,6 +1,6 @@
 #define _GNU_SOURCE
 #include "regex.h"
-
+#include "trace.h"
 #include "../internal.h"
 #include "../parsers/parser_internal.h"
 
@@ -11,24 +11,6 @@
 #define a_new(typ, count) a_new_(arena, typ, count)
 #undef a_new0
 #define a_new0(typ, count) a_new0_(arena, typ, count)
-// Stack VM
-typedef enum HSVMOp_ {
-    SVM_PUSH,    // Push a mark. There is no VM insn to push an object.
-    SVM_NOP,     // Used to start the chain, and possibly elsewhere. Does nothing.
-    SVM_ACTION,  // Same meaning as RVM_ACTION
-    SVM_CAPTURE, // Same meaning as RVM_CAPTURE
-    SVM_ACCEPT,
-    SVM_OPCOUNT
-} HSVMOp;
-
-typedef struct HRVMTrace_ {
-    struct HRVMTrace_ *next; // When parsing, these are
-                             // reverse-threaded. There is a postproc
-                             // step that inverts all the pointers.
-    size_t input_pos;
-    uint16_t arg;
-    uint8_t opcode;
-} HRVMTrace;
 
 typedef struct HRVMThread_ {
     HRVMTrace *trace;
@@ -184,11 +166,15 @@ match_fail:
     if (ret_trace) {
         // Invert the direction of the trace linked list.
         ret_trace = invert_trace(ret_trace);
+        printf("dumping svm:\n");
+        dump_svm_prog(prog, ret_trace);
         ret = run_trace(mm__, prog, ret_trace, input, len);
         // NB: ret is in its own arena
     }
 
 end:
+    printf("dumping rvm:\n");
+    dump_rvm_prog(prog, input, len);
     if (arena)
         h_delete_arena(arena);
     if (heads_a)
@@ -507,7 +493,3 @@ HParserBackendVTable h__regex_backend_vtable = {
     .backend_description = "Regular expression matcher (broken)",
     .get_description_with_params = h_get_description_with_no_params,
     .get_short_name_with_params = h_get_short_name_with_no_params};
-
-#ifndef NDEBUG
-#include "regex_debug.c"
-#endif

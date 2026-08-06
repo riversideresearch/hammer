@@ -38,6 +38,16 @@ typedef enum HRVMOp_ {
     RVM_OPCOUNT
 } HRVMOp;
 
+// Stack VM
+typedef enum HSVMOp_ {
+    SVM_PUSH,    // Push a mark. There is no VM insn to push an object.
+    SVM_NOP,     // Used to start the chain, and possibly elsewhere. Does nothing.
+    SVM_ACTION,  // Same meaning as RVM_ACTION
+    SVM_CAPTURE, // Same meaning as RVM_CAPTURE
+    SVM_ACCEPT,
+    SVM_OPCOUNT
+} HSVMOp;
+
 typedef struct HRVMInsn_ {
     uint8_t op;
     uint16_t arg;
@@ -62,6 +72,15 @@ typedef struct HSVMAction_ {
     HSVMActionFunc action;
     void *env;
 } HSVMAction;
+
+typedef struct HRVMTrace_ {
+    struct HRVMTrace_ *next; // When parsing, these are
+                             // reverse-threaded. There is a postproc
+                             // step that inverts all the pointers.
+    size_t input_pos;
+    uint16_t arg;
+    uint8_t opcode;
+} HRVMTrace;
 
 struct HRVMProg_ {
     HAllocator *allocator;
