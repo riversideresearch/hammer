@@ -15,11 +15,6 @@
 #endif
 #endif
 
-typedef struct {
-    size_t len;
-    HParser **p_array;
-} HSequence;
-
 static HParseResult *parse_choice(void *env, HParseState *state) {
     HSequence *s = (HSequence *)env;
     HInputStream backup = state->input_stream;
@@ -134,7 +129,7 @@ HParser *h_choice__mv(HAllocator *mm__, HParser *p, va_list ap_) {
     va_end(ap);
 
     s->len = len;
-    return h_new_parser(mm__, &choice_vt, s);
+    return h_new_parser_with_free(mm__, &choice_vt, (void *)s, h_free_seq_env);
 }
 
 HParser *h_choice__a(void *args[]) { return h_choice__ma(&system_allocator, args); }
@@ -155,11 +150,7 @@ HParser *h_choice__ma(HAllocator *mm__, void *args[]) {
     }
 
     s->len = len;
-    HParser *ret = h_new(HParser, 1);
-    ret->vtable = &choice_vt;
-    ret->env = (void *)s;
-    ret->backend = h_get_default_backend();
-    ret->backend_vtable = h_get_default_backend_vtable();
+    HParser *ret = h_new_parser_with_free(mm__, &choice_vt, (void *)s, h_free_seq_env);
     ret->desugared = NULL;
     return ret;
 }

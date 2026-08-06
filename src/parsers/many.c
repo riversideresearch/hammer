@@ -20,8 +20,10 @@ static HParseResult *parse_many(void *env, HParseState *state) {
     HCountedArray *seq = h_carray_new_sized(state->arena, size);
     size_t count = 0;
     HInputStream bak;
+    HActionPlan *iteration_plan = NULL;
     while (env_->min_p || env_->count > count) {
         bak = state->input_stream;
+        iteration_plan = state->action_plan;
         if (count > 0 && env_->sep != NULL) {
             HParseResult *sep = h_do_parse(env_->sep, state);
             if (!sep)
@@ -48,6 +50,7 @@ stop:
         return NULL; // bail out early, leaving overrun flag
     if (count >= env_->count) {
         state->input_stream = bak;
+        state->action_plan = iteration_plan;
         goto succ;
     }
     return NULL;

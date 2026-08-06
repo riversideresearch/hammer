@@ -19,10 +19,11 @@
 #include "hammer.h"
 #include "internal.h"
 #include "tsearch.h"
+
 #include <limits.h>
 #include <stdint.h>
-#include <string.h>
 #include <stdlib.h>
+#include <string.h>
 
 #if defined(_MSC_VER)
 #define h_strdup _strdup
@@ -53,27 +54,23 @@ static void default_unamb_sub(const HParsedToken *tok, struct result_buf *buf) {
     h_append_buf_formatted(buf, "XXX AMBIGUOUS USER TYPE %d", tok->token_type);
 }
 
-HTokenType h_allocate_token_new(
-    const char *name,
-    void (*unamb_sub)(const HParsedToken *tok, struct result_buf *buf),
-    void (*pprint)(FILE *stream, const HParsedToken *tok,
-                   int indent, int delta)) {
+HTokenType h_allocate_token_new(const char *name,
+                                void (*unamb_sub)(const HParsedToken *tok, struct result_buf *buf),
+                                void (*pprint)(FILE *stream, const HParsedToken *tok, int indent,
+                                               int delta)) {
     if (!name)
         return TT_INVALID;
 
-    HTTEntry *new_entry =
-        system_allocator.alloc(&system_allocator, sizeof(*new_entry));
+    HTTEntry *new_entry = system_allocator.alloc(&system_allocator, sizeof(*new_entry));
     if (!new_entry)
         return TT_INVALID;
 
     new_entry->name = name;
     new_entry->value = TT_INVALID;
-    new_entry->unamb_sub =
-        unamb_sub ? unamb_sub : default_unamb_sub;
+    new_entry->unamb_sub = unamb_sub ? unamb_sub : default_unamb_sub;
     new_entry->pprint = pprint;
 
-    void *search_result =
-        tsearch(new_entry, &tt_registry, compare_entries);
+    void *search_result = tsearch(new_entry, &tt_registry, compare_entries);
     if (!search_result) {
         system_allocator.free(&system_allocator, new_entry);
         return TT_INVALID;
@@ -115,12 +112,9 @@ HTokenType h_allocate_token_new(
 
         HTTEntry **new_table;
         if (tt_by_id) {
-            new_table =
-                realloc(tt_by_id,
-                        new_size * sizeof(*tt_by_id));
+            new_table = realloc(tt_by_id, new_size * sizeof(*tt_by_id));
         } else {
-            new_table =
-                malloc(new_size * sizeof(*tt_by_id));
+            new_table = malloc(new_size * sizeof(*tt_by_id));
         }
 
         if (!new_table)

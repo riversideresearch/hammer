@@ -850,6 +850,207 @@ static void test_put_get(gconstpointer backend) {
                          9);
 }
 
+// helper function for h_action_stash
+HParsedToken *func(const HParseResult *result, void *user) {
+	(void)result;
+    (void)user;
+    return (HParsedToken*)NULL;
+}
+
+static HParsedToken *stash_count_action(const HParseResult *result, void *user_data) {
+    size_t *count = (size_t *)user_data;
+    (*count)++;
+    return (HParsedToken *)result->ast;
+}
+
+/*
+ * The first alternative stashes successfully and then fails. Only stash_b
+ * from the winning alternative may be committed.
+ *
+ * This deliberately requires speculation. The two distinct stash
+ * nonterminals both reduce from 'A' before the later 'X' can distinguish the
+ * alternatives, so the grammar has a reduce/reduce conflict under LALR.
+ */
+static void test_action_stash_discards_failed_branch(gconstpointer backend) {
+    HParserBackend be = (HParserBackend)GPOINTER_TO_INT(backend);
+    HActionCollection actions = {0};
+    size_t stale_count = 0;
+    size_t committed_count = 0;
+
+    HParser *stale_stash =
+        h_action_stash(h_ch('A'), stash_count_action, &stale_count, &actions);
+    HParser *stash_b =
+        h_action_stash(h_ch('A'), stash_count_action, &committed_count, &actions);
+
+    HParser *losing_branch =
+        h_sequence(stale_stash, h_ch('B'), h_ch('X'), NULL);
+    HParser *winning_branch =
+        h_sequence(stash_b, h_ch('B'), NULL);
+    HParser *parser = h_action_apply(
+        h_choice(losing_branch, winning_branch, NULL),
+        &actions);
+
+    g_check_parse_match(parser, be, "AB", 2, "(u0x41 u0x42)");
+    g_check_cmp_int(stale_count, ==, 0);
+    g_check_cmp_int(committed_count, ==, 1);
+}
+
+/*
+ * h_ignore removes the placeholder from the AST, but it must not discard a
+ * stash belonging to the successful parse path.
+ */
+static void test_action_stash_survives_ignore(gconstpointer backend) {
+    HParserBackend be = (HParserBackend)GPOINTER_TO_INT(backend);
+    HActionCollection actions = {0};
+    size_t applied_count = 0;
+
+    HParser *stash =
+        h_action_stash(h_ch('A'), stash_count_action, &applied_count, &actions);
+    HParser *parser = h_action_apply(h_ignore(stash), &actions);
+
+    g_check_parse_match(parser, be, "A", 1, "NULL");
+    g_check_cmp_int(applied_count, ==, 1);
+}
+
+/*
+ * Reusing the same stash parser exercises Packrat's memo table. The first
+ * branch must roll back its stash, while the cache hit in the winning branch
+ * must restore that stash exactly once.
+ */
+static void test_action_stash_packrat_memo_replay(void) {
+    HActionCollection actions = {0};
+    size_t applied_count = 0;
+
+    HParser *stash =
+        h_action_stash(h_ch('A'), stash_count_action, &applied_count, &actions);
+    HParser *losing_branch = h_sequence(stash, h_ch('X'), NULL);
+    HParser *parser = h_action_apply(
+        h_choice(losing_branch, stash, NULL),
+        &actions);
+
+    g_check_parse_match(parser, PB_PACKRAT, "A", 1, "u0x41");
+    g_check_cmp_int(applied_count, ==, 1);
+}
+
+/*
+ * An inner apply is not a final commit: a later failure in an enclosing
+ * sequence must discard its actions with the rest of that parse path.
+ */
+static void test_action_apply_discards_on_enclosing_failure(gconstpointer backend) {
+    HParserBackend be = (HParserBackend)GPOINTER_TO_INT(backend);
+    HActionCollection actions = {0};
+    size_t applied_count = 0;
+
+    HParser *stash =
+        h_action_stash(h_ch('A'), stash_count_action, &applied_count, &actions);
+    HParser *inner = h_action_apply(stash, &actions);
+    HParser *parser = h_sequence(inner, h_ch('B'), NULL);
+
+    g_check_parse_failed(parser, be, "AC", 2);
+    g_check_cmp_int(applied_count, ==, 0);
+}
+
+static void test_h_action_apply(gconstpointer backend){
+    HActionCollection action = {0};
+	HParser *parser =
+		h_action_stash(h_uint8(), func, NULL, &action);
+	HParser *seq =  h_action_apply(h_sequence(h_uint8(), parser, h_uint8(), NULL),&action);
+
+	// should now be the transformed AST.
+    g_check_parse_match(seq, (HParserBackend)GPOINTER_TO_INT(backend),
+                        "\x01\x01\x01",
+                        3, "(u0x1 null u0x1)");
+}
+static void test_action_apply_seq(void){
+    uint8_t buf[256];
+	buf[0] = (uint8_t)'C';
+	buf[1] = (uint8_t)'B';
+	buf[2] = (uint8_t)'A';
+    HActionCollection action = {0};
+	HParser *parser =
+		h_action_stash(h_uint8(), func, NULL, &action);
+	HParser *seq =  h_action_apply(h_sequence(h_uint8(), parser, h_uint8(), NULL),&action);
+    
+	HParseResult *result = h_parse(seq, buf, 3);
+	// should now be the transformed AST.
+    g_check_cmp_int(result->ast->token_data.seq->elements[1]->token_type, ==, TT_NONE);
+    
+    h_parse_result_free(result);
+}
+
+static void test_action_stash_multiple(void){
+    uint8_t buf[256];
+	buf[0] = (uint8_t)'C';
+	buf[1] = (uint8_t)'B';
+	buf[2] = (uint8_t)'A';
+    HActionCollection action = {0};
+	HParser *parser =
+		h_action_stash(h_uint8(), func, NULL, &action);
+	HParser *seq = h_action_apply(h_sequence(parser, parser, parser, NULL), &action);
+    
+	HParseResult *result = h_parse(seq, buf, 3);
+	// should now be the transformed AST.
+    g_check_cmp_int(result->ast->token_data.seq->elements[0]->token_type, ==, TT_NONE);
+    g_check_cmp_int(result->ast->token_data.seq->elements[1]->token_type, ==, TT_NONE);
+    g_check_cmp_int(result->ast->token_data.seq->elements[2]->token_type, ==, TT_NONE);
+    
+    h_parse_result_free(result);
+}
+
+// helper function for testing if a func should NOT be called
+HParsedToken *fail_func(const HParseResult *result, void *user) {
+	(void)result;
+    (void)user;
+    h_platform_errx(1, "TEST FAILED!\n");
+    return (HParsedToken*)NULL;
+}
+
+static void test_action_stash_choice(void){
+    uint8_t buf[256];
+	buf[0] = (uint8_t)'C';
+	buf[1] = (uint8_t)'B';
+	buf[2] = (uint8_t)'A';
+    HActionCollection action = {0};
+	HParser *parser1 =
+		h_action_stash(h_ch('D'), fail_func, NULL, &action);
+	HParser *parser2 =
+		h_action_stash(h_uint8(), func, NULL, &action); // Only this parser should apply
+	HParser *parser3 =
+		h_action_stash(h_uint8(), fail_func, NULL, &action);
+	HParser *seq = h_action_apply(h_choice(parser1, parser2, parser3, NULL), &action);
+    
+	HParseResult *result = h_parse(seq, buf, 3);
+	// should now be the transformed AST.
+    g_check_cmp_int(result->ast->token_type, ==, TT_NONE);
+    
+    h_parse_result_free(result);
+}
+
+static void test_action_apply_fail(void){
+    uint8_t buf[256];
+	buf[0] = (uint8_t)'C';
+	buf[1] = (uint8_t)'B';
+	buf[2] = (uint8_t)'A';
+    HActionCollection action = {0};
+	HParser *parser =
+		h_action_stash(h_uint8(), fail_func, NULL, &action);
+	HParser *seq = h_action_apply(h_sequence(h_uint8(), parser, h_nothing_p(), NULL), &action);
+    
+	HParseResult *result = h_parse(seq, buf, 3);
+    // Will call h_platform_errx, no test check needed
+}
+
+static void test_action_apply_choice(void){
+    uint8_t buf[256];
+	buf[0] = (uint8_t)'C';
+	buf[1] = (uint8_t)'B';
+	buf[2] = (uint8_t)'A';
+    HActionCollection action = {0};
+	HParser *parser = h_action_apply(h_choice(h_action_stash(h_int32(), func, NULL, &action),h_uint8(),NULL), &action);
+	HParseResult *result = h_parse(parser, buf, 3);
+    g_check_cmp_int(result->ast->token_type, ==, TT_UINT);
+    h_parse_result_free(result);
+}
 static void test_permutation(gconstpointer backend) {
     HParserBackend be = (HParserBackend)GPOINTER_TO_INT(backend);
     const HParser *p = h_permutation(h_ch('a'), h_ch('b'), h_ch('c'), NULL);
@@ -1113,4 +1314,55 @@ void register_parser_tests(void) {
     extern void test_indirect_basic(gconstpointer backend);
     g_test_add_data_func("/core/parser/packrat/indirect/basic", GINT_TO_POINTER(PB_PACKRAT),
                          test_indirect_basic);
+    g_test_add_data_func("/core/parser/h_action_apply/packrat", GINT_TO_POINTER(PB_PACKRAT),
+                         test_h_action_apply);
+    g_test_add_data_func("/core/parser/h_action_apply/regex", GINT_TO_POINTER(PB_REGULAR),
+                         test_h_action_apply);
+    g_test_add_data_func("/core/parser/h_action_apply/llk", GINT_TO_POINTER(PB_LL),
+                         test_h_action_apply);
+    g_test_add_data_func("/core/parser/h_action_apply/lalr", GINT_TO_POINTER(PB_LALR),
+                         test_h_action_apply);
+    g_test_add_data_func("/core/parser/h_action_apply/glr", GINT_TO_POINTER(PB_GLR),
+                         test_h_action_apply);
+    g_test_add_data_func("/core/parser/h_action_stash/failed_branch/packrat",
+                         GINT_TO_POINTER(PB_PACKRAT),
+                         test_action_stash_discards_failed_branch);
+    g_test_add_data_func("/core/parser/h_action_stash/failed_branch/regex",
+                         GINT_TO_POINTER(PB_REGULAR),
+                         test_action_stash_discards_failed_branch);
+    g_test_add_data_func("/core/parser/h_action_stash/failed_branch/glr",
+                         GINT_TO_POINTER(PB_GLR),
+                         test_action_stash_discards_failed_branch);
+    g_test_add_data_func("/core/parser/h_action_stash/ignored_placeholder/packrat",
+                         GINT_TO_POINTER(PB_PACKRAT), test_action_stash_survives_ignore);
+    g_test_add_data_func("/core/parser/h_action_stash/ignored_placeholder/regex",
+                         GINT_TO_POINTER(PB_REGULAR), test_action_stash_survives_ignore);
+    g_test_add_data_func("/core/parser/h_action_stash/ignored_placeholder/llk",
+                         GINT_TO_POINTER(PB_LL), test_action_stash_survives_ignore);
+    g_test_add_data_func("/core/parser/h_action_stash/ignored_placeholder/lalr",
+                         GINT_TO_POINTER(PB_LALR), test_action_stash_survives_ignore);
+    g_test_add_data_func("/core/parser/h_action_stash/ignored_placeholder/glr",
+                         GINT_TO_POINTER(PB_GLR), test_action_stash_survives_ignore);
+    g_test_add_func("/core/parser/h_action_stash/memo_replay/packrat",
+                    test_action_stash_packrat_memo_replay);
+    g_test_add_data_func("/core/parser/h_action_apply/enclosing_failure/packrat",
+                         GINT_TO_POINTER(PB_PACKRAT),
+                         test_action_apply_discards_on_enclosing_failure);
+    g_test_add_data_func("/core/parser/h_action_apply/enclosing_failure/regex",
+                         GINT_TO_POINTER(PB_REGULAR),
+                         test_action_apply_discards_on_enclosing_failure);
+    g_test_add_data_func("/core/parser/h_action_apply/enclosing_failure/llk",
+                         GINT_TO_POINTER(PB_LL),
+                         test_action_apply_discards_on_enclosing_failure);
+    g_test_add_data_func("/core/parser/h_action_apply/enclosing_failure/lalr",
+                         GINT_TO_POINTER(PB_LALR),
+                         test_action_apply_discards_on_enclosing_failure);
+    g_test_add_data_func("/core/parser/h_action_apply/enclosing_failure/glr",
+                         GINT_TO_POINTER(PB_GLR),
+                         test_action_apply_discards_on_enclosing_failure);
+    g_test_add_func("/core/parser/h_action_apply/seq", test_action_apply_seq);
+    g_test_add_func("/core/parser/h_action_stash/choice", test_action_stash_choice);
+    g_test_add_func("/core/parser/h_action_stash/multiple", test_action_stash_multiple);
+    g_test_add_func("/core/parser/h_action_apply/fail", test_action_apply_fail);
+    g_test_add_func("/core/parser/h_action_apply/choice", test_action_apply_choice);
 }

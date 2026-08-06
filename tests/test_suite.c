@@ -62,6 +62,7 @@ extern void register_datastructures_tests(void);
 extern void register_pprint_tests(void);
 extern void register_sloballoc_tests(void);
 extern void register_system_allocator_tests(void);
+extern void register_parser_free_tests(void);
 
 int main(int argc, char **argv) {
     g_test_init(&argc, &argv, NULL);
@@ -108,6 +109,7 @@ int main(int argc, char **argv) {
     register_pprint_tests();
     register_sloballoc_tests();
     register_system_allocator_tests();
+    register_parser_free_tests();
 
     g_test_run();
 }

@@ -3,7 +3,7 @@
 
 #include <assert.h>
 
-static bool glr_step(HParseResult **result, HSlist *engines, HLREngine *engine,
+static bool glr_step(HLREngine **winner, HSlist *engines, HLREngine *engine,
                      const HLRAction *action);
 
 /* GLR compilation (LALR w/o failing on conflict) */
@@ -70,7 +70,7 @@ static inline HLREngine *respawn(HLREngine *eng, HSlist *stack) {
     return eng;
 }
 
-static HLREngine *demerge(HParseResult **result, HSlist *engines, HLREngine *engine,
+static HLREngine *demerge(HLREngine **winner, HSlist *engines, HLREngine *engine,
                           const HLRAction *action, size_t depth) {
     // no-op on engines that are not merged
     if (!engine->merged[0])
@@ -87,13 +87,13 @@ static HLREngine *demerge(HParseResult **result, HSlist *engines, HLREngine *eng
             HLREngine *b = respawn(engine->merged[1], engine->stack);
 
             // continue demerge until final depth reached
-            a = demerge(result, engines, a, action, depth - i);
-            b = demerge(result, engines, b, action, depth - i);
+            a = demerge(winner, engines, a, action, depth - i);
+            b = demerge(winner, engines, b, action, depth - i);
             if (!a || !b)
                 return NULL;
 
             // step and stow one ancestor...
-            glr_step(result, engines, a, action);
+            glr_step(winner, engines, a, action);
 
             // ...and return the other
             return b;
@@ -111,6 +111,8 @@ HLREngine *fork_engine(const HLREngine *engine) {
     eng2->table = engine->table;
     eng2->state = engine->state;
     eng2->input = engine->input;
+    eng2->merged[0] = NULL;
+    eng2->merged[1] = NULL;
 
     // shallow-copy the stack
     // this works because h_slist_push and h_slist_drop never modify
@@ -124,7 +126,7 @@ HLREngine *fork_engine(const HLREngine *engine) {
     return eng2;
 }
 
-static const HLRAction *handle_conflict(HParseResult **result, HSlist *engines,
+static const HLRAction *handle_conflict(HLREngine **winner, HSlist *engines,
                                         const HLREngine *engine, const HSlist *branches) {
     if (!branches || !branches->head || !branches->head->next)
         return NULL;
@@ -141,7 +143,7 @@ static const HLRAction *handle_conflict(HParseResult **result, HSlist *engines,
         HLREngine *eng = fork_engine(engine);
 
         // perform one step and add to engines
-        glr_step(result, engines, eng, act);
+        glr_step(winner, engines, eng, act);
     }
 
     // return first action for use with original engine
@@ -150,17 +152,18 @@ static const HLRAction *handle_conflict(HParseResult **result, HSlist *engines,
 
 /* GLR driver */
 
-static bool glr_step(HParseResult **result, HSlist *engines, HLREngine *engine,
+static bool glr_step(HLREngine **winner, HSlist *engines, HLREngine *engine,
                      const HLRAction *action) {
     // handle forks and demerges (~> spawn engines)
     if (action) {
         if (action->type == HLR_CONFLICT) {
             // fork engine on conflicts
-            action = handle_conflict(result, engines, engine, action->data.branches);
+            action = handle_conflict(winner, engines, engine, action->data.branches);
         } else if (action->type == HLR_REDUCE) {
             // demerge/respawn as needed
-            size_t depth = action->data.production.length;
-            engine = demerge(result, engines, engine, action, depth);
+            /* Each grammar symbol occupies a (state, semantic-value) pair. */
+            size_t depth = 2 * action->data.production.length;
+            engine = demerge(winner, engines, engine, action, depth);
             if (!engine)
                 return false;
         }
@@ -184,8 +187,10 @@ static bool glr_step(HParseResult **result, HSlist *engines, HLREngine *engine,
         if (!x) // no merge happened
             h_slist_push(engines, engine);
     } else if (engine->state == HLR_SUCCESS) {
-        // save the result
-        *result = h_lrengine_result(engine);
+        // Save the successful engine. The selected engine's deferred action
+        // plan is executed only after GLR has finished this result-selection
+        // round, never while another derivation is still speculative.
+        *winner = engine;
     }
 
     return run;
@@ -217,8 +222,8 @@ HParseResult *h_glr_parse(HAllocator *mm__, const HParser *parser, HInputStream 
     // create initial engine
     h_slist_push(engines, h_lrengine_new(arena, tarena, table, stream));
 
-    HParseResult *result = NULL;
-    while (result == NULL && !h_slist_empty(engines)) {
+    HLREngine *winner = NULL;
+    while (winner == NULL && !h_slist_empty(engines)) {
         assert(h_slist_empty(engback));
         if (!h_slist_empty(engback))
             break;
@@ -227,7 +232,7 @@ HParseResult *h_glr_parse(HAllocator *mm__, const HParser *parser, HInputStream 
         while (!h_slist_empty(engines)) {
             HLREngine *engine = h_slist_pop(engines);
             const HLRAction *action = h_lrengine_action(engine);
-            glr_step(&result, engback, engine, action);
+            glr_step(&winner, engback, engine, action);
             // XXX detect ambiguous results - two engines terminating at the same pos
             // -> kill both engines, i.e. ignore if there is a later unamb. success
         }
@@ -236,6 +241,13 @@ HParseResult *h_glr_parse(HAllocator *mm__, const HParser *parser, HInputStream 
         HSlist *tmp = engines;
         engines = engback;
         engback = tmp;
+    }
+
+    HParseResult *result = NULL;
+    if (winner) {
+        result = h_lrengine_result(winner);
+        if (result && !h_lrengine_execute_plan(winner))
+            result = NULL;
     }
 
     if (!result)

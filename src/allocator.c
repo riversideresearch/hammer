@@ -180,10 +180,10 @@ static void *h_arena_malloc_raw(HArena *arena, size_t size, bool need_zero) {
 #endif
     } else if (size > arena->block_size) {
         /*
-        * Keep dedicated blocks behind the current head so they do not displace
-        * a partially filled standard block. Attach the link before allocating
-        * its block so h_delete_arena() owns it if allocation longjmps.
-        */
+         * Keep dedicated blocks behind the current head so they do not displace
+         * a partially filled standard block. Attach the link before allocating
+         * its block so h_delete_arena() owns it if allocation longjmps.
+         */
         link = (struct arena_link *)alloc_block(arena, sizeof(*link));
         if (!link)
             return NULL;
@@ -221,8 +221,7 @@ static void *h_arena_malloc_raw(HArena *arena, size_t size, bool need_zero) {
         link->next = arena->head;
         arena->head = link;
 
-        uint8_t *block =
-            (uint8_t *)alloc_block(arena, arena->block_size);
+        uint8_t *block = (uint8_t *)alloc_block(arena, arena->block_size);
         link->block = block;
         link->free = arena->block_size - size;
         link->used = size;

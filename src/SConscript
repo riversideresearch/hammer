@@ -42,6 +42,7 @@ parsers = [
         "endianness",
         "epsilon",
         "float",
+        "float_range",
         "ignore",
         "ignoreseq",
         "indirect",

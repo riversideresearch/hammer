@@ -223,6 +223,7 @@ struct HParseState_ {
     HSlist *lr_stack;
     HHashTable *recursion_heads;
     HSlist *symbol_table; // its contents are HHashTables
+    struct HActionPlan_ *action_plan;
 };
 
 struct HSuspendedParser_ {
@@ -285,6 +286,8 @@ typedef struct HParserCacheKey_ {
     const HParser *parser;
 } HParserCacheKey;
 
+typedef struct HActionPlan_ HActionPlan;
+
 /* A value in the cache is either of value Left or Right (this is a
  * holdover from Scala, which used Either here). Left corresponds to
  * HLeftRec, which is for left recursion; Right corresponds to
@@ -315,6 +318,7 @@ typedef struct HRecursionHead_ {
  */
 typedef struct HLeftRec_ {
     HParseResult *seed;
+    HActionPlan *seed_plan;
     const HParser *rule;
     HRecursionHead *head;
 } HLeftRec;
@@ -330,6 +334,7 @@ typedef struct HParserCacheValue_t {
         HParseResult *right;
     } value;
     HInputStream input_stream;
+    HActionPlan *action_plan;
 } HParserCacheValue;
 
 // This file provides the logical inverse of bitreader.c
@@ -383,6 +388,13 @@ static inline size_t h_input_stream_length(HInputStream *state) {
 HParseResult *h_do_parse(const HParser *parser, HParseState *state);
 void put_cached(HParseState *ps, const HParser *p, HParseResult *cached);
 
+HActionPlan *h_action_plan_concat(HArena *arena, HActionPlan *left, HActionPlan *right);
+HActionPlan *h_action_plan_stash(HArena *arena, const HParseResult *result,
+                                 HParsedToken *placeholder, HAction action, void *user_data,
+                                 HActionCollection *collection);
+HActionPlan *h_action_plan_apply(HArena *arena, HActionCollection *collection, HActionPlan *child);
+bool h_action_plan_execute(HArena *arena, HActionPlan *plan);
+
 /*
  * Inline this for benefit of h_new_parser() below, then make
  * the API h_get_default_backend() call it.
@@ -401,21 +413,32 @@ static inline HParserBackendVTable *h_get_missing_backend_vtable__int(void) {
 
 int h_copy_numeric_param(HAllocator *mm__, void **out, void *in);
 
-static inline HParser *h_new_parser(HAllocator *mm__, const HParserVtable *vt, void *env) {
+static inline HParser *h_new_parser_with_free(HAllocator *mm__, const HParserVtable *vt, void *env,
+                                              HParserEnvFree free_env) {
     HParser *p = h_new(HParser, 1);
-    memset(p, 0, sizeof(HParser));
+    memset(p, 0, sizeof(*p));
+
     p->vtable = vt;
     p->env = env;
-    /*
-     * Current limitation: if we specify backends solely by HParserBackend, we
-     * can't set a default backend that requires any parameters to h_compile()
-     */
+    p->free_env = free_env;
     p->backend = h_get_default_backend__int();
     p->backend_vtable = h_get_default_backend_vtable__int();
+    p->owner_mm__ = mm__;
+
     return p;
 }
 
+static inline void h_free_env(HAllocator *allocator, void *environment) {
+    allocator->free(allocator, environment);
+}
+
+static inline HParser *h_new_parser(HAllocator *mm__, const HParserVtable *vt, void *env) {
+    return h_new_parser_with_free(mm__, vt, env, h_free_env);
+}
+
 HCFChoice *h_desugar(HAllocator *mm__, HCFStack *stk__, const HParser *parser);
+HAllocator *h_desugar_context_allocator(HParser *parser);
+void h_desugar_context_release(HDesugarContext *ctx);
 
 /*
  * Correct Usage:
@@ -475,6 +498,9 @@ void *h_symbol_free(HParseState *state, const char *key);
 
 typedef struct HCFSequence_ HCFSequence;
 
+typedef HParsedToken *(*HCFPlanAction)(const HParseResult *result, void *user_data,
+                                       HActionPlan **plan);
+
 struct HCFChoice_ {
     enum HCFChoiceType { HCF_END, HCF_CHOICE, HCF_CHARSET, HCF_CHAR } type;
     union {
@@ -485,6 +511,7 @@ struct HCFChoice_ {
     HAction reshape; // take CFG parse tree to HParsedToken of expected form.
                      // to execute before action and pred are applied.
     HAction action;
+    HCFPlanAction plan_action;
     HPredicate pred;
     void *user_data;
     size_t dispatch_opcode;
@@ -518,6 +545,7 @@ static HCFStack *h_cfstack_new(HAllocator *mm__) {
     stack->count = 0;
     stack->cap = 4;
     stack->stack = h_new(HCFChoice *, stack->cap);
+    stack->last_completed = NULL;
     stack->prealloc = NULL;
     stack->error = 0;
     return stack;
@@ -547,7 +575,7 @@ static inline void h_cfstack_add_to_seq(HAllocator *mm__, HCFStack *stk__, HCFCh
                 if (cur_top->data.seq[i]->items[j] == NULL) {
                     size_t new_count = j + 2;
                     HCFChoice **new_items = h_realloc(mm__, cur_top->data.seq[i]->items,
-                                                          sizeof(*new_items) * new_count);
+                                                      sizeof(*new_items) * new_count);
 
                     cur_top->data.seq[i]->items = new_items;
                     new_items[j] = item;
@@ -567,6 +595,7 @@ static inline HCFChoice *h_cfstack_new_choice_raw(HAllocator *mm__, HCFStack *st
 
     ret->reshape = NULL;
     ret->action = NULL;
+    ret->plan_action = NULL;
     ret->pred = NULL;
     ret->type = ~0; // invalid type
     // Add it to the current sequence...
@@ -606,8 +635,7 @@ static inline void h_cfstack_begin_choice(HAllocator *mm__, HCFStack *stk__) {
     if (stk__->count + 1 > stk__->cap) {
         assert(stk__->cap > 0);
         stk__->cap *= 2;
-        stk__->stack = h_realloc(mm__, stk__->stack,
-                (size_t)stk__->cap * sizeof(*stk__->stack));
+        stk__->stack = h_realloc(mm__, stk__->stack, (size_t)stk__->cap * sizeof(*stk__->stack));
     }
     assert(stk__->cap >= 1 && !stk__->error);
     stk__->stack[stk__->count++] = choice;

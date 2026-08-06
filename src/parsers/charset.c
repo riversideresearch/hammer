@@ -22,7 +22,9 @@ static HParseResult *parse_charset(void *env, HParseState *state) {
 }
 
 static void desugar_charset(HAllocator *mm__, HCFStack *stk__, void *env) {
-    HCFS_ADD_CHARSET((HCharset)env);
+    HCharset cs = new_charset(mm__);
+    memcpy(cs, env, sizeof(unsigned int) * (256 / (sizeof(unsigned int) * 8)));
+    HCFS_ADD_CHARSET(cs);
 }
 
 static bool h_svm_action_ch(HArena *arena, HSVMContext *ctx, void *env) {
@@ -73,7 +75,7 @@ static bool cs_ctrvm(HRVMProg *prog, void *env) {
     }
 
     h_rvm_insert_insn(prog, RVM_CAPTURE, 0);
-    h_rvm_insert_insn(prog, RVM_ACTION, h_rvm_create_action(prog, h_svm_action_ch, env));
+    h_rvm_insert_insn(prog, RVM_ACTION, h_rvm_create_action(prog, h_svm_action_ch, NULL));
     return true;
 }
 

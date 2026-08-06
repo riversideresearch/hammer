@@ -104,5 +104,5 @@ HParser *h_optional__m(HAllocator *mm__, const HParser *p) {
     // assert_message(p->vtable != &ignore_vt, "Thou shalt ignore an option, rather than the other
     // way 'round.");
     void *env = (void *)p;
-    return h_new_parser(mm__, &optional_vt, env);
+    return h_new_parser_with_free(mm__, &optional_vt, env, h_no_free_env);
 }
