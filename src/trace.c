@@ -509,9 +509,11 @@ void h_trace_end(HParseResult *res, HParseState *state) {
                 fprintf(stdout, "error: inner parse succeeded at byte(s):'%s' (0x%02x = %d)", disp, c, c);
             else if(strcmp(error->parser, "parse_nothing") == 0) // h_nothing_p always fails
                 fprintf(stdout, "Always fail reached");
-            else
+            else if (error->kind == H_PARSE_ERROR_PRIMITIVE_MISMATCH)
                 fprintf(stdout, "error: unexpected byte(s): '%s' (0x%02x = %d)\n", disp, c, c);
-            // TODO: fix default case is very vague, NULL params has nothing to do with an unexpected byte(s)
+            else
+                fprintf(stdout, "error: %s failed at byte(s): '%s' (0x%02x = %d)",
+                        fn_name_to_h(error->parser), disp, c, c);
         } else {
             // Sequential Parsers will reach this error message
             fprintf(stdout, "error: unexpected end of input");
