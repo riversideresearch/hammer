@@ -191,6 +191,29 @@ static char *resolve_fn_name(void *addr) {
     return result;
 }
 
+/* changes the name from parse_<name> to h_<name> */
+static char *fn_name_to_h(const char *name) {
+    if (!name) {
+        return NULL;
+    }
+    
+    size_t len = strlen(name);
+    const char *remainder = (len > 5) ? name + 5 : "";
+
+    size_t rlen = strlen(remainder);
+
+    /* allocate: 2 chars + remainder + '\0' */
+    char *hname = malloc(rlen + 2);
+    if (!hname)
+        return NULL;
+
+    hname[0] = 'h';
+
+    memcpy(hname + 1, remainder, rlen + 1);  /* copy including NUL */
+
+    return hname;
+}
+
 static H_TRACE_THREAD_LOCAL struct {
     const HParserVtable *vt;
     const char *name;
@@ -322,7 +345,7 @@ void h_trace_enter(const HParser *parser, HParseState *state) {
     if (!display_trace)
         return;
     trace_indent();
-    fprintf(stderr, "-> %-20s %-9s ", trace_vt_name(parser->vtable),
+    fprintf(stderr, "-> %-20s %-9s ", fn_name_to_h(trace_vt_name(parser->vtable)),
             parser->vtable->higher ? "higher" : "primitive");
     trace_pos(state);
     fputc('\n', stderr);
@@ -429,33 +452,49 @@ void h_trace_end(HParseResult *res, HParseState *state) {
     if (!context)
         return;
 
+    /*
+    typedef struct HParseError_ {
+        size_t index;       /< Furthest byte offset reached in the input.
+        size_t end_index;   /< End position for a failure after consuming input.
+        uint8_t actual;     /< Input byte at that offset (0 at end of input).
+        bool has_actual;    /< Whether actual contains an input byte. 
+        uint8_t bit_offset; /< Sub-byte bit position, for bitwise grammars. 
+        HParseErrorKind kind;
+        const char *parser;
+        /Names of originating parsers tied at the selected failure position.
+        const char *deepest_parsers[H_PARSE_ERROR_MAX_PARSERS];
+        size_t n_deepest;   /< Number of valid entries in deepest_parsers.
+        const char *context[H_PARSE_ERROR_MAX_PARSERS];
+        size_t n_context;
+    } HParseError;
+    */
     HParseError *error = &context->error;
     if (!res && error->kind != H_PARSE_ERROR_NONE) {
-    if (error->kind == H_PARSE_ERROR_SEMANTIC_PREDICATE) {
-        fprintf(stdout, "error: semantic predicate failed");
-    } else if (error->kind == H_PARSE_ERROR_RANGE) {
-        fprintf(stdout, "error: integer outside permitted range");
-    } else if (error->has_actual) {
-        uint8_t c = error->actual;
-        char disp[2] = { isprint(c) ? (char)c : '\0', '\0' };
-        fprintf(stdout, "error: unexpected byte(s): '%s' (0x%02x = %d)", disp, c, c);
-    } else {
-        fprintf(stdout, "error: unexpected end of input");
-    }
+        if (error->kind == H_PARSE_ERROR_SEMANTIC_PREDICATE) {
+            fprintf(stdout, "error: semantic predicate failed");
+        } else if (error->kind == H_PARSE_ERROR_RANGE) {
+            fprintf(stdout, "error: integer outside permitted range");
+        } else if (error->has_actual) {
+            uint8_t c = error->actual;
+            char disp[2] = { isprint(c) ? (char)c : '\0', '\0' };
+            fprintf(stdout, "error: unexpected byte(s): '%s' (0x%02x = %d)\n", disp, c, c);
+        } else {
+            fprintf(stdout, "error: unexpected end of input");
+        }
 
-    fprintf(stdout, " starting at index %zu", error->index);
+        fprintf(stdout, " starting at index %zu", error->index);
 
-    if (error->bit_offset)
-        fprintf(stdout, ".%db", error->bit_offset);
+        if (error->bit_offset)
+            fprintf(stdout, ".%db", error->bit_offset);
 
-    if (error->n_deepest > 0) {
-        fputs(" while running [", stdout);
-        for (size_t i = 0; i < error->n_deepest; i++)
-            fprintf(stdout, "%s%s", i ? ", " : "", error->deepest_parsers[i]);
-        fputc(']', stdout);
-    }
-    fprintf(stdout, "\n");
-    h_trace_file_context(context->input, context->input_len, error->index);
+        if (error->n_deepest > 0) {
+            fputs(" while running [", stdout);
+            for (size_t i = 0; i < error->n_deepest; i++)
+                fprintf(stdout, "%s%s", i ? ", " : "", fn_name_to_h(error->deepest_parsers[i]));
+            fputc(']', stdout);
+        }
+        fprintf(stdout, "\n");
+        h_trace_file_context(context->input, context->input_len, error->index);
     }
 
     HTraceContext *parent = context->parent;
