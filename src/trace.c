@@ -556,11 +556,7 @@ void h_trace_end(HParseResult *res, HParseState *state) {
 char *getsym(HSVMActionFunc addr) {
     if (!display_trace)
         return NULL;
-    char *retstr;
-    if (h_platform_asprintf(&retstr, "%p", addr) > 0)
-        return retstr;
-    else
-        return NULL;
+    return resolve_fn_name(*(void *const *)&addr);
 }
 
 const char *rvm_op_names[RVM_OPCOUNT] = {"ACCEPT",  "GOTO", "FORK",  "PUSH", "ACTION",
@@ -589,8 +585,8 @@ void dump_rvm_prog(HRVMProg *prog) {
             break;
         case RVM_ACTION:
             symref = getsym(prog->actions[insn->arg].action);
-            printf("%s env=%p", symref, prog->actions[insn->arg].env);
-            (&system_allocator)->free(&system_allocator, symref);
+            printf(" action=%s in", symref ? symref : "<unknown>");
+            free(symref);
             if (parser_name) {
                 printf(" parser=%s", parser_name);
                 free(parser_name);
@@ -631,8 +627,8 @@ void dump_svm_prog(HRVMProg *prog, HRVMTrace *trace) {
         switch (trace->opcode) {
         case SVM_ACTION:
             symref = getsym(prog->actions[trace->arg].action);
-            printf("%s env=%p", symref, prog->actions[trace->arg].env);
-            (&system_allocator)->free(&system_allocator, symref);
+            printf(" action=%s in", symref ? symref : "<unknown>");
+            free(symref);
             break;
         default:
             break;
