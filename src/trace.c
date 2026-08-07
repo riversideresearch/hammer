@@ -55,16 +55,22 @@
  * of a single parse. */
 H_TRACE_THREAD_LOCAL bool display_trace = false;
 static H_TRACE_THREAD_LOCAL unsigned trace_enable_depth = 0;
+static H_TRACE_THREAD_LOCAL HParseError trace_completed;
 
 /* Toggle the runtime trace. Exposed (see trace.h) so h_parse_debug() can enable
  * tracing for just its own call and switch it back off afterward. */
 void h_trace_set_enabled(bool enabled) {
-    if (enabled)
+    if (enabled) {
+        if (trace_enable_depth == 0)
+            memset(&trace_completed, 0, sizeof(trace_completed));
         trace_enable_depth++;
-    else if (trace_enable_depth > 0)
+    } else if (trace_enable_depth > 0) {
         trace_enable_depth--;
+    }
     display_trace = trace_enable_depth > 0;
 }
+
+bool h_trace_is_enabled(void) { return display_trace; }
 
 typedef struct HTraceFrame_ {
     const HParser *parser;
@@ -85,12 +91,14 @@ typedef struct HTraceContext_ {
     HTraceFrame frames[H_TRACE_MAX_FRAMES];
     HParseError error;
     HParserBackend backend;
-    uint8_t *expected_bytes;
+    const HParser *root_parser;
+    const HParser *failure_parser;
+    bool expected_bytes[256];
+    bool expected_eof;
     struct HTraceContext_ *parent;
 } HTraceContext;
 
 static H_TRACE_THREAD_LOCAL HTraceContext *trace_context;
-static H_TRACE_THREAD_LOCAL HParseError trace_completed;
 
 /* Copy the current furthest-failure record out to the caller (see trace.h).
  * out receives its own copy of the struct -- not a pointer into the global --
@@ -313,7 +321,26 @@ void h_trace_file_context(const uint8_t *input, size_t length, size_t highlight_
 
     if (!display_trace)
         return;
-    fprintf(stderr, "=== h_packrat_parse: input context (%zu bytes) ===\n", length);
+    const char *backend_name = "h_parse_debug";
+    if (trace_context) {
+        switch (trace_context->backend) {
+        case PB_PACKRAT:
+            backend_name = "h_packrat_parse";
+            break;
+        case PB_LL:
+            backend_name = "h_llk_parse";
+            break;
+        case PB_LALR:
+            backend_name = "h_lalr_parse";
+            break;
+        case PB_GLR:
+            backend_name = "h_glr_parse";
+            break;
+        default:
+            break;
+        }
+    }
+    fprintf(stderr, "=== %s: input context (%zu bytes) ===\n", backend_name, length);
     /*for (size_t i = 0; i < length; i++) {
         uint8_t c = input[i];
         char disp[2] = { isprint(c) ? (char)c : '\0', '\0' };
@@ -366,6 +393,7 @@ void h_trace_begin(const uint8_t *input, size_t input_len) {
         return;
     context->input = input;
     context->input_len = input_len;
+    context->backend = PB_PACKRAT;
     context->parent = trace_context;
     trace_context = context;
     fprintf(stderr, "\n=== h_packrat_parse: begin (%zu bytes of input) ===\n", input_len);
@@ -651,6 +679,20 @@ static void trace_print_parser_context(const HParser *parser) {
     free(parser_name);
 }
 
+static void trace_print_error_parsers(const HParseError *error) {
+    if (!error || error->n_deepest == 0)
+        return;
+
+    fputs(" while running [", stderr);
+    for (size_t i = 0; i < error->n_deepest; i++) {
+        const char *raw = error->deepest_parsers[i];
+        char *name = strncmp(raw, "parse_", 6) == 0 ? fn_name_to_h(raw) : strdup(raw);
+        fprintf(stderr, "%s%s", i ? ", " : "", name ? name : raw);
+        free(name);
+    }
+    fputc(']', stderr);
+}
+
 static void trace_print_expected_byte(uint8_t c) {
     if (c == '\'' || c == '\\')
         fprintf(stderr, "'\\%c'", c);
@@ -699,8 +741,10 @@ void rvm_match_error(HRVMProg *prog, const uint8_t *input, size_t input_len, siz
                      const bool expected[256], bool expected_eof, const HParser *parser) {
     if (!display_trace)
         return;
+    fprintf(stderr,"=== h_regular_parse: begin (%ld bytes of input) ===\n",input_len);
     if(true) // later change this to a trace dump debug flag
         dump_rvm_prog(prog);
+    fprintf(stderr,"=== h_regular_parse: end (FAILURE) ===\n");
     if (index >= input_len) {
         fprintf(stderr, "error: unexpected end of input at index %zu", index);
     } else {
@@ -720,8 +764,10 @@ void svm_action_error(HSVMContext *ctx, HRVMProg *orig_prog, HRVMTrace *trace,
                         const uint8_t *input, size_t input_len, const char *msg) {
     if (!display_trace)
         return;
+    fprintf(stderr,"=== h_regular_parse: begin (%ld bytes of input) ===\n",input_len);
     if(true) // later change this to a trace dump debug flag
         dump_svm_prog(orig_prog, trace);
+    fprintf(stderr,"=== h_regular_parse: end (FAILURE) ===\n");
     if(ctx->input_pos >= input_len)
         fprintf(stderr, "error: %s ran out of bytes to parse at index %zu", msg, ctx->input_pos);
     else
@@ -736,8 +782,10 @@ void svm_failure_error(HSVMContext *ctx, HRVMProg *orig_prog, HRVMTrace *trace,
                        const uint8_t *input, size_t input_len) {
     if (!display_trace)
         return;
+    fprintf(stderr,"=== h_regular_parse: begin (%ld bytes of input) ===\n",input_len);
     if (true) // later change this to a trace dump debug flag
         dump_svm_prog(orig_prog, trace);
+    fprintf(stderr,"=== h_regular_parse: end (FAILURE) ===\n");
 
     switch (ctx->failure.kind) {
     case SVM_FAILURE_RANGE:
@@ -766,5 +814,147 @@ void svm_failure_error(HSVMContext *ctx, HRVMProg *orig_prog, HRVMTrace *trace,
 
     if (input && input_len > 0)
         h_trace_file_context(input, input_len, ctx->failure.start);
+}
+static const char *trace_backend_name(HParserBackend backend) {
+    switch (backend) {
+    case PB_LL:
+        return "h_llk_parse";
+    case PB_LALR:
+        return "h_lalr_parse";
+    case PB_GLR:
+        return "h_glr_parse";
+    default:
+        return "h_cf_parse";
+    }
+}
+
+static unsigned int trace_error_priority(HParseErrorKind kind) {
+    switch (kind) {
+    case H_PARSE_ERROR_RANGE:
+        return 3;
+    case H_PARSE_ERROR_SEMANTIC_PREDICATE:
+        return 2;
+    case H_PARSE_ERROR_PRIMITIVE_MISMATCH:
+    case H_PARSE_ERROR_UNEXPECTED_EOF:
+        return 1;
+    default:
+        return 0;
+    }
+}
+
+void h_cf_trace_begin(HParserBackend backend, const HParser *parser, const uint8_t *input,
+                      size_t input_len) {
+    if (!display_trace)
+        return;
+
+    HTraceContext *context = calloc(1, sizeof(*context));
+    if (!context)
+        return;
+    context->input = input;
+    context->input_len = input_len;
+    context->backend = backend;
+    context->root_parser = parser;
+    context->parent = trace_context;
+    trace_context = context;
+
+    fprintf(stderr, "\n=== %s: begin (%zu bytes of input) ===\n", trace_backend_name(backend),
+            input_len);
+}
+
+void h_cf_trace_failure(size_t start, size_t end, HParseErrorKind kind, const HParser *parser,
+                        const bool expected[256], bool expected_eof) {
+    if (!display_trace || !trace_context)
+        return;
+
+    HTraceContext *context = trace_context;
+    const HParser *origin = parser ? parser : context->root_parser;
+    const char *name = origin && origin->vtable ? trace_vt_name(origin->vtable) : "?(no parser)";
+    size_t index = kind == H_PARSE_ERROR_SEMANTIC_PREDICATE ? end : start;
+
+    if (kind == H_PARSE_ERROR_SEMANTIC_PREDICATE && strcmp(name, "parse_int_range") == 0) {
+        kind = H_PARSE_ERROR_RANGE;
+        index = start;
+    }
+
+    HParseError *error = &context->error;
+    bool replace = error->kind == H_PARSE_ERROR_NONE || index > error->index ||
+                   (index == error->index &&
+                    trace_error_priority(kind) > trace_error_priority(error->kind));
+    if (replace) {
+        memset(error, 0, sizeof(*error));
+        memset(context->expected_bytes, 0, sizeof(context->expected_bytes));
+        context->expected_eof = false;
+        context->failure_parser = origin;
+        error->index = index;
+        error->end_index = end;
+        error->kind = kind;
+        error->parser = name;
+        if (index < context->input_len) {
+            error->actual = context->input[index];
+            error->has_actual = true;
+        }
+        trace_error_add_parser(error, name);
+        if (context->root_parser && context->root_parser->vtable) {
+            const char *root_name = trace_vt_name(context->root_parser->vtable);
+            if (root_name != name)
+                error->context[error->n_context++] = root_name;
+        }
+    } else if (index == error->index && kind == error->kind) {
+        trace_error_add_parser(error, name);
+    } else {
+        return;
+    }
+
+    if (expected) {
+        for (size_t i = 0; i < 256; i++)
+            context->expected_bytes[i] |= expected[i];
+    }
+    context->expected_eof |= expected_eof;
+}
+
+void h_cf_trace_end(bool success) {
+    if (!display_trace)
+        return;
+
+    HTraceContext *context = trace_context;
+    if (!context)
+        return;
+
+    fprintf(stderr, "=== %s: end (%s) ===\n", trace_backend_name(context->backend),
+            success ? "SUCCESS" : "FAILURE");
+
+    HParseError *error = &context->error;
+    if (!success && error->kind != H_PARSE_ERROR_NONE) {
+        if (error->kind == H_PARSE_ERROR_RANGE) {
+            fputs("error: integer outside permitted range", stderr);
+        } else if (error->kind == H_PARSE_ERROR_SEMANTIC_PREDICATE) {
+            fputs("error: semantic predicate failed", stderr);
+        } else if (!error->has_actual) {
+            fprintf(stderr, "error: unexpected end of input at index %zu", error->index);
+        } else {
+            fprintf(stderr, "error: unexpected byte ");
+            trace_print_expected_byte(error->actual);
+            fprintf(stderr, " (0x%02x = %u) at index %zu", error->actual, error->actual,
+                    error->index);
+        }
+
+        if (error->kind == H_PARSE_ERROR_RANGE ||
+            error->kind == H_PARSE_ERROR_SEMANTIC_PREDICATE)
+            fprintf(stderr, " starting at index %zu", error->index);
+        else
+            trace_print_expectations(context->expected_bytes, context->expected_eof);
+        if (error->n_deepest > 0)
+            trace_print_error_parsers(error);
+        else
+            trace_print_parser_context(context->failure_parser);
+        fputc('\n', stderr);
+        if (context->input && context->input_len > 0)
+            h_trace_file_context(context->input, context->input_len, error->index);
+    }
+
+    HTraceContext *parent = context->parent;
+    trace_completed = context->error;
+    trace_context = parent;
+    free(context);
 }
 #endif /* HAMMER_TRACE_AST */

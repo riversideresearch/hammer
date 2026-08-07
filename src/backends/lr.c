@@ -1,6 +1,7 @@
 #include "lr.h"
 
 #include "../parsers/parser_internal.h"
+#include "../trace.h"
 
 #include <assert.h>
 #include <ctype.h>
@@ -117,6 +118,7 @@ HLRTable *h_lrtable_new(HAllocator *mm__, size_t nrows) {
     ret->ntmap = h_arena_malloc(arena, nrows * sizeof(HHashTable *));
     ret->tmap = h_arena_malloc(arena, nrows * sizeof(HStringMap *));
     ret->forall = h_arena_malloc(arena, nrows * sizeof(HLRAction *));
+    ret->expected_parsers = h_arena_malloc(arena, nrows * sizeof(*ret->expected_parsers));
     ret->inadeq = h_slist_new(arena);
     ret->arena = arena;
     ret->mm__ = mm__;
@@ -125,6 +127,7 @@ HLRTable *h_lrtable_new(HAllocator *mm__, size_t nrows) {
         ret->ntmap[i] = h_hashtable_new(arena, h_eq_symbol, h_hash_symbol);
         ret->tmap[i] = h_stringmap_new(arena);
         ret->forall[i] = NULL;
+        ret->expected_parsers[i] = NULL;
     }
 
     return ret;
@@ -196,6 +199,8 @@ static HLREngine *h_lrengine_new_(HArena *arena, HArena *tarena, const HLRTable 
     engine->merged[1] = NULL;
     engine->arena = arena;
     engine->tarena = tarena;
+    engine->trace_failures = false;
+    engine->root_parser = NULL;
 
     return engine;
 }
@@ -222,6 +227,56 @@ static const HLRAction *terminal_lookup(const HLREngine *engine, const HInputStr
         return table->forall[state];
     } else {
         return h_stringmap_get_lookahead(table->tmap[state], *stream);
+    }
+}
+
+static void lr_expected_from_map(const HStringMap *map, bool expected[256], bool *expected_eof) {
+    memset(expected, 0, 256 * sizeof(*expected));
+    *expected_eof = false;
+    if (!map)
+        return;
+
+    *expected_eof = map->end_branch != NULL;
+    const HHashTable *branches = map->char_branches;
+    for (size_t i = 0; i < branches->capacity; i++) {
+        for (HHashTableEntry *entry = &branches->contents[i]; entry; entry = entry->next) {
+            if (entry->key)
+                expected[key_char((HCharKey)entry->key)] = true;
+        }
+    }
+}
+
+void h_lrengine_trace_action_failure(const HLREngine *engine) {
+    size_t state = engine->state;
+    if (!engine->trace_failures || state >= engine->table->nrows)
+        return;
+
+    const HStringMap *map = engine->table->tmap[state];
+    HInputStream input = engine->input;
+    const HParser *origin = engine->table->expected_parsers[state];
+    if (!origin)
+        origin = engine->root_parser;
+
+    while (map && !map->epsilon_branch) {
+        size_t index = input.pos + input.index;
+        uint8_t actual = h_read_bits(&input, 8, false);
+        if (input.overrun) {
+            bool expected[256], expected_eof;
+            lr_expected_from_map(map, expected, &expected_eof);
+            CF_TRACE_FAILURE(index, index, H_PARSE_ERROR_UNEXPECTED_EOF, origin, expected,
+                             expected_eof);
+            return;
+        }
+
+        const HStringMap *next = h_stringmap_get_char(map, actual);
+        if (!next) {
+            bool expected[256], expected_eof;
+            lr_expected_from_map(map, expected, &expected_eof);
+            CF_TRACE_FAILURE(index, index + 1, H_PARSE_ERROR_PRIMITIVE_MISMATCH, origin, expected,
+                             expected_eof);
+            return;
+        }
+        map = next;
     }
 }
 
@@ -319,6 +374,7 @@ bool h_lrengine_step(HLREngine *engine, const HLRAction *action) {
             value->index = engine->input.pos + engine->input.index;
             value->bit_offset = engine->input.bit_offset;
         }
+        size_t reduction_start = value->index;
 
         // perform token reshape if indicated
         if (symbol->reshape) {
@@ -332,8 +388,14 @@ bool h_lrengine_step(HLREngine *engine, const HLRAction *action) {
         }
 
         // call validation and semantic action, if present
-        if (symbol->pred && !symbol->pred(make_result(tarena, value), symbol->user_data))
+        if (symbol->pred && !symbol->pred(make_result(tarena, value), symbol->user_data)) {
+            if (engine->trace_failures)
+                CF_TRACE_FAILURE(reduction_start, engine->input.pos + engine->input.index,
+                                 H_PARSE_ERROR_SEMANTIC_PREDICATE,
+                                 symbol->parser ? symbol->parser : engine->root_parser, NULL,
+                                 false);
             return false; // validation failed -> no parse; terminate
+        }
         if (symbol->plan_action)
             value = symbol->plan_action(make_result(arena, value), symbol->user_data, &plan);
         else if (symbol->action)
@@ -407,13 +469,18 @@ bool h_lrengine_execute_plan(HLREngine *engine) {
 }
 
 HParseResult *h_lr_parse(HAllocator *mm__, const HParser *parser, HInputStream *stream) {
+    CF_TRACE_BEGIN(PB_LALR, parser, stream->input, stream->length);
     HLRTable *table = parser->backend_data;
-    if (!table)
+    if (!table) {
+        CF_TRACE_END(false);
         return NULL;
+    }
 
     HArena *arena = h_new_arena(mm__, 0);  // will hold the results
     HArena *tarena = h_new_arena(mm__, 0); // tmp, deleted after parse
     HLREngine *engine = h_lrengine_new(arena, tarena, table, stream);
+    engine->trace_failures = TRACE_ENABLED();
+    engine->root_parser = parser;
 
     // out-of-memory handling
     jmp_buf except;
@@ -422,12 +489,18 @@ HParseResult *h_lr_parse(HAllocator *mm__, const HParser *parser, HInputStream *
     if (setjmp(except)) {
         h_delete_arena(arena);
         h_delete_arena(tarena);
+        CF_TRACE_END(false);
         return NULL;
     }
 
     // iterate engine to completion
-    while (h_lrengine_step(engine, h_lrengine_action(engine)))
-        ;
+    while (true) {
+        const HLRAction *action = h_lrengine_action(engine);
+        if (action == NULL || action == NEED_INPUT)
+            h_lrengine_trace_action_failure(engine);
+        if (action == NEED_INPUT || !h_lrengine_step(engine, action))
+            break;
+    }
 
     HParseResult *result = h_lrengine_result(engine);
     if (result && !h_lrengine_execute_plan(engine))
@@ -435,6 +508,7 @@ HParseResult *h_lr_parse(HAllocator *mm__, const HParser *parser, HInputStream *
     if (!result)
         h_delete_arena(arena);
     h_delete_arena(tarena);
+    CF_TRACE_END(result != NULL);
     return result;
 }
 

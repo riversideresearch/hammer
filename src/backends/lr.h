@@ -51,6 +51,7 @@ typedef struct HLRTable_ {
     HHashTable **ntmap; // map nonterminal symbols to HLRActions, per row
     HStringMap **tmap;  // map lookahead strings to HLRActions, per row
     HLRAction **forall; // shortcut to set an action for an entire row
+    const HParser **expected_parsers; // parser awaiting input in each state
     HCFChoice *start;   // start symbol
     HSlist *inadeq;     // indices of any inadequate states
     HArena *arena;
@@ -81,6 +82,9 @@ typedef struct HLREngine_ {
 
     HArena *arena;  // will hold the results
     HArena *tarena; // tmp, deleted after parse
+
+    bool trace_failures;
+    const HParser *root_parser;
 } HLREngine;
 
 #define HLR_SUCCESS ((size_t)~0) // parser end state
@@ -134,6 +138,7 @@ int h_lalr_compile(HAllocator *mm__, HParser *parser, const void *params);
 void h_lalr_free(HParser *parser);
 
 const HLRAction *h_lrengine_action(const HLREngine *engine);
+void h_lrengine_trace_action_failure(const HLREngine *engine);
 bool h_lrengine_step(HLREngine *engine, const HLRAction *action);
 HParseResult *h_lrengine_result(HLREngine *engine);
 bool h_lrengine_execute_plan(HLREngine *engine);

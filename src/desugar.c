@@ -146,6 +146,8 @@ HCFChoice *h_desugar(HAllocator *mm__, HCFStack *stk__, const HParser *parser) {
         assert(parser->vtable->desugar != NULL);
         mutable_parser->desugared = nstk__->prealloc;
         parser->vtable->desugar(cfg_mm__, nstk__, parser->env);
+        if (mutable_parser->desugared)
+            mutable_parser->desugared->parser = mutable_parser;
         if (stk__ == NULL) {
             h_cfstack_free(cfg_mm__, nstk__);
         }

@@ -281,6 +281,7 @@ HCFChoice *h_desugar_augmented(HParser *parser) {
     }
     HCFS_END_CHOICE();
     h_cfstack_free(mm__, stk__);
+    augmented->parser = parser;
     parser->augmented = augmented;
     return augmented;
 }

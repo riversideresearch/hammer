@@ -69,6 +69,56 @@ static void test_trace_debug_null_error(gconstpointer backend) {
     g_check_cmp_ptr(res, ==, NULL);
 }
 
+static void test_trace_cf_unexpected_eof(gconstpointer backend) {
+    HParserBackend be = (HParserBackend)GPOINTER_TO_INT(backend);
+    HParser *p = h_sequence(h_ch('A'), h_ch('B'), h_ch('C'), NULL);
+    g_check_cmp_int(h_compile(p, be, NULL), ==, 0);
+
+    HParseError err;
+    HParseResult *res = h_parse_debug(p, (const uint8_t *)"AB", 2, &err);
+    g_check_cmp_ptr(res, ==, NULL);
+    g_check_cmp_size(err.index, ==, 2);
+    g_check_cmp_size(err.end_index, ==, 2);
+    g_check_cmp_int(err.has_actual, ==, false);
+    g_check_cmp_int(err.kind, ==, H_PARSE_ERROR_UNEXPECTED_EOF);
+    g_check_cmp_size(err.n_deepest, >, 0);
+    h_parse_error_free(&err);
+}
+
+static void test_trace_cf_range_failure(gconstpointer backend) {
+    HParserBackend be = (HParserBackend)GPOINTER_TO_INT(backend);
+    HParser *p = h_int_range(h_ch('A'), 'B', 'Z');
+    g_check_cmp_int(h_compile(p, be, NULL), ==, 0);
+
+    HParseError err;
+    HParseResult *res = h_parse_debug(p, (const uint8_t *)"A", 1, &err);
+    g_check_cmp_ptr(res, ==, NULL);
+    g_check_cmp_size(err.index, ==, 0);
+    g_check_cmp_size(err.end_index, ==, 1);
+    g_check_cmp_int(err.actual, ==, 'A');
+    g_check_cmp_int(err.has_actual, ==, true);
+    g_check_cmp_int(err.kind, ==, H_PARSE_ERROR_RANGE);
+    g_check_string(err.parser, ==, "parse_int_range");
+    h_parse_error_free(&err);
+}
+
+static void test_trace_glr_ambiguous_failure(void) {
+    HParser *value = h_indirect();
+    h_bind_indirect(value, h_choice(h_sequence(value, value, NULL), h_ch('a'), NULL));
+    HParser *p = h_sequence(value, h_end_p(), NULL);
+    g_check_cmp_int(h_compile(p, PB_GLR, NULL), ==, 0);
+
+    HParseError err;
+    HParseResult *res = h_parse_debug(p, (const uint8_t *)"aab", 3, &err);
+    g_check_cmp_ptr(res, ==, NULL);
+    g_check_cmp_size(err.index, ==, 2);
+    g_check_cmp_int(err.actual, ==, 'b');
+    g_check_cmp_int(err.has_actual, ==, true);
+    g_check_cmp_int(err.kind, ==, H_PARSE_ERROR_PRIMITIVE_MISMATCH);
+    g_check_cmp_size(err.n_deepest, >, 0);
+    h_parse_error_free(&err);
+}
+
 // --- Cases ported from the debugtest/ sample parsers ---------------------
 // Each of the parserN.c programs is turned into a pass/fail assertion here,
 // exercised through h_parse_debug(). Some inputs parse cleanly; most are
@@ -369,6 +419,45 @@ void register_trace_tests(void) {
                          GINT_TO_POINTER(PB_PACKRAT), test_trace_debug_error_on_failure);
     g_test_add_data_func("/core/parser/packrat/trace_debug_null_error", GINT_TO_POINTER(PB_PACKRAT),
                          test_trace_debug_null_error);
+
+    g_test_add_data_func("/core/parser/ll/trace_debug_success", GINT_TO_POINTER(PB_LL),
+                         test_trace_debug_success);
+    g_test_add_data_func("/core/parser/ll/trace_debug_error_on_failure", GINT_TO_POINTER(PB_LL),
+                         test_trace_debug_error_on_failure);
+    g_test_add_data_func("/core/parser/ll/trace_debug_null_error", GINT_TO_POINTER(PB_LL),
+                         test_trace_debug_null_error);
+    g_test_add_data_func("/core/parser/ll/trace_unexpected_eof", GINT_TO_POINTER(PB_LL),
+                         test_trace_cf_unexpected_eof);
+    g_test_add_data_func("/core/parser/ll/trace_range_failure", GINT_TO_POINTER(PB_LL),
+                         test_trace_cf_range_failure);
+
+    g_test_add_data_func("/core/parser/lalr/trace_debug_success", GINT_TO_POINTER(PB_LALR),
+                         test_trace_debug_success);
+    g_test_add_data_func("/core/parser/lalr/trace_debug_error_on_failure",
+                         GINT_TO_POINTER(PB_LALR), test_trace_debug_error_on_failure);
+    g_test_add_data_func("/core/parser/lalr/trace_debug_null_error", GINT_TO_POINTER(PB_LALR),
+                         test_trace_debug_null_error);
+    g_test_add_data_func("/core/parser/lalr/trace_unexpected_eof", GINT_TO_POINTER(PB_LALR),
+                         test_trace_cf_unexpected_eof);
+    g_test_add_data_func("/core/parser/lalr/trace_range_failure", GINT_TO_POINTER(PB_LALR),
+                         test_trace_cf_range_failure);
+    g_test_add_data_func("/core/parser/lalr/trace_attr_bool_checksum", GINT_TO_POINTER(PB_LALR),
+                         test_trace_attr_bool_checksum);
+
+    g_test_add_data_func("/core/parser/glr/trace_debug_success", GINT_TO_POINTER(PB_GLR),
+                         test_trace_debug_success);
+    g_test_add_data_func("/core/parser/glr/trace_debug_error_on_failure", GINT_TO_POINTER(PB_GLR),
+                         test_trace_debug_error_on_failure);
+    g_test_add_data_func("/core/parser/glr/trace_debug_null_error", GINT_TO_POINTER(PB_GLR),
+                         test_trace_debug_null_error);
+    g_test_add_data_func("/core/parser/glr/trace_unexpected_eof", GINT_TO_POINTER(PB_GLR),
+                         test_trace_cf_unexpected_eof);
+    g_test_add_data_func("/core/parser/glr/trace_range_failure", GINT_TO_POINTER(PB_GLR),
+                         test_trace_cf_range_failure);
+    g_test_add_data_func("/core/parser/glr/trace_attr_bool_checksum", GINT_TO_POINTER(PB_GLR),
+                         test_trace_attr_bool_checksum);
+    g_test_add_func("/core/parser/glr/trace_ambiguous_failure",
+                    test_trace_glr_ambiguous_failure);
 
     // Ported from the debugtest/ sample parsers.
     g_test_add_data_func("/core/parser/packrat/trace_uint8_success", GINT_TO_POINTER(PB_PACKRAT),

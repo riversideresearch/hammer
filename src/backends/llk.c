@@ -1,6 +1,7 @@
 #include "../cfgrammar.h"
 #include "../internal.h"
 #include "../parsers/parser_internal.h"
+#include "../trace.h"
 #include "params.h"
 
 #include <assert.h>
@@ -301,6 +302,73 @@ typedef struct {
     HInputStream win; // win.length is set to 0 when not in use
 } HLLkState;
 
+typedef struct {
+    HCFChoice *symbol;
+    size_t start;
+    uint8_t bit_offset;
+} HLLkFrame;
+
+static void llk_expected_from_map(const HStringMap *map, bool expected[256],
+                                  bool *expected_eof) {
+    memset(expected, 0, 256 * sizeof(*expected));
+    *expected_eof = false;
+    if (!map)
+        return;
+
+    *expected_eof = map->end_branch != NULL;
+    const HHashTable *branches = map->char_branches;
+    for (size_t i = 0; i < branches->capacity; i++) {
+        for (HHashTableEntry *entry = &branches->contents[i]; entry; entry = entry->next) {
+            if (entry->key)
+                expected[key_char((HCharKey)entry->key)] = true;
+        }
+    }
+}
+
+static void llk_trace_lookup_failure(const HStringMap *row, HInputStream stream,
+                                     const HParser *parser) {
+    const HStringMap *map = row;
+    while (map && !map->epsilon_branch) {
+        size_t index = stream.pos + stream.index;
+        uint8_t actual = h_read_bits(&stream, 8, false);
+        if (stream.overrun) {
+            bool expected[256], expected_eof;
+            llk_expected_from_map(map, expected, &expected_eof);
+            CF_TRACE_FAILURE(index, index, H_PARSE_ERROR_UNEXPECTED_EOF, parser, expected,
+                             expected_eof);
+            return;
+        }
+
+        const HStringMap *next = h_stringmap_get_char(map, actual);
+        if (!next) {
+            bool expected[256], expected_eof;
+            llk_expected_from_map(map, expected, &expected_eof);
+            CF_TRACE_FAILURE(index, index + 1, H_PARSE_ERROR_PRIMITIVE_MISMATCH, parser, expected,
+                             expected_eof);
+            return;
+        }
+        map = next;
+    }
+}
+
+static void llk_trace_terminal_failure(const HCFChoice *symbol, size_t index, size_t end,
+                                       bool unexpected_eof, const HParser *root_parser) {
+    bool expected[256] = {false};
+    bool expected_eof = false;
+    if (symbol->type == HCF_END)
+        expected_eof = true;
+    else if (symbol->type == HCF_CHAR)
+        expected[symbol->data.chr] = true;
+    else if (symbol->type == HCF_CHARSET)
+        for (size_t i = 0; i < 256; i++)
+            expected[i] = charset_isset(symbol->data.charset, (uint8_t)i);
+
+    CF_TRACE_FAILURE(index, end,
+                     unexpected_eof ? H_PARSE_ERROR_UNEXPECTED_EOF
+                                    : H_PARSE_ERROR_PRIMITIVE_MISMATCH,
+                     symbol->parser ? symbol->parser : root_parser, expected, expected_eof);
+}
+
 // in order to construct the parse tree, we delimit the symbol stack into
 // frames corresponding to production right-hand sides. since only left-most
 // derivations are produced this linearization is unique.
@@ -418,7 +486,8 @@ static bool save_win(size_t kmax, HLLkState *s, HInputStream *stream) {
 }
 
 // returns partial result or NULL (no parse)
-static HCountedArray *llk_parse_chunk_(HLLkState *s, const HParser *parser, HInputStream *chunk) {
+static HCountedArray *llk_parse_chunk_(HLLkState *s, const HParser *parser, HInputStream *chunk,
+                                      bool trace_failures) {
     HParsedToken *tok = NULL; // will hold result token
     HActionPlan *tok_plan = NULL;
     HCFChoice *x = NULL; // current symbol (from top of stack)
@@ -464,6 +533,7 @@ static HCountedArray *llk_parse_chunk_(HLLkState *s, const HParser *parser, HInp
     while (!h_slist_empty(stack)) {
         tok = NULL;
         tok_plan = NULL;
+        size_t symbol_start = stream->pos + stream->index;
 
         // pop top of stack for inspection
         x = h_slist_pop(stack);
@@ -475,9 +545,13 @@ static HCountedArray *llk_parse_chunk_(HLLkState *s, const HParser *parser, HInp
             // x is a nonterminal; apply the appropriate production and continue
 
             // look up applicable production in parse table
+            const HStringMap *row = h_hashtable_get(table->rows, x);
             const HCFSequence *p = h_llk_lookup(table, x, stream);
-            if (p == NULL)
+            if (p == NULL) {
+                if (trace_failures)
+                    llk_trace_lookup_failure(row, *stream, x->parser ? x->parser : parser);
                 goto no_parse;
+            }
             if (p == NEED_INPUT) {
                 goto need_input;
             }
@@ -488,9 +562,13 @@ static HCountedArray *llk_parse_chunk_(HLLkState *s, const HParser *parser, HInp
             assert(!p->items[0] || p->items[0] != x);
 
             // push stack frame
+            HLLkFrame *frame = h_arena_malloc(tarena, sizeof(*frame));
+            frame->symbol = x;
+            frame->start = symbol_start;
+            frame->bit_offset = stream->bit_offset;
             h_slist_push(stack, seq);          // save current partial value
             h_slist_push(stack, plan);         // save its deferred action plan
-            h_slist_push(stack, x);            // save the nonterminal
+            h_slist_push(stack, frame);        // save the nonterminal and its start position
             h_slist_push(stack, (void *)MARK); // frame delimiter
 
             // open a fresh result sequence
@@ -514,13 +592,16 @@ static HCountedArray *llk_parse_chunk_(HLLkState *s, const HParser *parser, HInp
             // wrap the accumulated parse result, this sequence is finished
             tok->token_type = TT_SEQUENCE;
             tok->token_data.seq = seq;
-            // XXX would have to set token pos but we've forgotten pos of seq
 
             // recover original nonterminal and result sequence
             tok_plan = plan;
             if (h_slist_empty(stack))
                 goto no_parse;
-            x = h_slist_pop(stack);
+            HLLkFrame *frame = h_slist_pop(stack);
+            x = frame->symbol;
+            symbol_start = frame->start;
+            tok->index = frame->start;
+            tok->bit_offset = frame->bit_offset;
             if (h_slist_empty(stack))
                 goto no_parse;
             plan = h_slist_pop(stack);
@@ -545,27 +626,42 @@ static HCountedArray *llk_parse_chunk_(HLLkState *s, const HParser *parser, HInp
 
             switch (x->type) {
             case HCF_END:
-                if (!stream->overrun)
+                if (!stream->overrun) {
+                    if (trace_failures)
+                        llk_trace_terminal_failure(x, tok->index, tok->index + 1, false, parser);
                     goto no_parse;
+                }
                 if (!stream->last_chunk)
                     goto need_input;
                 tok = NULL;
                 break;
 
             case HCF_CHAR:
-                if (stream->overrun)
+                if (stream->overrun) {
+                    if (stream->last_chunk && trace_failures)
+                        llk_trace_terminal_failure(x, tok->index, tok->index, true, parser);
                     goto need_input;
-                if (input != x->data.chr)
+                }
+                if (input != x->data.chr) {
+                    if (trace_failures)
+                        llk_trace_terminal_failure(x, tok->index, tok->index + 1, false, parser);
                     goto no_parse;
+                }
                 tok->token_type = TT_UINT;
                 tok->token_data.uint = x->data.chr;
                 break;
 
             case HCF_CHARSET:
-                if (stream->overrun)
+                if (stream->overrun) {
+                    if (stream->last_chunk && trace_failures)
+                        llk_trace_terminal_failure(x, tok->index, tok->index, true, parser);
                     goto need_input;
-                if (!charset_isset(x->data.charset, input))
+                }
+                if (!charset_isset(x->data.charset, input)) {
+                    if (trace_failures)
+                        llk_trace_terminal_failure(x, tok->index, tok->index + 1, false, parser);
                     goto no_parse;
+                }
                 tok->token_type = TT_UINT;
                 tok->token_data.uint = input;
                 break;
@@ -591,8 +687,13 @@ static HCountedArray *llk_parse_chunk_(HLLkState *s, const HParser *parser, HInp
         }
 
         // call validation and semantic action, if present
-        if (x->pred && !x->pred(make_result(tarena, tok), x->user_data))
+        if (x->pred && !x->pred(make_result(tarena, tok), x->user_data)) {
+            if (trace_failures)
+                CF_TRACE_FAILURE(symbol_start, stream->pos + stream->index,
+                                 H_PARSE_ERROR_SEMANTIC_PREDICATE,
+                                 x->parser ? x->parser : parser, NULL, false);
             goto no_parse; // validation failed -> no parse
+        }
         if (x->plan_action)
             tok = x->plan_action(make_result(arena, tok), x->user_data, &tok_plan);
         else if (x->action)
@@ -656,20 +757,26 @@ static HParseResult *llk_parse_finish_(HAllocator *mm__, HLLkState *s) {
 }
 
 HParseResult *h_llk_parse(HAllocator *mm__, const HParser *parser, HInputStream *stream) {
+    CF_TRACE_BEGIN(PB_LL, parser, stream->input, stream->length);
     HLLkState *s = llk_parse_start_(mm__, parser);
-    if (!s)
+    if (!s) {
+        CF_TRACE_END(false);
         return NULL;
+    }
 
     assert(stream->last_chunk);
     if (!stream->last_chunk) {
         llk_parse_finish_(mm__, s);
+        CF_TRACE_END(false);
         return NULL;
     }
-    s->seq = llk_parse_chunk_(s, parser, stream);
+    s->seq = llk_parse_chunk_(s, parser, stream, TRACE_ENABLED());
 
     HParseResult *res = llk_parse_finish_(mm__, s);
     if (res)
         res->bit_length = stream->index * 8 + stream->bit_offset;
+
+    CF_TRACE_END(res != NULL);
 
     return res;
 }
@@ -683,7 +790,7 @@ bool h_llk_parse_chunk(HSuspendedParser *s, HInputStream *input) {
     if (!state)
         return true;
 
-    state->seq = llk_parse_chunk_(state, s->parser, input);
+    state->seq = llk_parse_chunk_(state, s->parser, input, false);
 
     h_arena_set_except(state->arena, NULL);
     h_arena_set_except(state->tarena, NULL);

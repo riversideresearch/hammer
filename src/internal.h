@@ -599,6 +599,10 @@ static inline HCFChoice *h_cfstack_new_choice_raw(HAllocator *mm__, HCFStack *st
     ret->action = NULL;
     ret->plan_action = NULL;
     ret->pred = NULL;
+    ret->parser = NULL;
+    ret->env = NULL;
+    ret->user_data = NULL;
+    ret->dispatch_opcode = 0;
     ret->type = ~0; // invalid type
     // Add it to the current sequence...
     if (stk__->count > 0) {

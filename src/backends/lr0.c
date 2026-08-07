@@ -48,6 +48,14 @@ static void expand_to_closure(HCFGrammar *g, HHashSet *items) {
                         rhs[0] = h_arena_malloc(arena, sizeof(*rhs[0]));
                         rhs[0]->type = HCF_CHAR;
                         rhs[0]->data.chr = i;
+                        rhs[0]->reshape = NULL;
+                        rhs[0]->action = NULL;
+                        rhs[0]->plan_action = NULL;
+                        rhs[0]->pred = NULL;
+                        rhs[0]->parser = sym->parser;
+                        rhs[0]->env = NULL;
+                        rhs[0]->user_data = NULL;
+                        rhs[0]->dispatch_opcode = 0;
                         rhs[1] = NULL;
                         HLRItem *it = h_lritem_new(arena, sym, rhs, 0);
                         h_hashset_put(items, it);
@@ -195,6 +203,19 @@ HLRTable *h_lr0_table(HCFGrammar *g, const HLRDFA *dfa) {
 
     // remember start symbol
     table->start = g->start;
+
+    // Retain a useful parser name for each runtime state. A state can contain
+    // several items; prefer the parser immediately after the LR mark, falling
+    // back to the production's parser for a completed item.
+    for (size_t i = 0; i < dfa->nstates; i++) {
+        H_FOREACH_KEY(dfa->states[i], HLRItem * item)
+        HCFChoice *symbol = item->rhs[item->mark];
+        if (symbol && symbol->parser)
+            table->expected_parsers[i] = symbol->parser;
+        else if (!table->expected_parsers[i] && item->lhs->parser)
+            table->expected_parsers[i] = item->lhs->parser;
+        H_END_FOREACH
+    }
 
     // shift to the accepting end state for the start symbol
     put_shift(table, 0, g->start, HLR_SUCCESS);
