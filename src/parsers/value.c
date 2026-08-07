@@ -13,7 +13,7 @@ typedef struct {
 /* Stash an HParseResult into a symbol table, so that it can be
    retrieved and used later. */
 
-static HParseResult *parse_put(void *env, HParseState *state) {
+static HParseResult *parse_put_value(void *env, HParseState *state) {
     HStoredValue *s = (HStoredValue *)env;
     if (s->p && s->key && !h_symbol_get(state, s->key)) {
         HParseResult *tmp = h_do_parse(s->p, state);
@@ -27,7 +27,7 @@ static HParseResult *parse_put(void *env, HParseState *state) {
 }
 
 static const HParserVtable put_vt = {
-    .parse = parse_put,
+    .parse = parse_put_value,
     .isValidRegular = h_false,
     .isValidCF = h_false,
     .higher = true,
@@ -46,7 +46,7 @@ HParser *h_put_value__m(HAllocator *mm__, const HParser *p, const char *name) {
 
 /* Retrieve a stashed result from the symbol table. */
 
-static HParseResult *parse_get(void *env, HParseState *state) {
+static HParseResult *parse_get_value(void *env, HParseState *state) {
     HStoredValue *s = (HStoredValue *)env;
     if (!s->p && s->key) {
         return h_symbol_get(state, s->key);
@@ -56,7 +56,7 @@ static HParseResult *parse_get(void *env, HParseState *state) {
 }
 
 static const HParserVtable get_vt = {
-    .parse = parse_get,
+    .parse = parse_get_value,
     .isValidRegular = h_false,
     .isValidCF = h_false,
     .higher = true,
@@ -76,7 +76,7 @@ HParser *h_get_value__m(HAllocator *mm__, const char *name) {
   Remove the retrieved result from the symbol table
 */
 
-static HParseResult *parse_free(void *env, HParseState *state) {
+static HParseResult *parse_free_value(void *env, HParseState *state) {
     HStoredValue *s = (HStoredValue *)env;
     if (!s->p && s->key) {
         HParseResult *storedResult = h_symbol_get(state, s->key);
@@ -88,7 +88,7 @@ static HParseResult *parse_free(void *env, HParseState *state) {
 }
 
 static const HParserVtable free_vt = {
-    .parse = parse_free,
+    .parse = parse_free_value,
     .isValidRegular = h_false,
     .isValidCF = h_false,
     .higher = true,
