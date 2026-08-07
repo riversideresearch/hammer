@@ -477,7 +477,7 @@ HParseResult *h_parse__m(HAllocator *mm__, const HParser *parser, const uint8_t 
                          size_t length);
 
 /**
- * @brief Like h_parse(), but traces the packrat parse to stderr and, on
+ * @brief Like h_parse(), but traces the selected backend to stderr and, on
  * failure, prints a furthest-position diagnostic. Parsing behavior and return
  * value are identical to h_parse(); only the emitted debug output differs.
  *
@@ -493,6 +493,8 @@ HParseResult *h_parse__m(HAllocator *mm__, const HParser *parser, const uint8_t 
  * @param input Input data
  * @param length Length of input data
  * @param error Out-parameter for structured failure info, or NULL
+ * @param dumpTrace Whether to print the backend's full execution trace in
+ * addition to the summary and failure diagnostic
  * @return Parse result, or NULL on failure
  */
 HParseResult *h_parse_debug(const HParser *parser, const uint8_t *input, size_t length,

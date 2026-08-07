@@ -119,6 +119,25 @@ static void test_trace_glr_ambiguous_failure(void) {
     h_parse_error_free(&err);
 }
 
+static void test_trace_cf_verbose_dump(gconstpointer backend) {
+    HParserBackend be = (HParserBackend)GPOINTER_TO_INT(backend);
+    if (g_test_subprocess()) {
+        HParser *p = h_sequence(h_ch('a'), h_ch('b'), NULL);
+        g_assert_cmpint(h_compile(p, be, NULL), ==, 0);
+        HParseResult *res = h_parse_debug(p, (const uint8_t *)"ab", 2, NULL, true);
+        g_assert_nonnull(res);
+        h_parse_result_free(res);
+        return;
+    }
+
+    g_test_trap_subprocess(NULL, 0, G_TEST_SUBPROCESS_DEFAULT);
+    g_test_trap_assert_passed();
+    if (be == PB_LL)
+        g_test_trap_assert_stderr("*predict*terminal*reduce*");
+    else
+        g_test_trap_assert_stderr("*SHIFT*REDUCE*");
+}
+
 // --- Cases ported from the debugtest/ sample parsers ---------------------
 // Each of the parserN.c programs is turned into a pass/fail assertion here,
 // exercised through h_parse_debug(). Some inputs parse cleanly; most are
@@ -430,6 +449,8 @@ void register_trace_tests(void) {
                          test_trace_cf_unexpected_eof);
     g_test_add_data_func("/core/parser/ll/trace_range_failure", GINT_TO_POINTER(PB_LL),
                          test_trace_cf_range_failure);
+    g_test_add_data_func("/core/parser/ll/trace_verbose_dump", GINT_TO_POINTER(PB_LL),
+                         test_trace_cf_verbose_dump);
 
     g_test_add_data_func("/core/parser/lalr/trace_debug_success", GINT_TO_POINTER(PB_LALR),
                          test_trace_debug_success);
@@ -443,6 +464,8 @@ void register_trace_tests(void) {
                          test_trace_cf_range_failure);
     g_test_add_data_func("/core/parser/lalr/trace_attr_bool_checksum", GINT_TO_POINTER(PB_LALR),
                          test_trace_attr_bool_checksum);
+    g_test_add_data_func("/core/parser/lalr/trace_verbose_dump", GINT_TO_POINTER(PB_LALR),
+                         test_trace_cf_verbose_dump);
 
     g_test_add_data_func("/core/parser/glr/trace_debug_success", GINT_TO_POINTER(PB_GLR),
                          test_trace_debug_success);
@@ -458,6 +481,8 @@ void register_trace_tests(void) {
                          test_trace_attr_bool_checksum);
     g_test_add_func("/core/parser/glr/trace_ambiguous_failure",
                     test_trace_glr_ambiguous_failure);
+    g_test_add_data_func("/core/parser/glr/trace_verbose_dump", GINT_TO_POINTER(PB_GLR),
+                         test_trace_cf_verbose_dump);
 
     // Ported from the debugtest/ sample parsers.
     g_test_add_data_func("/core/parser/packrat/trace_uint8_success", GINT_TO_POINTER(PB_PACKRAT),

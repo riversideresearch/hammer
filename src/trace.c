@@ -57,22 +57,29 @@ H_TRACE_THREAD_LOCAL bool display_trace = false;
 H_TRACE_THREAD_LOCAL bool dump_trace = false;
 static H_TRACE_THREAD_LOCAL unsigned trace_enable_depth = 0;
 static H_TRACE_THREAD_LOCAL HParseError trace_completed;
+#define H_TRACE_MAX_NESTING 256
+static H_TRACE_THREAD_LOCAL bool trace_dump_stack[H_TRACE_MAX_NESTING];
 
 /* Toggle the runtime trace. Exposed (see trace.h) so h_parse_debug() can enable
  * tracing for just its own call and switch it back off afterward. */
 void h_trace_set_enabled(bool enabled, bool dumpTrace) {
-    dump_trace = dumpTrace;
     if (enabled) {
         if (trace_enable_depth == 0)
             memset(&trace_completed, 0, sizeof(trace_completed));
+        if (trace_enable_depth < H_TRACE_MAX_NESTING)
+            trace_dump_stack[trace_enable_depth] = dumpTrace;
         trace_enable_depth++;
     } else if (trace_enable_depth > 0) {
         trace_enable_depth--;
     }
     display_trace = trace_enable_depth > 0;
+    dump_trace = display_trace && trace_enable_depth <= H_TRACE_MAX_NESTING
+                     ? trace_dump_stack[trace_enable_depth - 1]
+                     : dumpTrace;
 }
 
 bool h_trace_is_enabled(void) { return display_trace; }
+bool h_trace_is_dump_enabled(void) { return display_trace && dump_trace; }
 
 typedef struct HTraceFrame_ {
     const HParser *parser;
@@ -97,6 +104,7 @@ typedef struct HTraceContext_ {
     const HParser *failure_parser;
     bool expected_bytes[256];
     bool expected_eof;
+    size_t next_branch_id;
     struct HTraceContext_ *parent;
 } HTraceContext;
 
@@ -406,14 +414,13 @@ void h_trace_begin(const uint8_t *input, size_t input_len) {
 void h_trace_enter(const HParser *parser, HParseState *state) {
     if (!display_trace)
         return;
-    if(dump_trace){
+    if (dump_trace) {
         trace_indent();
         fprintf(stderr, "-> %-20s %-9s ", fn_name_to_h(trace_vt_name(parser->vtable)),
-            parser->vtable->higher ? "higher" : "primitive");
-    }
-    trace_pos(state);
-    if(dump_trace)
+                parser->vtable->higher ? "higher" : "primitive");
+        trace_pos(state);
         fputc('\n', stderr);
+    }
     if (trace_context && trace_context->frame_count < H_TRACE_MAX_FRAMES) {
         HTraceFrame *frame = &trace_context->frames[trace_context->frame_count];
         frame->parser = parser;
@@ -921,6 +928,141 @@ void h_cf_trace_failure(size_t start, size_t end, HParseErrorKind kind, const HP
     context->expected_eof |= expected_eof;
 }
 
+void h_cf_trace_parser_enter(const HParser *parser, size_t index, const char *role) {
+    if (!display_trace || !dump_trace || !trace_context)
+        return;
+
+    const HParser *origin = parser ? parser : trace_context->root_parser;
+    char *name = h_trace_parser_name(origin);
+    trace_indent();
+    fprintf(stderr, "-> %-20s %-11s @%zu\n", name ? name : "?(no parser)",
+            role ? role : "nonterminal", index);
+    free(name);
+
+    if (trace_context->frame_count < H_TRACE_MAX_FRAMES) {
+        HTraceFrame *frame = &trace_context->frames[trace_context->frame_count++];
+        frame->parser = origin;
+        frame->name = origin && origin->vtable ? trace_vt_name(origin->vtable) : "?(no parser)";
+        frame->start = index;
+        frame->start_bit = 0;
+        frame->failure_serial = 0;
+    } else {
+        trace_context->overflow_frames++;
+    }
+    trace_context->depth++;
+}
+
+void h_cf_trace_parser_exit(const HParser *parser, size_t start, size_t end,
+                            const HParsedToken *token, bool success, const char *role) {
+    (void)parser;
+    if (!display_trace || !dump_trace || !trace_context)
+        return;
+
+    if (trace_context->depth > 0)
+        trace_context->depth--;
+    if (trace_context->overflow_frames > 0)
+        trace_context->overflow_frames--;
+    else if (trace_context->frame_count > 0)
+        trace_context->frame_count--;
+
+    trace_indent();
+    if (success) {
+        fputs("<= OK   ast=", stderr);
+        trace_token(token);
+        fprintf(stderr, " span=[%zu,%zu)", start, end);
+    } else {
+        fputs("<= FAIL", stderr);
+        fprintf(stderr, " @%zu", end);
+    }
+    if (role)
+        fprintf(stderr, "  [%s]", role);
+    fputc('\n', stderr);
+}
+
+static void trace_lr_branch(size_t branch) {
+    if (trace_context && trace_context->backend == PB_GLR)
+        fprintf(stderr, "[branch %zu] ", branch);
+}
+
+static void trace_lr_parser(const HParser *parser) {
+    char *name = h_trace_parser_name(parser);
+    if (name) {
+        fprintf(stderr, " parser=%s", name);
+        free(name);
+    }
+}
+
+void h_cf_trace_lr_shift(size_t branch, size_t from_state, size_t to_state, size_t index,
+                         const HParser *parser, const HParsedToken *token) {
+    if (!display_trace || !dump_trace || !trace_context)
+        return;
+
+    fprintf(stderr, "@%04zu ", index);
+    trace_lr_branch(branch);
+    fprintf(stderr, "SHIFT  s%zu -> s%zu", from_state, to_state);
+    if (token && token->token_type == TT_UINT) {
+        fputs(" input=", stderr);
+        trace_print_expected_byte((uint8_t)token->token_data.uint);
+    } else {
+        fputs(" input=end-of-input", stderr);
+    }
+    trace_lr_parser(parser);
+    fputc('\n', stderr);
+}
+
+void h_cf_trace_lr_reduce(size_t branch, size_t from_state, size_t to_state, size_t length,
+                          size_t start, size_t end, const HParser *parser,
+                          const HParsedToken *token, bool success) {
+    if (!display_trace || !dump_trace || !trace_context)
+        return;
+
+    fprintf(stderr, "@%04zu ", end);
+    trace_lr_branch(branch);
+    if (!success) {
+        fprintf(stderr, "REJECT  s%zu len=%zu span=[%zu,%zu)", from_state, length, start, end);
+    } else if (to_state == SIZE_MAX) {
+        fprintf(stderr, "REDUCE  s%zu -> accept len=%zu span=[%zu,%zu)", from_state, length,
+                start, end);
+    } else {
+        fprintf(stderr, "REDUCE  s%zu -> s%zu len=%zu span=[%zu,%zu)", from_state, to_state,
+                length, start, end);
+    }
+    trace_lr_parser(parser);
+    if (success) {
+        fputs(" ast=", stderr);
+        trace_token(token);
+    }
+    fputc('\n', stderr);
+}
+
+void h_cf_trace_lr_error(size_t branch, size_t state, size_t index, const HParser *parser) {
+    if (!display_trace || !dump_trace || !trace_context)
+        return;
+
+    fprintf(stderr, "@%04zu ", index);
+    trace_lr_branch(branch);
+    fprintf(stderr, "ERROR  no action in s%zu", state);
+    trace_lr_parser(parser);
+    fputc('\n', stderr);
+}
+
+size_t h_cf_trace_glr_fork(size_t branch, size_t state, size_t index) {
+    if (!display_trace || !dump_trace || !trace_context)
+        return branch;
+
+    size_t child = ++trace_context->next_branch_id;
+    fprintf(stderr, "@%04zu [branch %zu] FORK -> branch %zu at s%zu\n", index, branch, child,
+            state);
+    return child;
+}
+
+void h_cf_trace_glr_merge(size_t survivor, size_t merged, size_t state, size_t index) {
+    if (!display_trace || !dump_trace || !trace_context)
+        return;
+    fprintf(stderr, "@%04zu [branch %zu] MERGE branch %zu at s%zu\n", index, survivor, merged,
+            state);
+}
+
 void h_cf_trace_end(bool success) {
     if (!display_trace)
         return;
@@ -928,6 +1070,25 @@ void h_cf_trace_end(bool success) {
     HTraceContext *context = trace_context;
     if (!context)
         return;
+
+    if (dump_trace) {
+        while (context->overflow_frames > 0) {
+            if (context->depth > 0)
+                context->depth--;
+            context->overflow_frames--;
+        }
+        while (context->frame_count > 0) {
+            HTraceFrame *frame = &context->frames[context->frame_count - 1];
+            context->frame_count--;
+            if (context->depth > 0)
+                context->depth--;
+            trace_indent();
+            char *name = frame->parser ? h_trace_parser_name(frame->parser) : NULL;
+            fprintf(stderr, "<= FAIL  [aborted %s from @%zu]\n", name ? name : frame->name,
+                    frame->start);
+            free(name);
+        }
+    }
 
     fprintf(stderr, "=== %s: end (%s) ===\n", trace_backend_name(context->backend),
             success ? "SUCCESS" : "FAILURE");

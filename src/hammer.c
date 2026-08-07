@@ -573,7 +573,7 @@ HParseResult *h_parse__m(HAllocator *mm__, const HParser *parser, const uint8_t 
     return parser->backend_vtable->parse(mm__, parser, &input_stream);
 }
 
-// Twin of h_parse() that turns on the AST-construction trace for the duration
+// Twin of h_parse() that turns on backend tracing for the duration
 // of this one parse, then switches it back off. Identical parsing behavior and
 // return value; the only difference is the trace/diagnostics emitted to
 // stderr/stdout. When the library is built without tracing (HAMMER_TRACE_AST

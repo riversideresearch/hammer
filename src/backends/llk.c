@@ -534,6 +534,7 @@ static HCountedArray *llk_parse_chunk_(HLLkState *s, const HParser *parser, HInp
         tok = NULL;
         tok_plan = NULL;
         size_t symbol_start = stream->pos + stream->index;
+        bool completed_nonterminal = false;
 
         // pop top of stack for inspection
         x = h_slist_pop(stack);
@@ -543,13 +544,19 @@ static HCountedArray *llk_parse_chunk_(HLLkState *s, const HParser *parser, HInp
 
         if (x != MARK && x->type == HCF_CHOICE) {
             // x is a nonterminal; apply the appropriate production and continue
+            const HParser *origin = x->parser ? x->parser : parser;
+            if (trace_failures)
+                CF_TRACE_PARSER_ENTER(origin, symbol_start, "predict");
 
             // look up applicable production in parse table
             const HStringMap *row = h_hashtable_get(table->rows, x);
             const HCFSequence *p = h_llk_lookup(table, x, stream);
             if (p == NULL) {
                 if (trace_failures)
-                    llk_trace_lookup_failure(row, *stream, x->parser ? x->parser : parser);
+                    llk_trace_lookup_failure(row, *stream, origin);
+                if (trace_failures)
+                    CF_TRACE_PARSER_EXIT(origin, symbol_start, symbol_start, NULL, false,
+                                         "predict");
                 goto no_parse;
             }
             if (p == NEED_INPUT) {
@@ -557,8 +564,12 @@ static HCountedArray *llk_parse_chunk_(HLLkState *s, const HParser *parser, HInp
             }
 
             // an infinite loop case that shouldn't happen
-            if (p->items[0] == x)
+            if (p->items[0] == x) {
+                if (trace_failures)
+                    CF_TRACE_PARSER_EXIT(origin, symbol_start, symbol_start, NULL, false,
+                                         "left recursion");
                 goto no_parse;
+            }
             assert(!p->items[0] || p->items[0] != x);
 
             // push stack frame
@@ -599,6 +610,7 @@ static HCountedArray *llk_parse_chunk_(HLLkState *s, const HParser *parser, HInp
                 goto no_parse;
             HLLkFrame *frame = h_slist_pop(stack);
             x = frame->symbol;
+            completed_nonterminal = true;
             symbol_start = frame->start;
             tok->index = frame->start;
             tok->bit_offset = frame->bit_offset;
@@ -614,6 +626,9 @@ static HCountedArray *llk_parse_chunk_(HLLkState *s, const HParser *parser, HInp
 
             tok->index = stream->pos + stream->index;
             tok->bit_offset = stream->bit_offset;
+            const HParser *origin = x->parser ? x->parser : parser;
+            if (trace_failures)
+                CF_TRACE_PARSER_ENTER(origin, tok->index, "terminal");
 
             // consume the input token
             uint8_t input = h_read_bits(stream, 8, false);
@@ -629,6 +644,9 @@ static HCountedArray *llk_parse_chunk_(HLLkState *s, const HParser *parser, HInp
                 if (!stream->overrun) {
                     if (trace_failures)
                         llk_trace_terminal_failure(x, tok->index, tok->index + 1, false, parser);
+                    if (trace_failures)
+                        CF_TRACE_PARSER_EXIT(origin, tok->index, tok->index + 1, NULL, false,
+                                             "terminal");
                     goto no_parse;
                 }
                 if (!stream->last_chunk)
@@ -640,11 +658,17 @@ static HCountedArray *llk_parse_chunk_(HLLkState *s, const HParser *parser, HInp
                 if (stream->overrun) {
                     if (stream->last_chunk && trace_failures)
                         llk_trace_terminal_failure(x, tok->index, tok->index, true, parser);
+                    if (stream->last_chunk && trace_failures)
+                        CF_TRACE_PARSER_EXIT(origin, tok->index, tok->index, NULL, false,
+                                             "terminal");
                     goto need_input;
                 }
                 if (input != x->data.chr) {
                     if (trace_failures)
                         llk_trace_terminal_failure(x, tok->index, tok->index + 1, false, parser);
+                    if (trace_failures)
+                        CF_TRACE_PARSER_EXIT(origin, tok->index, tok->index + 1, NULL, false,
+                                             "terminal");
                     goto no_parse;
                 }
                 tok->token_type = TT_UINT;
@@ -655,11 +679,17 @@ static HCountedArray *llk_parse_chunk_(HLLkState *s, const HParser *parser, HInp
                 if (stream->overrun) {
                     if (stream->last_chunk && trace_failures)
                         llk_trace_terminal_failure(x, tok->index, tok->index, true, parser);
+                    if (stream->last_chunk && trace_failures)
+                        CF_TRACE_PARSER_EXIT(origin, tok->index, tok->index, NULL, false,
+                                             "terminal");
                     goto need_input;
                 }
                 if (!charset_isset(x->data.charset, input)) {
                     if (trace_failures)
                         llk_trace_terminal_failure(x, tok->index, tok->index + 1, false, parser);
+                    if (trace_failures)
+                        CF_TRACE_PARSER_EXIT(origin, tok->index, tok->index + 1, NULL, false,
+                                             "terminal");
                     goto no_parse;
                 }
                 tok->token_type = TT_UINT;
@@ -668,6 +698,8 @@ static HCountedArray *llk_parse_chunk_(HLLkState *s, const HParser *parser, HInp
 
             default: // should not be reached
                 assert_message(0, "unknown HCFChoice type");
+                if (trace_failures)
+                    CF_TRACE_PARSER_EXIT(origin, tok->index, tok->index, NULL, false, "terminal");
                 goto no_parse;
             }
         }
@@ -692,12 +724,21 @@ static HCountedArray *llk_parse_chunk_(HLLkState *s, const HParser *parser, HInp
                 CF_TRACE_FAILURE(symbol_start, stream->pos + stream->index,
                                  H_PARSE_ERROR_SEMANTIC_PREDICATE,
                                  x->parser ? x->parser : parser, NULL, false);
+            if (trace_failures)
+                CF_TRACE_PARSER_EXIT(x->parser ? x->parser : parser, symbol_start,
+                                     stream->pos + stream->index, tok, false,
+                                     completed_nonterminal ? "predicate" : "terminal predicate");
             goto no_parse; // validation failed -> no parse
         }
         if (x->plan_action)
             tok = x->plan_action(make_result(arena, tok), x->user_data, &tok_plan);
         else if (x->action)
             tok = (HParsedToken *)x->action(make_result(arena, tok), x->user_data);
+
+        if (trace_failures)
+            CF_TRACE_PARSER_EXIT(x->parser ? x->parser : parser, symbol_start,
+                                 stream->pos + stream->index, tok, true,
+                                 completed_nonterminal ? "reduce" : "terminal");
 
         // append to result sequence
         h_carray_append(seq, tok);

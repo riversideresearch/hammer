@@ -41,6 +41,9 @@ static HLREngine *lrengine_merge(HLREngine *old, HLREngine *new) {
     ret->stack = h_slist_new(arena);
     ret->merged[0] = old;
     ret->merged[1] = new;
+    if (old->trace_failures)
+        CF_TRACE_GLR_MERGE(old->trace_id, new->trace_id, old->state,
+                           old->input.pos + old->input.index);
 
     return ret;
 }
@@ -126,6 +129,10 @@ HLREngine *fork_engine(const HLREngine *engine) {
     eng2->tarena = engine->tarena;
     eng2->trace_failures = engine->trace_failures;
     eng2->root_parser = engine->root_parser;
+    eng2->trace_id = engine->trace_failures
+                         ? CF_TRACE_GLR_FORK(engine->trace_id, engine->state,
+                                             engine->input.pos + engine->input.index)
+                         : engine->trace_id;
     return eng2;
 }
 

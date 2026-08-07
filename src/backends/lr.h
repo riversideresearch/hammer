@@ -85,6 +85,7 @@ typedef struct HLREngine_ {
 
     bool trace_failures;
     const HParser *root_parser;
+    size_t trace_id;
 } HLREngine;
 
 #define HLR_SUCCESS ((size_t)~0) // parser end state

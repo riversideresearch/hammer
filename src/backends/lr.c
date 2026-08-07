@@ -201,6 +201,7 @@ static HLREngine *h_lrengine_new_(HArena *arena, HArena *tarena, const HLRTable 
     engine->tarena = tarena;
     engine->trace_failures = false;
     engine->root_parser = NULL;
+    engine->trace_id = 0;
 
     return engine;
 }
@@ -256,6 +257,7 @@ void h_lrengine_trace_action_failure(const HLREngine *engine) {
     const HParser *origin = engine->table->expected_parsers[state];
     if (!origin)
         origin = engine->root_parser;
+    CF_TRACE_LR_ERROR(engine->trace_id, state, input.pos + input.index, origin);
 
     while (map && !map->epsilon_branch) {
         size_t index = input.pos + input.index;
@@ -324,6 +326,7 @@ bool h_lrengine_step(HLREngine *engine, const HLRAction *action) {
     HSlist *stack = engine->stack;
     HArena *arena = engine->arena;
     HArena *tarena = engine->tarena;
+    size_t action_state = engine->state;
 
     if (action == NULL)
         return false; // no handle recognizable in input, terminate
@@ -389,11 +392,16 @@ bool h_lrengine_step(HLREngine *engine, const HLRAction *action) {
 
         // call validation and semantic action, if present
         if (symbol->pred && !symbol->pred(make_result(tarena, value), symbol->user_data)) {
-            if (engine->trace_failures)
+            if (engine->trace_failures) {
                 CF_TRACE_FAILURE(reduction_start, engine->input.pos + engine->input.index,
                                  H_PARSE_ERROR_SEMANTIC_PREDICATE,
                                  symbol->parser ? symbol->parser : engine->root_parser, NULL,
                                  false);
+                CF_TRACE_LR_REDUCE(engine->trace_id, action_state, engine->state, len,
+                                   reduction_start, engine->input.pos + engine->input.index,
+                                   symbol->parser ? symbol->parser : engine->root_parser, value,
+                                   false);
+            }
             return false; // validation failed -> no parse; terminate
         }
         if (symbol->plan_action)
@@ -418,6 +426,10 @@ bool h_lrengine_step(HLREngine *engine, const HLRAction *action) {
         h_slist_push(stack, (void *)(uintptr_t)engine->state);
         h_slist_push(stack, semantic);
         engine->state = shift->data.nextstate;
+        if (engine->trace_failures)
+            CF_TRACE_LR_REDUCE(engine->trace_id, action_state, engine->state, len,
+                               reduction_start, engine->input.pos + engine->input.index,
+                               symbol->parser ? symbol->parser : engine->root_parser, value, true);
 
         // check for success
         if (engine->state == HLR_SUCCESS) {
@@ -428,6 +440,7 @@ bool h_lrengine_step(HLREngine *engine, const HLRAction *action) {
         }
     } else {
         assert(action->type == HLR_SHIFT);
+        size_t input_start = engine->input.pos + engine->input.index;
         HParsedToken *value = consume_input(engine);
         HLRSemanticValue *semantic = h_arena_malloc(tarena, sizeof(*semantic));
         semantic->ast = value;
@@ -435,6 +448,13 @@ bool h_lrengine_step(HLREngine *engine, const HLRAction *action) {
         h_slist_push(stack, (void *)(uintptr_t)engine->state);
         h_slist_push(stack, semantic);
         engine->state = action->data.nextstate;
+        if (engine->trace_failures) {
+            const HParser *origin = action_state < engine->table->nrows
+                                        ? engine->table->expected_parsers[action_state]
+                                        : NULL;
+            CF_TRACE_LR_SHIFT(engine->trace_id, action_state, engine->state, input_start,
+                              origin ? origin : engine->root_parser, value);
+        }
     }
 
     return true;

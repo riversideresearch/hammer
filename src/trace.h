@@ -18,6 +18,7 @@
 // packrat trace functions
 void h_trace_set_enabled(bool enabled, bool dumpTrace);
 bool h_trace_is_enabled(void);
+bool h_trace_is_dump_enabled(void);
 void h_trace_get_error(HParseError *out);
 void h_trace_begin(const uint8_t *input, size_t input_len);
 void h_trace_enter(const HParser *parser, HParseState *state);
@@ -30,6 +31,17 @@ void h_cf_trace_begin(HParserBackend backend, const HParser *parser, const uint8
                       size_t input_len);
 void h_cf_trace_failure(size_t start, size_t end, HParseErrorKind kind, const HParser *parser,
                         const bool expected[256], bool expected_eof);
+void h_cf_trace_parser_enter(const HParser *parser, size_t index, const char *role);
+void h_cf_trace_parser_exit(const HParser *parser, size_t start, size_t end,
+                            const HParsedToken *token, bool success, const char *role);
+void h_cf_trace_lr_shift(size_t branch, size_t from_state, size_t to_state, size_t index,
+                         const HParser *parser, const HParsedToken *token);
+void h_cf_trace_lr_reduce(size_t branch, size_t from_state, size_t to_state, size_t length,
+                          size_t start, size_t end, const HParser *parser,
+                          const HParsedToken *token, bool success);
+void h_cf_trace_lr_error(size_t branch, size_t state, size_t index, const HParser *parser);
+size_t h_cf_trace_glr_fork(size_t branch, size_t state, size_t index);
+void h_cf_trace_glr_merge(size_t survivor, size_t merged, size_t state, size_t index);
 void h_cf_trace_end(bool success);
 
 // regex trace functions
@@ -55,11 +67,25 @@ void svm_failure_error(HSVMContext *ctx, HRVMProg *orig_prog, HRVMTrace *trace,
     h_cf_trace_begin((backend), (parser), (input), (size_t)(len))
 #define CF_TRACE_FAILURE(start, end, kind, parser, expected, expected_eof)                         \
     h_cf_trace_failure((start), (end), (kind), (parser), (expected), (expected_eof))
+#define CF_TRACE_PARSER_ENTER(parser, index, role)                                                 \
+    h_cf_trace_parser_enter((parser), (index), (role))
+#define CF_TRACE_PARSER_EXIT(parser, start, end, token, success, role)                             \
+    h_cf_trace_parser_exit((parser), (start), (end), (token), (success), (role))
+#define CF_TRACE_LR_SHIFT(branch, from, to, index, parser, token)                                  \
+    h_cf_trace_lr_shift((branch), (from), (to), (index), (parser), (token))
+#define CF_TRACE_LR_REDUCE(branch, from, to, length, start, end, parser, token, success)           \
+    h_cf_trace_lr_reduce((branch), (from), (to), (length), (start), (end), (parser), (token),      \
+                         (success))
+#define CF_TRACE_LR_ERROR(branch, state, index, parser)                                            \
+    h_cf_trace_lr_error((branch), (state), (index), (parser))
+#define CF_TRACE_GLR_FORK(branch, state, index) h_cf_trace_glr_fork((branch), (state), (index))
+#define CF_TRACE_GLR_MERGE(survivor, merged, state, index)                                        \
+    h_cf_trace_glr_merge((survivor), (merged), (state), (index))
 #define CF_TRACE_END(success) h_cf_trace_end((success))
 
 #else /* tracing compiled out */
 
-#define TRACE_SET_ENABLED(b)  ((void)0)
+#define TRACE_SET_ENABLED(enabled, dump) ((void)0)
 #define TRACE_ENABLED() false
 #define TRACE_GET_ERROR(out)  ((void)0)
 #define TRACE_BEGIN(input, len) ((void)0)
@@ -68,6 +94,13 @@ void svm_failure_error(HSVMContext *ctx, HRVMProg *orig_prog, HRVMTrace *trace,
 #define TRACE_END(res, state) ((void)0)
 #define CF_TRACE_BEGIN(backend, parser, input, len) ((void)0)
 #define CF_TRACE_FAILURE(start, end, kind, parser, expected, expected_eof) ((void)0)
+#define CF_TRACE_PARSER_ENTER(parser, index, role) ((void)0)
+#define CF_TRACE_PARSER_EXIT(parser, start, end, token, success, role) ((void)0)
+#define CF_TRACE_LR_SHIFT(branch, from, to, index, parser, token) ((void)0)
+#define CF_TRACE_LR_REDUCE(branch, from, to, length, start, end, parser, token, success) ((void)0)
+#define CF_TRACE_LR_ERROR(branch, state, index, parser) ((void)0)
+#define CF_TRACE_GLR_FORK(branch, state, index) (branch)
+#define CF_TRACE_GLR_MERGE(survivor, merged, state, index) ((void)0)
 #define CF_TRACE_END(success) ((void)0)
 
 #endif /* HAMMER_TRACE_AST */
