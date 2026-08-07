@@ -138,6 +138,57 @@ static void test_trace_cf_verbose_dump(gconstpointer backend) {
         g_test_trap_assert_stderr("*SHIFT*REDUCE*");
 }
 
+static void test_trace_structured_expectations(gconstpointer backend) {
+    HParserBackend be = (HParserBackend)GPOINTER_TO_INT(backend);
+    HParser *p = h_choice(h_ch_range('a', 'c'), h_ch('x'), NULL);
+    g_check_cmp_int(h_compile(p, be, NULL), ==, 0);
+
+    HParseDiagnostic *diagnostic = NULL;
+    HParseResult *res =
+        h_parse_debug_ex(p, (const uint8_t *)"z", 1, &diagnostic, false);
+    g_check_cmp_ptr(res, ==, NULL);
+    g_check_cmp_ptr(diagnostic, !=, NULL);
+    if (!diagnostic)
+        return;
+
+    const HParseError *error = h_parse_diagnostic_error(diagnostic);
+    g_check_cmp_ptr(error, !=, NULL);
+    g_check_cmp_size(error->index, ==, 0);
+    g_check_cmp_int(error->actual, ==, 'z');
+    g_check_cmp_size(h_parse_diagnostic_expected_count(diagnostic), ==, 2);
+
+    HParseExpectation expected;
+    g_check_cmp_int(h_parse_diagnostic_expected(diagnostic, 0, &expected), ==, true);
+    g_check_cmp_int(expected.kind, ==, H_PARSE_EXPECT_BYTE_RANGE);
+    g_check_cmp_int(expected.lower, ==, 'a');
+    g_check_cmp_int(expected.upper, ==, 'c');
+    g_check_cmp_int(h_parse_diagnostic_expected(diagnostic, 1, &expected), ==, true);
+    g_check_cmp_int(expected.kind, ==, H_PARSE_EXPECT_BYTE_RANGE);
+    g_check_cmp_int(expected.lower, ==, 'x');
+    g_check_cmp_int(expected.upper, ==, 'x');
+    g_check_cmp_int(h_parse_diagnostic_expected(diagnostic, 2, &expected), ==, false);
+    h_parse_diagnostic_free(diagnostic);
+}
+
+static void test_trace_structured_expected_eof(void) {
+    HParser *p = h_sequence(h_ch('A'), h_end_p(), NULL);
+    g_check_cmp_int(h_compile(p, PB_REGULAR, NULL), ==, 0);
+
+    HParseDiagnostic *diagnostic = NULL;
+    HParseResult *res =
+        h_parse_debug_ex(p, (const uint8_t *)"AB", 2, &diagnostic, false);
+    g_check_cmp_ptr(res, ==, NULL);
+    g_check_cmp_ptr(diagnostic, !=, NULL);
+    if (!diagnostic)
+        return;
+
+    HParseExpectation expected;
+    g_check_cmp_size(h_parse_diagnostic_expected_count(diagnostic), ==, 1);
+    g_check_cmp_int(h_parse_diagnostic_expected(diagnostic, 0, &expected), ==, true);
+    g_check_cmp_int(expected.kind, ==, H_PARSE_EXPECT_END_OF_INPUT);
+    h_parse_diagnostic_free(diagnostic);
+}
+
 // --- Cases ported from the debugtest/ sample parsers ---------------------
 // Each of the parserN.c programs is turned into a pass/fail assertion here,
 // exercised through h_parse_debug(). Some inputs parse cleanly; most are
@@ -432,6 +483,17 @@ static void test_trace_nested_list(gconstpointer backend) {
 }
 
 void register_trace_tests(void) {
+    g_test_add_data_func("/core/parser/regex/trace_debug_success", GINT_TO_POINTER(PB_REGULAR),
+                         test_trace_debug_success);
+    g_test_add_data_func("/core/parser/regex/trace_debug_error_on_failure",
+                         GINT_TO_POINTER(PB_REGULAR), test_trace_debug_error_on_failure);
+    g_test_add_data_func("/core/parser/regex/trace_debug_null_error",
+                         GINT_TO_POINTER(PB_REGULAR), test_trace_debug_null_error);
+    g_test_add_data_func("/core/parser/regex/trace_structured_expectations",
+                         GINT_TO_POINTER(PB_REGULAR), test_trace_structured_expectations);
+    g_test_add_func("/core/parser/regex/trace_structured_expected_eof",
+                    test_trace_structured_expected_eof);
+
     g_test_add_data_func("/core/parser/packrat/trace_debug_success", GINT_TO_POINTER(PB_PACKRAT),
                          test_trace_debug_success);
     g_test_add_data_func("/core/parser/packrat/trace_debug_error_on_failure",
@@ -483,6 +545,13 @@ void register_trace_tests(void) {
                     test_trace_glr_ambiguous_failure);
     g_test_add_data_func("/core/parser/glr/trace_verbose_dump", GINT_TO_POINTER(PB_GLR),
                          test_trace_cf_verbose_dump);
+
+    g_test_add_data_func("/core/parser/ll/trace_structured_expectations",
+                         GINT_TO_POINTER(PB_LL), test_trace_structured_expectations);
+    g_test_add_data_func("/core/parser/lalr/trace_structured_expectations",
+                         GINT_TO_POINTER(PB_LALR), test_trace_structured_expectations);
+    g_test_add_data_func("/core/parser/glr/trace_structured_expectations",
+                         GINT_TO_POINTER(PB_GLR), test_trace_structured_expectations);
 
     // Ported from the debugtest/ sample parsers.
     g_test_add_data_func("/core/parser/packrat/trace_uint8_success", GINT_TO_POINTER(PB_PACKRAT),

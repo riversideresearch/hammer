@@ -584,18 +584,30 @@ HParseResult *h_parse__m(HAllocator *mm__, const HParser *parser, const uint8_t 
 // scraping the textual trace. It is zeroed up front so the compiled-out case
 // (and a NULL trace) leaves well-defined, empty contents.
 HParseResult *h_parse_debug(const HParser *parser, const uint8_t *input, size_t length,
-                            HParseError *error, bool dumpTrace) {
-    return h_parse_debug__m(&system_allocator, parser, input, length, error, dumpTrace);
+                            HParseError *error, bool dumpExecutionTrace) {
+    return h_parse_debug__m(&system_allocator, parser, input, length, error, dumpExecutionTrace);
 }
 HParseResult *h_parse_debug__m(HAllocator *mm__, const HParser *parser, const uint8_t *input,
-                               size_t length, HParseError *error, bool dumpTrace) {
+                               size_t length, HParseError *error, bool dumpExecutionTrace) {
     if (error)
         memset(error, 0, sizeof(*error));
-    TRACE_SET_ENABLED(true, dumpTrace);
+    TRACE_SET_ENABLED(true, dumpExecutionTrace);
     HParseResult *res = h_parse__m(mm__, parser, input, length);
     TRACE_SET_ENABLED(false, false);
     if (!res) 
         TRACE_GET_ERROR(error);
+    return res;
+}
+
+HParseResult *h_parse_debug_ex(const HParser *parser, const uint8_t *input, size_t length,
+                               HParseDiagnostic **diagnostic, bool dumpExecutionTrace) {
+    if (diagnostic)
+        *diagnostic = NULL;
+    TRACE_SET_ENABLED(true, dumpExecutionTrace);
+    HParseResult *res = h_parse__m(&system_allocator, parser, input, length);
+    TRACE_SET_ENABLED(false, false);
+    if (!res && diagnostic)
+        TRACE_GET_DIAGNOSTIC(diagnostic);
     return res;
 }
 
@@ -623,6 +635,114 @@ void h_parse_error_free(HParseError *error) {
         error->context[i] = NULL;
     }
     error->n_context = 0;
+}
+
+const HParseError *h_parse_diagnostic_error(const HParseDiagnostic *diagnostic) {
+    return diagnostic ? &diagnostic->error : NULL;
+}
+
+size_t h_parse_diagnostic_expected_count(const HParseDiagnostic *diagnostic) {
+    if (!diagnostic)
+        return 0;
+    size_t count = diagnostic->expected_eof ? 1 : 0;
+    for (size_t lo = 0; lo < 256;) {
+        if (!diagnostic->expected_bytes[lo]) {
+            lo++;
+            continue;
+        }
+        count++;
+        do {
+            lo++;
+        } while (lo < 256 && diagnostic->expected_bytes[lo]);
+    }
+    return count;
+}
+
+bool h_parse_diagnostic_expected(const HParseDiagnostic *diagnostic, size_t index,
+                                 HParseExpectation *expectation) {
+    if (!diagnostic || !expectation)
+        return false;
+    size_t current = 0;
+    for (size_t lo = 0; lo < 256;) {
+        if (!diagnostic->expected_bytes[lo]) {
+            lo++;
+            continue;
+        }
+        size_t hi = lo;
+        while (hi + 1 < 256 && diagnostic->expected_bytes[hi + 1])
+            hi++;
+        if (current++ == index) {
+            expectation->kind = H_PARSE_EXPECT_BYTE_RANGE;
+            expectation->lower = (uint8_t)lo;
+            expectation->upper = (uint8_t)hi;
+            return true;
+        }
+        lo = hi + 1;
+    }
+    if (diagnostic->expected_eof && current == index) {
+        expectation->kind = H_PARSE_EXPECT_END_OF_INPUT;
+        expectation->lower = expectation->upper = 0;
+        return true;
+    }
+    return false;
+}
+
+static void diagnostic_print_byte(FILE *stream, uint8_t byte) {
+    if (byte == '\'' || byte == '\\')
+        fprintf(stream, "'\\%c'", byte);
+    else if (isprint(byte))
+        fprintf(stream, "'%c'", byte);
+    else
+        fprintf(stream, "0x%02x", byte);
+}
+
+void h_parse_diagnostic_fprint(FILE *stream, const HParseDiagnostic *diagnostic) {
+    if (!stream || !diagnostic)
+        return;
+    const HParseError *error = &diagnostic->error;
+    if (error->kind == H_PARSE_ERROR_RANGE)
+        fputs("error: integer outside permitted range", stream);
+    else if (error->kind == H_PARSE_ERROR_SEMANTIC_PREDICATE)
+        fputs("error: semantic predicate failed", stream);
+    else if (error->kind == H_PARSE_ERROR_ACTION)
+        fputs("error: semantic action failed", stream);
+    else if (!error->has_actual)
+        fprintf(stream, "error: unexpected end of input at index %zu", error->index);
+    else {
+        fputs("error: unexpected byte ", stream);
+        diagnostic_print_byte(stream, error->actual);
+        fprintf(stream, " (0x%02x = %u) at index %zu", error->actual, error->actual,
+                error->index);
+    }
+
+    size_t count = h_parse_diagnostic_expected_count(diagnostic);
+    if (count > 0) {
+        fputs("; expected ", stream);
+        for (size_t i = 0; i < count; i++) {
+            HParseExpectation expected = {0};
+            if (!h_parse_diagnostic_expected(diagnostic, i, &expected))
+                continue;
+            if (i)
+                fputs(", ", stream);
+            if (expected.kind == H_PARSE_EXPECT_END_OF_INPUT) {
+                fputs("end of input", stream);
+            } else {
+                diagnostic_print_byte(stream, expected.lower);
+                if (expected.upper != expected.lower) {
+                    fputc('-', stream);
+                    diagnostic_print_byte(stream, expected.upper);
+                }
+            }
+        }
+    }
+    fputc('\n', stream);
+}
+
+void h_parse_diagnostic_free(HParseDiagnostic *diagnostic) {
+    if (!diagnostic)
+        return;
+    h_parse_error_free(&diagnostic->error);
+    free(diagnostic);
 }
 
 bool h_false(void *env) {

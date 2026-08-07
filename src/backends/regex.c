@@ -522,6 +522,7 @@ static int h_regex_compile(HAllocator *mm__, HParser *parser, const void *params
     prog->insn_parsers = NULL;
     prog->actions = NULL;
     prog->current_parser = NULL;
+    prog->root_parser = parser;
     prog->allocator = mm__;
     prog->arena = NULL;
     if (setjmp(prog->except)) {

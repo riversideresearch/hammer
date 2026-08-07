@@ -113,6 +113,7 @@ struct HRVMProg_ {
     const HParser **insn_parsers;
     HSVMAction *actions;
     const HParser *current_parser;
+    const HParser *root_parser;
     jmp_buf except;
 };
 

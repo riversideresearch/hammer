@@ -181,7 +181,8 @@ typedef enum HParseErrorKind_ {
     H_PARSE_ERROR_UNEXPECTED_EOF,
     H_PARSE_ERROR_SEMANTIC_PREDICATE,
     H_PARSE_ERROR_RANGE,
-    H_PARSE_ERROR_HIGHER_ORDER
+    H_PARSE_ERROR_HIGHER_ORDER,
+    H_PARSE_ERROR_ACTION
 } HParseErrorKind;
 
 /**
@@ -208,6 +209,20 @@ typedef struct HParseError_ {
     const char *context[H_PARSE_ERROR_MAX_PARSERS];
     size_t n_context;
 } HParseError;
+
+/** Opaque, extensible diagnostic returned by h_parse_debug_ex(). */
+typedef struct HParseDiagnostic_ HParseDiagnostic;
+
+typedef enum HParseExpectationKind_ {
+    H_PARSE_EXPECT_BYTE_RANGE = 0,
+    H_PARSE_EXPECT_END_OF_INPUT
+} HParseExpectationKind;
+
+typedef struct HParseExpectation_ {
+    HParseExpectationKind kind;
+    uint8_t lower; /**< Inclusive lower byte for H_PARSE_EXPECT_BYTE_RANGE. */
+    uint8_t upper; /**< Inclusive upper byte for H_PARSE_EXPECT_BYTE_RANGE. */
+} HParseExpectation;
 
 /**
  * TODO: document me.
@@ -493,14 +508,32 @@ HParseResult *h_parse__m(HAllocator *mm__, const HParser *parser, const uint8_t 
  * @param input Input data
  * @param length Length of input data
  * @param error Out-parameter for structured failure info, or NULL
- * @param dumpTrace Whether to print the backend's full execution trace in
+ * @param dumpExecutionTrace Whether to print the backend's full execution trace in
  * addition to the summary and failure diagnostic
  * @return Parse result, or NULL on failure
  */
 HParseResult *h_parse_debug(const HParser *parser, const uint8_t *input, size_t length,
-                            HParseError *error, bool dumpTrace);
+                            HParseError *error, bool dumpExecutionTrace);
 HParseResult *h_parse_debug__m(HAllocator *mm__, const HParser *parser, const uint8_t *input,
-                               size_t length, HParseError *error, bool dumpTrace);
+                               size_t length, HParseError *error, bool dumpExecutionTrace);
+
+/**
+ * @brief Extensible form of h_parse_debug() with structured expectations.
+ *
+ * On failure, @p diagnostic receives an owned diagnostic object. The legacy
+ * failure fields are available through h_parse_diagnostic_error(), while
+ * expected byte ranges and end-of-input are exposed by the expectation
+ * accessors. The caller must release it with h_parse_diagnostic_free().
+ */
+HParseResult *h_parse_debug_ex(const HParser *parser, const uint8_t *input, size_t length,
+                               HParseDiagnostic **diagnostic, bool dumpExecutionTrace);
+
+const HParseError *h_parse_diagnostic_error(const HParseDiagnostic *diagnostic);
+size_t h_parse_diagnostic_expected_count(const HParseDiagnostic *diagnostic);
+bool h_parse_diagnostic_expected(const HParseDiagnostic *diagnostic, size_t index,
+                                 HParseExpectation *expectation);
+void h_parse_diagnostic_fprint(FILE *stream, const HParseDiagnostic *diagnostic);
+void h_parse_diagnostic_free(HParseDiagnostic *diagnostic);
 
 /**
  * @brief Initialize a parser for iteratively consuming an input stream in chunks.
