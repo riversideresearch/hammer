@@ -54,12 +54,14 @@
  * h_parse_debug() turns it on -- via h_trace_set_enabled() -- for the duration
  * of a single parse. */
 H_TRACE_THREAD_LOCAL bool display_trace = false;
+H_TRACE_THREAD_LOCAL bool dump_trace = false;
 static H_TRACE_THREAD_LOCAL unsigned trace_enable_depth = 0;
 static H_TRACE_THREAD_LOCAL HParseError trace_completed;
 
 /* Toggle the runtime trace. Exposed (see trace.h) so h_parse_debug() can enable
  * tracing for just its own call and switch it back off afterward. */
-void h_trace_set_enabled(bool enabled) {
+void h_trace_set_enabled(bool enabled, bool dumpTrace) {
+    dump_trace = dumpTrace;
     if (enabled) {
         if (trace_enable_depth == 0)
             memset(&trace_completed, 0, sizeof(trace_completed));
@@ -281,6 +283,8 @@ static void trace_error_add_parser(HParseError *error, const char *name) {
 static void trace_pos(HParseState *state) {
     HInputStream *in = &state->input_stream;
     size_t abs = in->pos + in->index;
+    if(!dump_trace)
+        return;
     fprintf(stderr, "@%zu", abs);
     if (in->bit_offset)
         fprintf(stderr, ".%db", in->bit_offset);
@@ -402,11 +406,14 @@ void h_trace_begin(const uint8_t *input, size_t input_len) {
 void h_trace_enter(const HParser *parser, HParseState *state) {
     if (!display_trace)
         return;
-    trace_indent();
-    fprintf(stderr, "-> %-20s %-9s ", fn_name_to_h(trace_vt_name(parser->vtable)),
+    if(dump_trace){
+        trace_indent();
+        fprintf(stderr, "-> %-20s %-9s ", fn_name_to_h(trace_vt_name(parser->vtable)),
             parser->vtable->higher ? "higher" : "primitive");
+    }
     trace_pos(state);
-    fputc('\n', stderr);
+    if(dump_trace)
+        fputc('\n', stderr);
     if (trace_context && trace_context->frame_count < H_TRACE_MAX_FRAMES) {
         HTraceFrame *frame = &trace_context->frames[trace_context->frame_count];
         frame->parser = parser;
@@ -486,6 +493,8 @@ void h_trace_exit(const HParser *parser, HParseState *state, HParseResult *res, 
         if (originated_here)
             trace_record_failure(parser, state, &frame);
     }
+    if(!dump_trace)
+        return;
     trace_indent();
     if (res) {
         fputs("<= OK   ast=", stderr);
@@ -742,7 +751,7 @@ void rvm_match_error(HRVMProg *prog, const uint8_t *input, size_t input_len, siz
     if (!display_trace)
         return;
     fprintf(stderr,"=== h_regular_parse: begin (%ld bytes of input) ===\n",input_len);
-    if(true) // later change this to a trace dump debug flag
+    if(dump_trace)
         dump_rvm_prog(prog);
     fprintf(stderr,"=== h_regular_parse: end (FAILURE) ===\n");
     if (index >= input_len) {
@@ -765,7 +774,7 @@ void svm_action_error(HSVMContext *ctx, HRVMProg *orig_prog, HRVMTrace *trace,
     if (!display_trace)
         return;
     fprintf(stderr,"=== h_regular_parse: begin (%ld bytes of input) ===\n",input_len);
-    if(true) // later change this to a trace dump debug flag
+    if(dump_trace)
         dump_svm_prog(orig_prog, trace);
     fprintf(stderr,"=== h_regular_parse: end (FAILURE) ===\n");
     if(ctx->input_pos >= input_len)
@@ -783,7 +792,7 @@ void svm_failure_error(HSVMContext *ctx, HRVMProg *orig_prog, HRVMTrace *trace,
     if (!display_trace)
         return;
     fprintf(stderr,"=== h_regular_parse: begin (%ld bytes of input) ===\n",input_len);
-    if (true) // later change this to a trace dump debug flag
+    if(dump_trace)
         dump_svm_prog(orig_prog, trace);
     fprintf(stderr,"=== h_regular_parse: end (FAILURE) ===\n");
 

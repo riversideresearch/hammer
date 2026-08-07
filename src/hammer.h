@@ -496,9 +496,9 @@ HParseResult *h_parse__m(HAllocator *mm__, const HParser *parser, const uint8_t 
  * @return Parse result, or NULL on failure
  */
 HParseResult *h_parse_debug(const HParser *parser, const uint8_t *input, size_t length,
-                            HParseError *error);
+                            HParseError *error, bool dumpTrace);
 HParseResult *h_parse_debug__m(HAllocator *mm__, const HParser *parser, const uint8_t *input,
-                               size_t length, HParseError *error);
+                               size_t length, HParseError *error, bool dumpTrace);
 
 /**
  * @brief Initialize a parser for iteratively consuming an input stream in chunks.

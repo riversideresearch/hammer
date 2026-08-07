@@ -16,7 +16,7 @@
 #if HAMMER_TRACE_AST
 
 // packrat trace functions
-void h_trace_set_enabled(bool enabled);
+void h_trace_set_enabled(bool enabled, bool dumpTrace);
 bool h_trace_is_enabled(void);
 void h_trace_get_error(HParseError *out);
 void h_trace_begin(const uint8_t *input, size_t input_len);
@@ -44,7 +44,7 @@ void svm_action_error(HSVMContext *ctx, HRVMProg *orig_prog, HRVMTrace *trace,
 void svm_failure_error(HSVMContext *ctx, HRVMProg *orig_prog, HRVMTrace *trace,
                        const uint8_t *input, size_t input_len);
 
-#define TRACE_SET_ENABLED(b)  h_trace_set_enabled((b))
+#define TRACE_SET_ENABLED(a,b)  h_trace_set_enabled(a, b)
 #define TRACE_ENABLED() h_trace_is_enabled()
 #define TRACE_GET_ERROR(out)  h_trace_get_error((out))
 #define TRACE_BEGIN(input, len) h_trace_begin((input), (size_t)(len))

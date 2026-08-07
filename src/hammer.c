@@ -584,16 +584,16 @@ HParseResult *h_parse__m(HAllocator *mm__, const HParser *parser, const uint8_t 
 // scraping the textual trace. It is zeroed up front so the compiled-out case
 // (and a NULL trace) leaves well-defined, empty contents.
 HParseResult *h_parse_debug(const HParser *parser, const uint8_t *input, size_t length,
-                            HParseError *error) {
-    return h_parse_debug__m(&system_allocator, parser, input, length, error);
+                            HParseError *error, bool dumpTrace) {
+    return h_parse_debug__m(&system_allocator, parser, input, length, error, dumpTrace);
 }
 HParseResult *h_parse_debug__m(HAllocator *mm__, const HParser *parser, const uint8_t *input,
-                               size_t length, HParseError *error) {
+                               size_t length, HParseError *error, bool dumpTrace) {
     if (error)
         memset(error, 0, sizeof(*error));
-    TRACE_SET_ENABLED(true);
+    TRACE_SET_ENABLED(true, dumpTrace);
     HParseResult *res = h_parse__m(mm__, parser, input, length);
-    TRACE_SET_ENABLED(false);
+    TRACE_SET_ENABLED(false, false);
     if (!res) 
         TRACE_GET_ERROR(error);
     return res;
