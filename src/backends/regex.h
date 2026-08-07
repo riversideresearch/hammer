@@ -55,6 +55,25 @@ typedef struct HRVMInsn_ {
 
 #define TT_MARK TT_RESERVED_1
 
+typedef enum HSVMFailureKind_ {
+    SVM_FAILURE_NONE = 0,
+    SVM_FAILURE_RANGE,
+} HSVMFailureKind;
+
+typedef struct HSVMFailure_ {
+    HSVMFailureKind kind;
+    size_t start;
+    size_t end;
+    HTokenType actual_type;
+    int64_t lower;
+    int64_t upper;
+    union {
+        int64_t sint;
+        uint64_t uint;
+    } actual;
+    const char *parser;
+} HSVMFailure;
+
 typedef struct HSVMContext_ {
     HParsedToken **stack;
     size_t stack_count; // number of items on the stack. Thus stack[stack_count] is the first unused
@@ -63,6 +82,7 @@ typedef struct HSVMContext_ {
     size_t input_pos;
     struct HActionPlan_ *action_plan;
     void *action_plan_frames;
+    HSVMFailure failure;
 } HSVMContext;
 
 // These actions all assume that the items on the stack are not

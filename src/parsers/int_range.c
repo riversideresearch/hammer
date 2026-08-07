@@ -80,6 +80,8 @@ static bool h_svm_action_mark_int_range(HArena *arena, HSVMContext *ctx, void *e
 
 static bool h_svm_action_validate_int_range(HArena *arena, HSVMContext *ctx, void *env) {
     HRange *r_env = (HRange *)env;
+    if (ctx->stack_count == 0)
+        return false;
     HParsedToken *head = ctx->stack[ctx->stack_count - 1];
     bool valid;
 
@@ -113,6 +115,18 @@ static bool h_svm_action_validate_int_range(HArena *arena, HSVMContext *ctx, voi
         }
         return false;
     }
+
+    ctx->failure.kind = SVM_FAILURE_RANGE;
+    ctx->failure.start = head->index;
+    ctx->failure.end = ctx->input_pos;
+    ctx->failure.actual_type = head->token_type;
+    ctx->failure.lower = r_env->lower;
+    ctx->failure.upper = r_env->upper;
+    ctx->failure.parser = "h_int_range";
+    if (head->token_type == TT_SINT)
+        ctx->failure.actual.sint = head->token_data.sint;
+    else
+        ctx->failure.actual.uint = head->token_data.uint;
     return false;
 }
 

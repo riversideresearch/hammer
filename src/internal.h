@@ -513,6 +513,8 @@ struct HCFChoice_ {
     HAction action;
     HCFPlanAction plan_action;
     HPredicate pred;
+    HParser *parser; // if this is a parser, then this is the parser that produced it.
+    void *env;
     void *user_data;
     size_t dispatch_opcode;
 };
@@ -688,6 +690,7 @@ struct HParserVtable_ {
     bool (*compile_to_rvm)(HRVMProg *prog, void *env);
     void (*desugar)(HAllocator *mm__, HCFStack *stk__, void *env);
     bool higher; // false if primitive
+    char error;   // 0 if no error, otherwise error code
 };
 
 // {{{ Token type registry internal

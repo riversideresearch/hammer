@@ -17,6 +17,31 @@ typedef struct HRVMThread_ {
     uint16_t ip;
 } HRVMThread;
 
+typedef struct HRVMMatchFailure_ {
+    bool present;
+    size_t index;
+    bool expected[256];
+    bool expected_eof;
+} HRVMMatchFailure;
+
+static void record_rvm_match_failure(HRVMMatchFailure *failure, size_t index, uint8_t lo,
+                                     uint8_t hi, bool expected_eof) {
+    if (!failure->present || index > failure->index) {
+        memset(failure, 0, sizeof(*failure));
+        failure->present = true;
+        failure->index = index;
+    } else if (index < failure->index) {
+        return;
+    }
+
+    if (expected_eof) {
+        failure->expected_eof = true;
+    } else {
+        for (unsigned int c = lo; c <= hi; c++)
+            failure->expected[c] = true;
+    }
+}
+
 HParseResult *run_trace(HAllocator *mm__, HRVMProg *orig_prog, HRVMTrace *trace,
                         const uint8_t *input, int len);
 
@@ -44,6 +69,7 @@ void *h_rvm_run__m(HAllocator *mm__, HRVMProg *prog, const uint8_t *input, size_
 
     HRVMTrace *volatile ret_trace = NULL;
     HParseResult *ret = NULL;
+    HRVMMatchFailure match_failure = {0};
 
     // out of memory handling
     if (!arena || !heads_a || !heads_b)
@@ -85,7 +111,7 @@ void *h_rvm_run__m(HAllocator *mm__, HRVMProg *prog, const uint8_t *input, size_
         }
         memset(insn_seen, 0, prog->length); // no insns seen yet
         if (!live_threads) {
-            goto match_fail;
+            goto finalize;
         }
         live_threads = 0;
         HRVMTrace *tr_head;
@@ -113,7 +139,8 @@ void *h_rvm_run__m(HAllocator *mm__, HRVMProg *prog, const uint8_t *input, size_
                     hi = (arg >> 8) & 0xff;
                     lo = arg & 0xff;
                     THREAD.ip++;
-                    if (ch < lo || ch > hi) {
+                    if (off == len || ch < lo || ch > hi) {
+                        record_rvm_match_failure(&match_failure, off, lo, hi, false);
                         ipq_top--; // terminate thread
                     }
                     goto next_insn;
@@ -145,6 +172,7 @@ void *h_rvm_run__m(HAllocator *mm__, HRVMProg *prog, const uint8_t *input, size_
                 case RVM_EOF:
                     THREAD.ip++;
                     if (off != len) {
+                        record_rvm_match_failure(&match_failure, off, 0, 0, true);
                         ipq_top--; // Terminate thread
                     }
                     goto next_insn;
@@ -159,22 +187,19 @@ void *h_rvm_run__m(HAllocator *mm__, HRVMProg *prog, const uint8_t *input, size_
             }
         }
     }
-    // No accept was reached.
-match_fail:
-
+finalize:
     h_arena_set_except(arena, NULL); // there should be no more allocs from this
     if (ret_trace) {
         // Invert the direction of the trace linked list.
         ret_trace = invert_trace(ret_trace);
-        printf("dumping svm:\n");
-        dump_svm_prog(prog, ret_trace);
         ret = run_trace(mm__, prog, ret_trace, input, len);
         // NB: ret is in its own arena
+    } else if (match_failure.present) {
+        rvm_match_error(prog, input, len, match_failure.index, match_failure.expected,
+                        match_failure.expected_eof);
     }
 
 end:
-    printf("dumping rvm:\n");
-    dump_rvm_prog(prog, input, len);
     if (arena)
         h_delete_arena(arena);
     if (heads_a)
@@ -231,11 +256,10 @@ HParseResult *run_trace(HAllocator *mm__, HRVMProg *orig_prog, HRVMTrace *trace,
     ctx = h_new(HSVMContext, 1);
     if (!ctx)
         goto fail;
+    memset(ctx, 0, sizeof(*ctx));
     ctx->stack_count = 0;
     ctx->stack_capacity = 16;
     ctx->stack = h_new(HParsedToken *, ctx->stack_capacity);
-    ctx->action_plan = NULL;
-    ctx->action_plan_frames = NULL;
 
     // out of memory handling
     if (!arena || !ctx->stack)
@@ -248,9 +272,11 @@ HParseResult *run_trace(HAllocator *mm__, HRVMProg *orig_prog, HRVMTrace *trace,
     HParsedToken *tmp_res;
     HRVMTrace *cur;
     for (cur = trace; cur; cur = cur->next) {
+        ctx->input_pos = cur->input_pos;
         switch (cur->opcode) {
         case SVM_PUSH:
             if (!svm_stack_ensure_cap(mm__, ctx, 1)) {
+                svm_action_error(ctx, orig_prog, trace, input, len, "out of memory: cannot grow stack");
                 goto fail;
             }
             tmp_res = a_new0(HParsedToken, 1);
@@ -263,10 +289,14 @@ HParseResult *run_trace(HAllocator *mm__, HRVMProg *orig_prog, HRVMTrace *trace,
             break;
         case SVM_ACTION:
             // Action should modify stack appropriately
-            ctx->input_pos = cur->input_pos;
+            memset(&ctx->failure, 0, sizeof(ctx->failure));
             if (!orig_prog->actions[cur->arg].action(arena, ctx,
                                                      orig_prog->actions[cur->arg].env)) {
-
+                if (ctx->failure.kind != SVM_FAILURE_NONE)
+                    svm_failure_error(ctx, orig_prog, trace, input, len);
+                else
+                    svm_action_error(ctx, orig_prog, trace, input, len,
+                                     "SVM action failed unexpectedly");
                 // action failed... abort somehow
                 goto fail;
             }
@@ -274,28 +304,38 @@ HParseResult *run_trace(HAllocator *mm__, HRVMProg *orig_prog, HRVMTrace *trace,
         case SVM_CAPTURE:
             // Top of stack must be a mark
             // This replaces said mark in-place with a TT_BYTES.
-            if (ctx->stack_count == 0 || ctx->stack[ctx->stack_count - 1]->token_type != TT_MARK)
+            if (ctx->stack_count == 0 || ctx->stack[ctx->stack_count - 1]->token_type != TT_MARK){
+                svm_action_error(ctx, orig_prog, trace, input, len, "invalid capture: top of stack is not a mark");
                 goto fail;
+            }
             assert(ctx->stack[ctx->stack_count - 1]->token_type == TT_MARK);
 
             tmp_res = ctx->stack[ctx->stack_count - 1];
             tmp_res->token_type = TT_BYTES;
             // TODO: Will need to copy if bit_offset is nonzero
-            if (tmp_res->bit_offset != 0)
+            if (tmp_res->bit_offset != 0){
+                svm_action_error(ctx, orig_prog, trace, input, len, "invalid capture: bit offset is nonzero");
                 goto fail;
+            }
             assert(tmp_res->bit_offset == 0);
 
             tmp_res->token_data.bytes.token = input + tmp_res->index;
             tmp_res->token_data.bytes.len = cur->input_pos - tmp_res->index;
             break;
         case SVM_ACCEPT:
-            if (ctx->stack_count > 1)
+            if (ctx->stack_count > 1){
+                svm_action_error(ctx, orig_prog, trace, input, len, "invalid accept: stack has more than one item");
                 goto fail;
-            if (ctx->action_plan_frames)
+            }
+            if (ctx->action_plan_frames){
+                svm_action_error(ctx, orig_prog, trace, input, len, "invalid accept: action plan frames not empty");
                 goto fail;
+            }
             assert(ctx->stack_count <= 1);
-            if (!h_action_plan_execute(arena, ctx->action_plan))
+            if (!h_action_plan_execute(arena, ctx->action_plan)){
+                svm_action_error(ctx, orig_prog, trace, input, len, "action execution failed");
                 goto fail;
+            }
             HParseResult *res = a_new0(HParseResult, 1);
             if (ctx->stack_count == 1) {
                 res->ast = ctx->stack[0];

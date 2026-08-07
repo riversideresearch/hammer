@@ -4,6 +4,7 @@
 
 #include "internal.h" /* HParser, HParseState, HParseResult */
 #include "backends/regex.h"
+#include <stddef.h>
 
 /* Compile-time master switch for the AST tracer.
  *
@@ -25,8 +26,14 @@ void h_trace_file_context(const uint8_t *input, size_t length, size_t highlight_
 
 // regex trace functions
 char *getsym(HSVMActionFunc addr);
-void dump_rvm_prog(HRVMProg *prog, const uint8_t *input, size_t input_len);
+void dump_rvm_prog(HRVMProg *prog);
 void dump_svm_prog(HRVMProg *prog, HRVMTrace *trace);
+void rvm_match_error(HRVMProg *prog, const uint8_t *input, size_t input_len, size_t off,
+                     const bool expected[256], bool expected_eof);
+void svm_action_error(HSVMContext *ctx, HRVMProg *orig_prog, HRVMTrace *trace,
+                        const uint8_t *input, size_t input_len, const char *msg);
+void svm_failure_error(HSVMContext *ctx, HRVMProg *orig_prog, HRVMTrace *trace,
+                       const uint8_t *input, size_t input_len);
 
 #define TRACE_SET_ENABLED(b)  h_trace_set_enabled((b))
 #define TRACE_GET_ERROR(out)  h_trace_get_error((out))

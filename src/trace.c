@@ -84,6 +84,8 @@ typedef struct HTraceContext_ {
     unsigned long failure_serial;
     HTraceFrame frames[H_TRACE_MAX_FRAMES];
     HParseError error;
+    HParserBackend backend;
+    uint8_t *expected_bytes;
     struct HTraceContext_ *parent;
 } HTraceContext;
 
@@ -556,7 +558,7 @@ const char *rvm_op_names[RVM_OPCOUNT] = {"ACCEPT",  "GOTO", "FORK",  "PUSH", "AC
 
 const char *svm_op_names[SVM_OPCOUNT] = {"PUSH", "NOP", "ACTION", "CAPTURE", "ACCEPT"};
 
-void dump_rvm_prog(HRVMProg *prog, const uint8_t *input, size_t input_len) {
+void dump_rvm_prog(HRVMProg *prog) {
     if (!display_trace)
         return;
     char *symref;
@@ -596,8 +598,6 @@ void dump_rvm_prog(HRVMProg *prog, const uint8_t *input, size_t input_len) {
             printf("\n");
         }
     }
-    if (input && input_len > 0)
-        h_trace_file_context(input, input_len, input_len);
 }
 
 void dump_svm_prog(HRVMProg *prog, HRVMTrace *trace) {
@@ -618,4 +618,115 @@ void dump_svm_prog(HRVMProg *prog, HRVMTrace *trace) {
     }
 }
 
+static void trace_print_expected_byte(uint8_t c) {
+    if (c == '\'' || c == '\\')
+        fprintf(stderr, "'\\%c'", c);
+    else if (isprint(c))
+        fprintf(stderr, "'%c'", c);
+    else
+        fprintf(stderr, "0x%02x", c);
+}
+
+static void trace_print_expectations(const bool expected[256], bool expected_eof) {
+    bool first = true;
+
+    fputs("; expected ", stderr);
+    for (unsigned int lo = 0; lo < 256;) {
+        if (!expected[lo]) {
+            lo++;
+            continue;
+        }
+
+        unsigned int hi = lo;
+        while (hi + 1 < 256 && expected[hi + 1])
+            hi++;
+
+        if (!first)
+            fputs(", ", stderr);
+        trace_print_expected_byte((uint8_t)lo);
+        if (hi != lo) {
+            fputc('-', stderr);
+            trace_print_expected_byte((uint8_t)hi);
+        }
+        first = false;
+        lo = hi + 1;
+    }
+
+    if (expected_eof) {
+        if (!first)
+            fputs(", ", stderr);
+        fputs("end of input", stderr);
+        first = false;
+    }
+    if (first)
+        fputs("a valid input byte", stderr);
+}
+
+void rvm_match_error(HRVMProg *prog, const uint8_t *input, size_t input_len, size_t index,
+                     const bool expected[256], bool expected_eof) {
+    if (!display_trace)
+        return;
+    if(true) // later change this to a trace dump debug flag
+        dump_rvm_prog(prog);
+    if (index >= input_len) {
+        fprintf(stderr, "error: unexpected end of input at index %zu", index);
+    } else {
+        uint8_t ch = input[index];
+        fprintf(stderr, "error: unexpected byte ");
+        trace_print_expected_byte(ch);
+        fprintf(stderr, " (0x%02x = %u) at index %zu", ch, ch, index);
+    }
+    trace_print_expectations(expected, expected_eof);
+    fputc('\n', stderr);
+    
+    if (input && input_len > 0)
+        h_trace_file_context(input, input_len, index);
+}
+void svm_action_error(HSVMContext *ctx, HRVMProg *orig_prog, HRVMTrace *trace,
+                        const uint8_t *input, size_t input_len, const char *msg) {
+    if (!display_trace)
+        return;
+    if(true) // later change this to a trace dump debug flag
+        dump_svm_prog(orig_prog, trace);
+    if(ctx->input_pos >= input_len)
+        fprintf(stderr, "error: %s ran out of bytes to parse at index %zu\n", msg, ctx->input_pos);
+    else
+        fprintf(stderr, "error: %s failed at index %zu: ch=%02x\n", msg, ctx->input_pos, input[ctx->input_pos]);
+    if (input && input_len > 0)
+        h_trace_file_context(input, input_len, ctx->input_pos);
+}
+
+void svm_failure_error(HSVMContext *ctx, HRVMProg *orig_prog, HRVMTrace *trace,
+                       const uint8_t *input, size_t input_len) {
+    if (!display_trace)
+        return;
+    if (true) // later change this to a trace dump debug flag
+        dump_svm_prog(orig_prog, trace);
+
+    switch (ctx->failure.kind) {
+    case SVM_FAILURE_RANGE:
+        fputs("error: integer ", stderr);
+        if (ctx->failure.actual_type == TT_SINT)
+            fprintf(stderr, "%" PRId64, ctx->failure.actual.sint);
+        else
+            fprintf(stderr, "%" PRIu64, ctx->failure.actual.uint);
+        fprintf(stderr, " outside permitted range [%" PRId64 ", %" PRId64 "]",
+                ctx->failure.lower, ctx->failure.upper);
+        break;
+    case SVM_FAILURE_NONE:
+    default:
+        fputs("error: SVM action failed", stderr);
+        break;
+    }
+
+    fprintf(stderr, " starting at index %zu", ctx->failure.start);
+    if (ctx->failure.end > ctx->failure.start)
+        fprintf(stderr, " and ending at index %zu", ctx->failure.end);
+    if (ctx->failure.parser)
+        fprintf(stderr, " while running [%s]", ctx->failure.parser);
+    fputc('\n', stderr);
+
+    if (input && input_len > 0)
+        h_trace_file_context(input, input_len, ctx->failure.start);
+}
 #endif /* HAMMER_TRACE_AST */
