@@ -84,7 +84,7 @@ static bool sequence_ctrvm(HRVMProg *prog, void *env) {
     HSequence *s = (HSequence *)env;
     h_rvm_insert_insn(prog, RVM_PUSH, 0);
     for (size_t i = 0; i < s->len; ++i) {
-        if (!s->p_array[i]->vtable->compile_to_rvm(prog, s->p_array[i]->env))
+        if (!h_compile_regex(prog, s->p_array[i]))
             return false;
     }
     h_rvm_insert_insn(prog, RVM_ACTION,

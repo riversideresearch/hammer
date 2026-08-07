@@ -22,16 +22,20 @@ typedef struct HRVMMatchFailure_ {
     size_t index;
     bool expected[256];
     bool expected_eof;
+    const HParser *parser;
 } HRVMMatchFailure;
 
 static void record_rvm_match_failure(HRVMMatchFailure *failure, size_t index, uint8_t lo,
-                                     uint8_t hi, bool expected_eof) {
+                                     uint8_t hi, bool expected_eof, const HParser *parser) {
     if (!failure->present || index > failure->index) {
         memset(failure, 0, sizeof(*failure));
         failure->present = true;
         failure->index = index;
+        failure->parser = parser;
     } else if (index < failure->index) {
         return;
+    } else if (!failure->parser) {
+        failure->parser = parser;
     }
 
     if (expected_eof) {
@@ -90,6 +94,7 @@ void *h_rvm_run__m(HAllocator *mm__, HRVMProg *prog, const uint8_t *input, size_
         HRVMTrace *nt = a_new0(HRVMTrace, 1);                                                      \
         nt->arg = (arg_);                                                                          \
         nt->opcode = (op_);                                                                        \
+        nt->parser = prog->insn_parsers[THREAD.ip];                                                \
         nt->next = THREAD.trace;                                                                   \
         nt->input_pos = off;                                                                       \
         THREAD.trace = nt;                                                                         \
@@ -129,6 +134,7 @@ void *h_rvm_run__m(HAllocator *mm__, HRVMProg *prog, const uint8_t *input, size_
                 }
                 insn_seen[THREAD.ip] = 1;
                 arg = prog->insns[THREAD.ip].arg;
+                const HParser *insn_parser = prog->insn_parsers[THREAD.ip];
                 switch (prog->insns[THREAD.ip].op) {
                 case RVM_ACCEPT:
                     PUSH_SVM(SVM_ACCEPT, 0);
@@ -140,7 +146,7 @@ void *h_rvm_run__m(HAllocator *mm__, HRVMProg *prog, const uint8_t *input, size_
                     lo = arg & 0xff;
                     THREAD.ip++;
                     if (off == len || ch < lo || ch > hi) {
-                        record_rvm_match_failure(&match_failure, off, lo, hi, false);
+                        record_rvm_match_failure(&match_failure, off, lo, hi, false, insn_parser);
                         ipq_top--; // terminate thread
                     }
                     goto next_insn;
@@ -172,7 +178,7 @@ void *h_rvm_run__m(HAllocator *mm__, HRVMProg *prog, const uint8_t *input, size_
                 case RVM_EOF:
                     THREAD.ip++;
                     if (off != len) {
-                        record_rvm_match_failure(&match_failure, off, 0, 0, true);
+                        record_rvm_match_failure(&match_failure, off, 0, 0, true, insn_parser);
                         ipq_top--; // Terminate thread
                     }
                     goto next_insn;
@@ -196,7 +202,7 @@ finalize:
         // NB: ret is in its own arena
     } else if (match_failure.present) {
         rvm_match_error(prog, input, len, match_failure.index, match_failure.expected,
-                        match_failure.expected_eof);
+                        match_failure.expected_eof, match_failure.parser);
     }
 
 end:
@@ -273,6 +279,7 @@ HParseResult *run_trace(HAllocator *mm__, HRVMProg *orig_prog, HRVMTrace *trace,
     HRVMTrace *cur;
     for (cur = trace; cur; cur = cur->next) {
         ctx->input_pos = cur->input_pos;
+        ctx->parser = cur->parser;
         switch (cur->opcode) {
         case SVM_PUSH:
             if (!svm_stack_ensure_cap(mm__, ctx, 1)) {
@@ -410,10 +417,17 @@ uint16_t h_rvm_insert_insn(HRVMProg *prog, HRVMOp op, uint16_t arg) {
         if (!prog->insns) {
             longjmp(prog->except, 1);
         }
+        prog->insn_parsers =
+            prog->allocator->realloc(prog->allocator, prog->insn_parsers,
+                                     array_size * sizeof(*prog->insn_parsers));
+        if (!prog->insn_parsers) {
+            longjmp(prog->except, 1);
+        }
     }
 
     prog->insns[prog->length].op = op;
     prog->insns[prog->length].arg = arg;
+    prog->insn_parsers[prog->length] = prog->current_parser;
     return prog->length++;
 }
 
@@ -473,12 +487,17 @@ bool h_svm_action_clear_to_mark(HArena *arena, HSVMContext *ctx, void *env) {
 bool h_compile_regex(HRVMProg *prog, const HParser *parser) {
     if (!parser->vtable->compile_to_rvm)
         return false;
-    return parser->vtable->compile_to_rvm(prog, parser->env);
+    const HParser *parent = prog->current_parser;
+    prog->current_parser = parser;
+    bool result = parser->vtable->compile_to_rvm(prog, parser->env);
+    prog->current_parser = parent;
+    return result;
 }
 
 static void h_rvm_prog_free(HRVMProg *prog) {
     HAllocator *mm__ = prog->allocator;
     h_free(prog->insns);
+    h_free(prog->insn_parsers);
     h_free(prog->actions);
     if (prog->arena)
         h_delete_arena(prog->arena);
@@ -500,7 +519,9 @@ static int h_regex_compile(HAllocator *mm__, HParser *parser, const void *params
     HRVMProg *prog = h_new(HRVMProg, 1);
     prog->length = prog->action_count = 0;
     prog->insns = NULL;
+    prog->insn_parsers = NULL;
     prog->actions = NULL;
+    prog->current_parser = NULL;
     prog->allocator = mm__;
     prog->arena = NULL;
     if (setjmp(prog->except)) {

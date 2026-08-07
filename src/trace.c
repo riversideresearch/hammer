@@ -250,6 +250,16 @@ static const char *trace_vt_name(const HParserVtable *vt) {
     return stored;
 }
 
+char *h_trace_parser_name(const HParser *parser) {
+    if (!parser || !parser->vtable)
+        return NULL;
+
+    const char *name = trace_vt_name(parser->vtable);
+    if (strncmp(name, "parse_", 6) == 0)
+        return fn_name_to_h(name);
+    return strdup(name);
+}
+
 /* Append a parser name to the deepest-position set, skipping duplicates and
  * silently capping at H_PARSE_ERROR_MAX_PARSERS entries. */
 static void trace_error_add_parser(HParseError *error, const char *name) {
@@ -565,22 +575,33 @@ void dump_rvm_prog(HRVMProg *prog) {
     for (unsigned int i = 0; i < prog->length; i++) {
         HRVMInsn *insn = &prog->insns[i];
         printf("%4d %-10s", i, rvm_op_names[insn->op]);
+        char *parser_name = h_trace_parser_name(prog->insn_parsers[i]);
         switch (insn->op) {
+        case RVM_PUSH:
+            if (parser_name) {
+                printf(" parser=%s", parser_name);
+                free(parser_name);
+            }
+            break;
         case RVM_GOTO:
         case RVM_FORK:
-            printf("%hd\n", insn->arg);
+            printf("%hd", insn->arg);
             break;
         case RVM_ACTION:
             symref = getsym(prog->actions[insn->arg].action);
-            printf("%s env=%p\n", symref, prog->actions[insn->arg].env);
+            printf("%s env=%p", symref, prog->actions[insn->arg].env);
             (&system_allocator)->free(&system_allocator, symref);
+            if (parser_name) {
+                printf(" parser=%s", parser_name);
+                free(parser_name);
+            }
             break;
         case RVM_MATCH: {
             uint8_t low, high;
             low = insn->arg & 0xff;
             high = (insn->arg >> 8) & 0xff;
             if (high < low)
-                printf("NONE\n");
+                printf("NONE");
             else {
                 if (low >= 0x20 && low <= 0x7e)
                     printf("%02hhx ('%c')", low, low);
@@ -588,15 +609,16 @@ void dump_rvm_prog(HRVMProg *prog) {
                     printf("%02hhx", low);
 
                 if (high >= 0x20 && high <= 0x7e)
-                    printf(" - %02hhx ('%c')\n", high, high);
+                    printf(" - %02hhx ('%c')", high, high);
                 else
-                    printf(" - %02hhx\n", high);
+                    printf(" - %02hhx", high);
             }
             break;
         }
         default:
-            printf("\n");
+            break;
         }
+        printf("\n");
     }
 }
 
@@ -609,13 +631,28 @@ void dump_svm_prog(HRVMProg *prog, HRVMTrace *trace) {
         switch (trace->opcode) {
         case SVM_ACTION:
             symref = getsym(prog->actions[trace->arg].action);
-            printf("%s env=%p\n", symref, prog->actions[trace->arg].env);
+            printf("%s env=%p", symref, prog->actions[trace->arg].env);
             (&system_allocator)->free(&system_allocator, symref);
             break;
         default:
-            printf("\n");
+            break;
         }
+
+        char *parser_name = h_trace_parser_name(trace->parser);
+        if (parser_name) {
+            printf(" parser=%s", parser_name);
+            free(parser_name);
+        }
+        printf("\n");
     }
+}
+
+static void trace_print_parser_context(const HParser *parser) {
+    char *parser_name = h_trace_parser_name(parser);
+    if (!parser_name)
+        return;
+    fprintf(stderr, " while running [%s]", parser_name);
+    free(parser_name);
 }
 
 static void trace_print_expected_byte(uint8_t c) {
@@ -663,7 +700,7 @@ static void trace_print_expectations(const bool expected[256], bool expected_eof
 }
 
 void rvm_match_error(HRVMProg *prog, const uint8_t *input, size_t input_len, size_t index,
-                     const bool expected[256], bool expected_eof) {
+                     const bool expected[256], bool expected_eof, const HParser *parser) {
     if (!display_trace)
         return;
     if(true) // later change this to a trace dump debug flag
@@ -677,6 +714,7 @@ void rvm_match_error(HRVMProg *prog, const uint8_t *input, size_t input_len, siz
         fprintf(stderr, " (0x%02x = %u) at index %zu", ch, ch, index);
     }
     trace_print_expectations(expected, expected_eof);
+    trace_print_parser_context(parser);
     fputc('\n', stderr);
     
     if (input && input_len > 0)
@@ -689,9 +727,11 @@ void svm_action_error(HSVMContext *ctx, HRVMProg *orig_prog, HRVMTrace *trace,
     if(true) // later change this to a trace dump debug flag
         dump_svm_prog(orig_prog, trace);
     if(ctx->input_pos >= input_len)
-        fprintf(stderr, "error: %s ran out of bytes to parse at index %zu\n", msg, ctx->input_pos);
+        fprintf(stderr, "error: %s ran out of bytes to parse at index %zu", msg, ctx->input_pos);
     else
-        fprintf(stderr, "error: %s failed at index %zu: ch=%02x\n", msg, ctx->input_pos, input[ctx->input_pos]);
+        fprintf(stderr, "error: %s failed at index %zu: ch=%02x", msg, ctx->input_pos, input[ctx->input_pos]);
+    trace_print_parser_context(ctx->parser);
+    fputc('\n', stderr);
     if (input && input_len > 0)
         h_trace_file_context(input, input_len, ctx->input_pos);
 }
@@ -722,7 +762,9 @@ void svm_failure_error(HSVMContext *ctx, HRVMProg *orig_prog, HRVMTrace *trace,
     fprintf(stderr, " starting at index %zu", ctx->failure.start);
     if (ctx->failure.end > ctx->failure.start)
         fprintf(stderr, " and ending at index %zu", ctx->failure.end);
-    if (ctx->failure.parser)
+    if (ctx->parser)
+        trace_print_parser_context(ctx->parser);
+    else if (ctx->failure.parser)
         fprintf(stderr, " while running [%s]", ctx->failure.parser);
     fputc('\n', stderr);
 

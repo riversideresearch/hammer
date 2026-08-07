@@ -80,6 +80,7 @@ typedef struct HSVMContext_ {
                         // item on the stack.
     size_t stack_capacity;
     size_t input_pos;
+    const HParser *parser;
     struct HActionPlan_ *action_plan;
     void *action_plan_frames;
     HSVMFailure failure;
@@ -98,6 +99,7 @@ typedef struct HRVMTrace_ {
                              // reverse-threaded. There is a postproc
                              // step that inverts all the pointers.
     size_t input_pos;
+    const HParser *parser;
     uint16_t arg;
     uint8_t opcode;
 } HRVMTrace;
@@ -108,7 +110,9 @@ struct HRVMProg_ {
     size_t length;
     size_t action_count;
     HRVMInsn *insns;
+    const HParser **insn_parsers;
     HSVMAction *actions;
+    const HParser *current_parser;
     jmp_buf except;
 };
 
