@@ -803,6 +803,7 @@ void svm_failure_error(HSVMContext *ctx, HRVMProg *orig_prog, HRVMTrace *trace,
                             ctx->parser, NULL, false);
     h_backend_trace_end(false);
 }
+
 static const char *trace_backend_name(HParserBackend backend) {
     switch (backend) {
     case PB_REGULAR:

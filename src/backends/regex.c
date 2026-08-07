@@ -200,6 +200,14 @@ finalize:
         ret_trace = invert_trace(ret_trace);
         ret = run_trace(mm__, prog, ret_trace, input, len);
         // NB: ret is in its own arena
+        // Dump execution trace on successful parse if tracing is enabled
+        if (ret && h_trace_is_dump_enabled()) {
+            h_backend_trace_begin(PB_REGULAR, prog->root_parser,
+                                  input, len);
+            dump_rvm_prog(prog);
+            dump_svm_prog(prog, ret_trace);
+            h_backend_trace_end(true);
+        }
     } else if (match_failure.present) {
         rvm_match_error(prog, input, len, match_failure.index, match_failure.expected,
                         match_failure.expected_eof, match_failure.parser);
