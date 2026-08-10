@@ -1,6 +1,6 @@
+#include "../trace.h"
 #include "lr.h"
 #include "params.h"
-#include "../trace.h"
 
 #include <assert.h>
 

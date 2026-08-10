@@ -1,8 +1,9 @@
 #define _GNU_SOURCE
 #include "regex.h"
-#include "trace.h"
+
 #include "../internal.h"
 #include "../parsers/parser_internal.h"
+#include "trace.h"
 
 #include <assert.h>
 #include <string.h>
@@ -212,8 +213,7 @@ finalize:
         // NB: ret is in its own arena
         // Dump execution trace on successful parse if tracing is enabled
         if (ret && h_trace_is_dump_enabled()) {
-            h_backend_trace_begin(PB_REGULAR, prog->root_parser,
-                                  input, len);
+            h_backend_trace_begin(PB_REGULAR, prog->root_parser, input, len);
             dump_rvm_prog(prog);
             dump_svm_prog(prog, ret_trace);
             h_backend_trace_end(true);
@@ -301,7 +301,8 @@ HParseResult *run_trace(HAllocator *mm__, HRVMProg *orig_prog, HRVMTrace *trace,
         switch (cur->opcode) {
         case SVM_PUSH:
             if (!svm_stack_ensure_cap(mm__, ctx, 1)) {
-                svm_action_error(ctx, orig_prog, trace, input, len, "out of memory: cannot grow stack");
+                svm_action_error(ctx, orig_prog, trace, input, len,
+                                 "out of memory: cannot grow stack");
                 goto fail;
             }
             tmp_res = a_new0(HParsedToken, 1);
@@ -329,8 +330,9 @@ HParseResult *run_trace(HAllocator *mm__, HRVMProg *orig_prog, HRVMTrace *trace,
         case SVM_CAPTURE:
             // Top of stack must be a mark
             // This replaces said mark in-place with a TT_BYTES.
-            if (ctx->stack_count == 0 || ctx->stack[ctx->stack_count - 1]->token_type != TT_MARK){
-                svm_action_error(ctx, orig_prog, trace, input, len, "invalid capture: top of stack is not a mark");
+            if (ctx->stack_count == 0 || ctx->stack[ctx->stack_count - 1]->token_type != TT_MARK) {
+                svm_action_error(ctx, orig_prog, trace, input, len,
+                                 "invalid capture: top of stack is not a mark");
                 goto fail;
             }
             assert(ctx->stack[ctx->stack_count - 1]->token_type == TT_MARK);
@@ -338,8 +340,9 @@ HParseResult *run_trace(HAllocator *mm__, HRVMProg *orig_prog, HRVMTrace *trace,
             tmp_res = ctx->stack[ctx->stack_count - 1];
             tmp_res->token_type = TT_BYTES;
             // TODO: Will need to copy if bit_offset is nonzero
-            if (tmp_res->bit_offset != 0){
-                svm_action_error(ctx, orig_prog, trace, input, len, "invalid capture: bit offset is nonzero");
+            if (tmp_res->bit_offset != 0) {
+                svm_action_error(ctx, orig_prog, trace, input, len,
+                                 "invalid capture: bit offset is nonzero");
                 goto fail;
             }
             assert(tmp_res->bit_offset == 0);
@@ -348,16 +351,18 @@ HParseResult *run_trace(HAllocator *mm__, HRVMProg *orig_prog, HRVMTrace *trace,
             tmp_res->token_data.bytes.len = cur->input_pos - tmp_res->index;
             break;
         case SVM_ACCEPT:
-            if (ctx->stack_count > 1){
-                svm_action_error(ctx, orig_prog, trace, input, len, "invalid accept: stack has more than one item");
+            if (ctx->stack_count > 1) {
+                svm_action_error(ctx, orig_prog, trace, input, len,
+                                 "invalid accept: stack has more than one item");
                 goto fail;
             }
-            if (ctx->action_plan_frames){
-                svm_action_error(ctx, orig_prog, trace, input, len, "invalid accept: action plan frames not empty");
+            if (ctx->action_plan_frames) {
+                svm_action_error(ctx, orig_prog, trace, input, len,
+                                 "invalid accept: action plan frames not empty");
                 goto fail;
             }
             assert(ctx->stack_count <= 1);
-            if (!h_action_plan_execute(arena, ctx->action_plan)){
+            if (!h_action_plan_execute(arena, ctx->action_plan)) {
                 svm_action_error(ctx, orig_prog, trace, input, len, "action execution failed");
                 goto fail;
             }
@@ -435,9 +440,8 @@ uint16_t h_rvm_insert_insn(HRVMProg *prog, HRVMOp op, uint16_t arg) {
         if (!prog->insns) {
             longjmp(prog->except, 1);
         }
-        prog->insn_parsers =
-            prog->allocator->realloc(prog->allocator, prog->insn_parsers,
-                                     array_size * sizeof(*prog->insn_parsers));
+        prog->insn_parsers = prog->allocator->realloc(prog->allocator, prog->insn_parsers,
+                                                      array_size * sizeof(*prog->insn_parsers));
         if (!prog->insn_parsers) {
             longjmp(prog->except, 1);
         }

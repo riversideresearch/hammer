@@ -38,9 +38,7 @@ static const HParserVtable nothing_vt = {
     .higher = false,
 };
 
-bool h_is_nothing_parser(const HParser *parser) {
-    return parser && parser->vtable == &nothing_vt;
-}
+bool h_is_nothing_parser(const HParser *parser) { return parser && parser->vtable == &nothing_vt; }
 
 HParser *h_nothing_p() { return h_nothing_p__m(&system_allocator); }
 HParser *h_nothing_p__m(HAllocator *mm__) {

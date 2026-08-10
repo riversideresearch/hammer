@@ -47,13 +47,13 @@ typedef struct HLRAction_ {
 } HLRAction;
 
 typedef struct HLRTable_ {
-    size_t nrows;       // dimension of the pointer arrays below
-    HHashTable **ntmap; // map nonterminal symbols to HLRActions, per row
-    HStringMap **tmap;  // map lookahead strings to HLRActions, per row
-    HLRAction **forall; // shortcut to set an action for an entire row
+    size_t nrows;                     // dimension of the pointer arrays below
+    HHashTable **ntmap;               // map nonterminal symbols to HLRActions, per row
+    HStringMap **tmap;                // map lookahead strings to HLRActions, per row
+    HLRAction **forall;               // shortcut to set an action for an entire row
     const HParser **expected_parsers; // parser awaiting input in each state
-    HCFChoice *start;   // start symbol
-    HSlist *inadeq;     // indices of any inadequate states
+    HCFChoice *start;                 // start symbol
+    HSlist *inadeq;                   // indices of any inadequate states
     HArena *arena;
     HAllocator *mm__;
 } HLRTable;

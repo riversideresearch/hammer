@@ -308,8 +308,7 @@ typedef struct {
     uint8_t bit_offset;
 } HLLkFrame;
 
-static void llk_expected_from_map(const HStringMap *map, bool expected[256],
-                                  bool *expected_eof) {
+static void llk_expected_from_map(const HStringMap *map, bool expected[256], bool *expected_eof) {
     memset(expected, 0, 256 * sizeof(*expected));
     *expected_eof = false;
     if (!map)
@@ -492,7 +491,7 @@ static bool save_win(size_t kmax, HLLkState *s, HInputStream *stream) {
 
 // returns partial result or NULL (no parse)
 static HCountedArray *llk_parse_chunk_(HLLkState *s, const HParser *parser, HInputStream *chunk,
-                                      bool trace_failures) {
+                                       bool trace_failures) {
     HParsedToken *tok = NULL; // will hold result token
     HActionPlan *tok_plan = NULL;
     HCFChoice *x = NULL; // current symbol (from top of stack)
@@ -727,8 +726,8 @@ static HCountedArray *llk_parse_chunk_(HLLkState *s, const HParser *parser, HInp
         if (x->pred && !x->pred(make_result(tarena, tok), x->user_data)) {
             if (trace_failures)
                 CF_TRACE_FAILURE(symbol_start, stream->pos + stream->index,
-                                 H_PARSE_ERROR_SEMANTIC_PREDICATE,
-                                 x->parser ? x->parser : parser, NULL, false);
+                                 H_PARSE_ERROR_SEMANTIC_PREDICATE, x->parser ? x->parser : parser,
+                                 NULL, false);
             if (trace_failures)
                 CF_TRACE_PARSER_EXIT(x->parser ? x->parser : parser, symbol_start,
                                      stream->pos + stream->index, tok, false,

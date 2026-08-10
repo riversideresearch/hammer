@@ -19,10 +19,10 @@
 #include "hammer.h"
 
 #include "allocator.h"
-#include "trace.h"
 #include "glue.h"
 #include "internal.h"
 #include "parsers/parser_internal.h"
+#include "trace.h"
 
 #include <assert.h>
 #include <ctype.h>
@@ -594,7 +594,7 @@ HParseResult *h_parse_debug__m(HAllocator *mm__, const HParser *parser, const ui
     TRACE_SET_ENABLED(true, dumpExecutionTrace);
     HParseResult *res = h_parse__m(mm__, parser, input, length);
     TRACE_SET_ENABLED(false, false);
-    if (!res) 
+    if (!res)
         TRACE_GET_ERROR(error);
     return res;
 }
@@ -624,7 +624,7 @@ void h_parse_error_free(HParseError *error) {
     if (!error)
         return;
     for (size_t i = 0; i < error->n_deepest; i++) {
-        free((void *)error->deepest_parsers[i]);  // cast drops the const for free()
+        free((void *)error->deepest_parsers[i]); // cast drops the const for free()
         error->deepest_parsers[i] = NULL;
     }
     error->n_deepest = 0;
@@ -713,12 +713,10 @@ void h_parse_diagnostic_fprint(FILE *stream, const HParseDiagnostic *diagnostic)
     else {
         fputs("error: unexpected byte ", stream);
         diagnostic_print_byte(stream, error->actual);
-        fprintf(stream, " (0x%02x = %u) at index %zu", error->actual, error->actual,
-                error->index);
+        fprintf(stream, " (0x%02x = %u) at index %zu", error->actual, error->actual, error->index);
     }
 
-    if (error->kind == H_PARSE_ERROR_RANGE ||
-        error->kind == H_PARSE_ERROR_SEMANTIC_PREDICATE ||
+    if (error->kind == H_PARSE_ERROR_RANGE || error->kind == H_PARSE_ERROR_SEMANTIC_PREDICATE ||
         error->kind == H_PARSE_ERROR_ACTION)
         fprintf(stream, " starting at index %zu", error->index);
 

@@ -4,6 +4,7 @@
 #endif
 
 #include "trace.h"
+
 #include "backends/regex.h"
 #include "internal.h"
 
@@ -148,8 +149,7 @@ void h_trace_get_diagnostic(HParseDiagnostic **out) {
     if (!*out)
         return;
     trace_copy_error(&(*out)->error, &trace_completed.error);
-    memcpy((*out)->expected_bytes, trace_completed.expected_bytes,
-           sizeof((*out)->expected_bytes));
+    memcpy((*out)->expected_bytes, trace_completed.expected_bytes, sizeof((*out)->expected_bytes));
     (*out)->expected_eof = trace_completed.expected_eof;
 }
 
@@ -317,7 +317,7 @@ static void trace_error_add_parser(HParseError *error, const char *name) {
 static void trace_pos(HParseState *state) {
     HInputStream *in = &state->input_stream;
     size_t abs = in->pos + in->index;
-    if(!dump_trace)
+    if (!dump_trace)
         return;
     fprintf(stderr, "@%zu", abs);
     if (in->bit_offset)
@@ -499,8 +499,7 @@ static void trace_record_failure(const HParser *parser, HParseState *state,
     size_t end = state->input_stream.pos + state->input_stream.index;
     size_t index = parser->vtable->higher ? end : frame->start;
     HParseErrorKind kind = trace_failure_kind(parser, frame->name, index, context->input_len);
-    bool value_failure =
-        kind == H_PARSE_ERROR_SEMANTIC_PREDICATE || kind == H_PARSE_ERROR_RANGE;
+    bool value_failure = kind == H_PARSE_ERROR_SEMANTIC_PREDICATE || kind == H_PARSE_ERROR_RANGE;
 
     if (value_failure)
         index = frame->start;
@@ -554,7 +553,7 @@ void h_trace_exit(const HParser *parser, HParseState *state, HParseResult *res, 
         if (originated_here)
             trace_record_failure(parser, state, &frame);
     }
-    if(!dump_trace)
+    if (!dump_trace)
         return;
     trace_indent();
     if (res) {
@@ -766,14 +765,12 @@ static void trace_render_diagnostic(HTraceContext *context) {
     } else {
         fputs("error: unexpected byte ", stderr);
         trace_print_expected_byte(error->actual);
-        fprintf(stderr, " (0x%02x = %u) at index %zu", error->actual, error->actual,
-                error->index);
+        fprintf(stderr, " (0x%02x = %u) at index %zu", error->actual, error->actual, error->index);
     }
 
     if (error->bit_offset)
         fprintf(stderr, ".%ub", error->bit_offset);
-    if (error->kind == H_PARSE_ERROR_RANGE ||
-        error->kind == H_PARSE_ERROR_SEMANTIC_PREDICATE ||
+    if (error->kind == H_PARSE_ERROR_RANGE || error->kind == H_PARSE_ERROR_SEMANTIC_PREDICATE ||
         error->kind == H_PARSE_ERROR_ACTION)
         fprintf(stderr, " starting at index %zu", error->index);
     else if (error->kind != H_PARSE_ERROR_EXPLICIT_FAILURE)
@@ -795,7 +792,7 @@ void rvm_match_error(HRVMProg *prog, const uint8_t *input, size_t input_len, siz
         return;
     h_backend_trace_begin(PB_REGULAR, prog->root_parser ? prog->root_parser : parser, input,
                           input_len);
-    if(dump_trace)
+    if (dump_trace)
         dump_rvm_prog(prog);
     h_backend_trace_failure(index, index < input_len ? index + 1 : index,
                             index < input_len ? H_PARSE_ERROR_PRIMITIVE_MISMATCH
@@ -803,18 +800,17 @@ void rvm_match_error(HRVMProg *prog, const uint8_t *input, size_t input_len, siz
                             parser, expected, expected_eof);
     h_backend_trace_end(false);
 }
-void svm_action_error(HSVMContext *ctx, HRVMProg *orig_prog, HRVMTrace *trace,
-                        const uint8_t *input, size_t input_len, const char *msg) {
+void svm_action_error(HSVMContext *ctx, HRVMProg *orig_prog, HRVMTrace *trace, const uint8_t *input,
+                      size_t input_len, const char *msg) {
     if (!display_trace)
         return;
     (void)msg;
-    h_backend_trace_begin(PB_REGULAR,
-                          orig_prog->root_parser ? orig_prog->root_parser : ctx->parser, input,
-                          input_len);
-    if(dump_trace)
+    h_backend_trace_begin(PB_REGULAR, orig_prog->root_parser ? orig_prog->root_parser : ctx->parser,
+                          input, input_len);
+    if (dump_trace)
         dump_svm_prog(orig_prog, trace);
-    h_backend_trace_failure(ctx->input_pos, ctx->input_pos, H_PARSE_ERROR_ACTION, ctx->parser,
-                            NULL, false);
+    h_backend_trace_failure(ctx->input_pos, ctx->input_pos, H_PARSE_ERROR_ACTION, ctx->parser, NULL,
+                            false);
     h_backend_trace_end(false);
 }
 
@@ -822,10 +818,9 @@ void svm_failure_error(HSVMContext *ctx, HRVMProg *orig_prog, HRVMTrace *trace,
                        const uint8_t *input, size_t input_len) {
     if (!display_trace)
         return;
-    h_backend_trace_begin(PB_REGULAR,
-                          orig_prog->root_parser ? orig_prog->root_parser : ctx->parser, input,
-                          input_len);
-    if(dump_trace)
+    h_backend_trace_begin(PB_REGULAR, orig_prog->root_parser ? orig_prog->root_parser : ctx->parser,
+                          input, input_len);
+    if (dump_trace)
         dump_svm_prog(orig_prog, trace);
     HParseErrorKind kind;
     switch (ctx->failure.kind) {
@@ -896,8 +891,8 @@ void h_cf_trace_begin(HParserBackend backend, const HParser *parser, const uint8
     h_backend_trace_begin(backend, parser, input, input_len);
 }
 
-void h_backend_trace_failure(size_t start, size_t end, HParseErrorKind kind,
-                             const HParser *parser, const bool expected[256], bool expected_eof) {
+void h_backend_trace_failure(size_t start, size_t end, HParseErrorKind kind, const HParser *parser,
+                             const bool expected[256], bool expected_eof) {
     if (!display_trace || !trace_context)
         return;
 
@@ -1051,11 +1046,11 @@ void h_cf_trace_lr_reduce(size_t branch, size_t from_state, size_t to_state, siz
     if (!success) {
         fprintf(stderr, "REJECT  s%zu len=%zu span=[%zu,%zu)", from_state, length, start, end);
     } else if (to_state == SIZE_MAX) {
-        fprintf(stderr, "REDUCE  s%zu -> accept len=%zu span=[%zu,%zu)", from_state, length,
-                start, end);
+        fprintf(stderr, "REDUCE  s%zu -> accept len=%zu span=[%zu,%zu)", from_state, length, start,
+                end);
     } else {
-        fprintf(stderr, "REDUCE  s%zu -> s%zu len=%zu span=[%zu,%zu)", from_state, to_state,
-                length, start, end);
+        fprintf(stderr, "REDUCE  s%zu -> s%zu len=%zu span=[%zu,%zu)", from_state, to_state, length,
+                start, end);
     }
     trace_lr_parser(parser);
     if (success) {

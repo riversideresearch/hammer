@@ -5,11 +5,11 @@
 #include "../internal.h"
 #include "../parsers/parser_internal.h"
 #include "../trace.h"
+
 #include <assert.h>
 #include <inttypes.h>
 #include <stdio.h>
 #include <string.h>
-
 
 /* #define DETAILED_PACKRAT_STATISTICS */
 

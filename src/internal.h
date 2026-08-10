@@ -694,7 +694,7 @@ struct HParserVtable_ {
     bool (*compile_to_rvm)(HRVMProg *prog, void *env);
     void (*desugar)(HAllocator *mm__, HCFStack *stk__, void *env);
     bool higher; // false if primitive
-    char error;   // 0 if no error, otherwise error code
+    char error;  // 0 if no error, otherwise error code
 };
 
 // {{{ Token type registry internal

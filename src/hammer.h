@@ -206,7 +206,7 @@ typedef struct HParseError_ {
     const char *parser;
     /** Names of originating parsers tied at the selected failure position. */
     const char *deepest_parsers[H_PARSE_ERROR_MAX_PARSERS];
-    size_t n_deepest;   /**< Number of valid entries in deepest_parsers. */
+    size_t n_deepest; /**< Number of valid entries in deepest_parsers. */
     const char *context[H_PARSE_ERROR_MAX_PARSERS];
     size_t n_context;
 } HParseError;

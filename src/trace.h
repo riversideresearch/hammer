@@ -2,8 +2,9 @@
 #ifndef HAMMER_BACKENDS_TRACE__H
 #define HAMMER_BACKENDS_TRACE__H
 
-#include "internal.h" /* HParser, HParseState, HParseResult */
 #include "backends/regex.h"
+#include "internal.h" /* HParser, HParseState, HParseResult */
+
 #include <stddef.h>
 
 struct HParseDiagnostic_ {
@@ -54,8 +55,8 @@ void h_cf_trace_end(bool success);
 /* Shared backend diagnostic entry points (also used by the regex VM). */
 void h_backend_trace_begin(HParserBackend backend, const HParser *parser, const uint8_t *input,
                            size_t input_len);
-void h_backend_trace_failure(size_t start, size_t end, HParseErrorKind kind,
-                             const HParser *parser, const bool expected[256], bool expected_eof);
+void h_backend_trace_failure(size_t start, size_t end, HParseErrorKind kind, const HParser *parser,
+                             const bool expected[256], bool expected_eof);
 void h_backend_trace_end(bool success);
 
 // regex trace functions
@@ -65,17 +66,17 @@ void dump_rvm_prog(HRVMProg *prog);
 void dump_svm_prog(HRVMProg *prog, HRVMTrace *trace);
 void rvm_match_error(HRVMProg *prog, const uint8_t *input, size_t input_len, size_t off,
                      const bool expected[256], bool expected_eof, const HParser *parser);
-void svm_action_error(HSVMContext *ctx, HRVMProg *orig_prog, HRVMTrace *trace,
-                        const uint8_t *input, size_t input_len, const char *msg);
+void svm_action_error(HSVMContext *ctx, HRVMProg *orig_prog, HRVMTrace *trace, const uint8_t *input,
+                      size_t input_len, const char *msg);
 void svm_failure_error(HSVMContext *ctx, HRVMProg *orig_prog, HRVMTrace *trace,
                        const uint8_t *input, size_t input_len);
 
-#define TRACE_SET_ENABLED(a,b)  h_trace_set_enabled(a, b)
+#define TRACE_SET_ENABLED(a, b) h_trace_set_enabled(a, b)
 #define TRACE_ENABLED() h_trace_is_enabled()
-#define TRACE_GET_ERROR(out)  h_trace_get_error((out))
+#define TRACE_GET_ERROR(out) h_trace_get_error((out))
 #define TRACE_GET_DIAGNOSTIC(out) h_trace_get_diagnostic((out))
 #define TRACE_BEGIN(input, len) h_trace_begin((input), (size_t)(len))
-#define TRACE_ENTER(p, s)     h_trace_enter((p), (s))
+#define TRACE_ENTER(p, s) h_trace_enter((p), (s))
 #define TRACE_EXIT(p, s, res, note) h_trace_exit((p), (s), (res), (note))
 #define TRACE_END(res, state) h_trace_end((res), (state))
 #define CF_TRACE_BEGIN(backend, parser, input, len)                                                \
@@ -94,7 +95,7 @@ void svm_failure_error(HSVMContext *ctx, HRVMProg *orig_prog, HRVMTrace *trace,
 #define CF_TRACE_LR_ERROR(branch, state, index, parser)                                            \
     h_cf_trace_lr_error((branch), (state), (index), (parser))
 #define CF_TRACE_GLR_FORK(branch, state, index) h_cf_trace_glr_fork((branch), (state), (index))
-#define CF_TRACE_GLR_MERGE(survivor, merged, state, index)                                        \
+#define CF_TRACE_GLR_MERGE(survivor, merged, state, index)                                         \
     h_cf_trace_glr_merge((survivor), (merged), (state), (index))
 #define CF_TRACE_END(success) h_cf_trace_end((success))
 
@@ -102,10 +103,10 @@ void svm_failure_error(HSVMContext *ctx, HRVMProg *orig_prog, HRVMTrace *trace,
 
 #define TRACE_SET_ENABLED(enabled, dump) ((void)0)
 #define TRACE_ENABLED() false
-#define TRACE_GET_ERROR(out)  ((void)0)
+#define TRACE_GET_ERROR(out) ((void)0)
 #define TRACE_GET_DIAGNOSTIC(out) ((void)0)
 #define TRACE_BEGIN(input, len) ((void)0)
-#define TRACE_ENTER(p, s)     ((void)0)
+#define TRACE_ENTER(p, s) ((void)0)
 #define TRACE_EXIT(p, s, res, note) ((void)0)
 #define TRACE_END(res, state) ((void)0)
 #define CF_TRACE_BEGIN(backend, parser, input, len) ((void)0)

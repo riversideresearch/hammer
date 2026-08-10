@@ -433,8 +433,8 @@ bool h_lrengine_step(HLREngine *engine, const HLRAction *action) {
         h_slist_push(stack, semantic);
         engine->state = shift->data.nextstate;
         if (engine->trace_failures)
-            CF_TRACE_LR_REDUCE(engine->trace_id, action_state, engine->state, len,
-                               reduction_start, engine->input.pos + engine->input.index,
+            CF_TRACE_LR_REDUCE(engine->trace_id, action_state, engine->state, len, reduction_start,
+                               engine->input.pos + engine->input.index,
                                symbol->parser ? symbol->parser : engine->root_parser, value, true);
 
         // check for success
