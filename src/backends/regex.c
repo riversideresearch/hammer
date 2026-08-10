@@ -27,6 +27,7 @@ typedef struct HRVMMatchFailure_ {
 
 static void record_rvm_match_failure(HRVMMatchFailure *failure, size_t index, uint8_t lo,
                                      uint8_t hi, bool expected_eof, const HParser *parser) {
+    bool explicit_failure = h_is_nothing_parser(parser);
     if (!failure->present || index > failure->index) {
         memset(failure, 0, sizeof(*failure));
         failure->present = true;
@@ -34,9 +35,18 @@ static void record_rvm_match_failure(HRVMMatchFailure *failure, size_t index, ui
         failure->parser = parser;
     } else if (index < failure->index) {
         return;
+    } else if (h_is_nothing_parser(failure->parser) && !explicit_failure) {
+        memset(failure->expected, 0, sizeof(failure->expected));
+        failure->expected_eof = false;
+        failure->parser = parser;
+    } else if (!h_is_nothing_parser(failure->parser) && explicit_failure) {
+        return;
     } else if (!failure->parser) {
         failure->parser = parser;
     }
+
+    if (explicit_failure)
+        return;
 
     if (expected_eof) {
         failure->expected_eof = true;

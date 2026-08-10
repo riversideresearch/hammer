@@ -706,6 +706,8 @@ void h_parse_diagnostic_fprint(FILE *stream, const HParseDiagnostic *diagnostic)
         fputs("error: semantic predicate failed", stream);
     else if (error->kind == H_PARSE_ERROR_ACTION)
         fputs("error: semantic action failed", stream);
+    else if (error->kind == H_PARSE_ERROR_EXPLICIT_FAILURE)
+        fprintf(stream, "error: parser always fails at index %zu", error->index);
     else if (!error->has_actual)
         fprintf(stream, "error: unexpected end of input at index %zu", error->index);
     else {

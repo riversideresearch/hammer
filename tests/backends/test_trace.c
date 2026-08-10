@@ -189,6 +189,72 @@ static void test_trace_structured_expected_eof(void) {
     h_parse_diagnostic_free(diagnostic);
 }
 
+static void test_trace_nothing_failure(gconstpointer backend) {
+    HParserBackend be = (HParserBackend)GPOINTER_TO_INT(backend);
+    HParser *p = h_nothing_p();
+    g_check_cmp_int(h_compile(p, be, NULL), ==, 0);
+
+    HParseDiagnostic *diagnostic = NULL;
+    HParseResult *res =
+        h_parse_debug_ex(p, (const uint8_t *)"A", 1, &diagnostic, false);
+    g_check_cmp_ptr(res, ==, NULL);
+    g_check_cmp_ptr(diagnostic, !=, NULL);
+    if (!diagnostic)
+        return;
+
+    const HParseError *error = h_parse_diagnostic_error(diagnostic);
+    g_check_cmp_int(error->kind, ==, H_PARSE_ERROR_EXPLICIT_FAILURE);
+    g_check_cmp_size(error->index, ==, 0);
+    g_check_cmp_size(error->end_index, ==, 0);
+    g_check_cmp_int(error->has_actual, ==, false);
+    g_check_cmp_size(h_parse_diagnostic_expected_count(diagnostic), ==, 0);
+    h_parse_diagnostic_free(diagnostic);
+}
+
+static void test_trace_sequence_ending_in_nothing(gconstpointer backend) {
+    HParserBackend be = (HParserBackend)GPOINTER_TO_INT(backend);
+    HParser *p = h_sequence(h_token((const uint8_t *)"AB", 2), h_nothing_p(), NULL);
+    g_check_cmp_int(h_compile(p, be, NULL), ==, 0);
+
+    HParseDiagnostic *diagnostic = NULL;
+    HParseResult *res =
+        h_parse_debug_ex(p, (const uint8_t *)"AB", 2, &diagnostic, false);
+    g_check_cmp_ptr(res, ==, NULL);
+    g_check_cmp_ptr(diagnostic, !=, NULL);
+    if (!diagnostic)
+        return;
+
+    const HParseError *error = h_parse_diagnostic_error(diagnostic);
+    g_check_cmp_int(error->kind, ==, H_PARSE_ERROR_EXPLICIT_FAILURE);
+    g_check_cmp_size(error->index, ==, 2);
+    g_check_cmp_size(error->end_index, ==, 2);
+    g_check_cmp_int(error->has_actual, ==, false);
+    g_check_cmp_size(h_parse_diagnostic_expected_count(diagnostic), ==, 0);
+    h_parse_diagnostic_free(diagnostic);
+}
+
+/* An empty-language branch must not hide a useful expectation from another
+ * branch at the same input position. */
+static void test_trace_nothing_choice_priority(gconstpointer backend) {
+    HParserBackend be = (HParserBackend)GPOINTER_TO_INT(backend);
+    HParser *p = h_choice(h_nothing_p(), h_ch('A'), NULL);
+    g_check_cmp_int(h_compile(p, be, NULL), ==, 0);
+
+    HParseDiagnostic *diagnostic = NULL;
+    HParseResult *res =
+        h_parse_debug_ex(p, (const uint8_t *)"B", 1, &diagnostic, false);
+    g_check_cmp_ptr(res, ==, NULL);
+    g_check_cmp_ptr(diagnostic, !=, NULL);
+    if (!diagnostic)
+        return;
+
+    const HParseError *error = h_parse_diagnostic_error(diagnostic);
+    g_check_cmp_int(error->kind, ==, H_PARSE_ERROR_PRIMITIVE_MISMATCH);
+    if (be != PB_PACKRAT)
+        g_check_cmp_size(h_parse_diagnostic_expected_count(diagnostic), ==, 1);
+    h_parse_diagnostic_free(diagnostic);
+}
+
 // --- Cases ported from the debugtest/ sample parsers ---------------------
 // Each of the parserN.c programs is turned into a pass/fail assertion here,
 // exercised through h_parse_debug(). Some inputs parse cleanly; most are
@@ -528,6 +594,12 @@ void register_trace_tests(void) {
                          GINT_TO_POINTER(PB_REGULAR), test_trace_attr_bool_checksum);
     g_test_add_data_func("/core/parser/regex/trace_attr_bool_nonzero_offset",
                          GINT_TO_POINTER(PB_REGULAR), test_trace_attr_bool_nonzero_offset);
+    g_test_add_data_func("/core/parser/regex/trace_nothing_failure",
+                         GINT_TO_POINTER(PB_REGULAR), test_trace_nothing_failure);
+    g_test_add_data_func("/core/parser/regex/trace_sequence_ending_in_nothing",
+                         GINT_TO_POINTER(PB_REGULAR), test_trace_sequence_ending_in_nothing);
+    g_test_add_data_func("/core/parser/regex/trace_nothing_choice_priority",
+                         GINT_TO_POINTER(PB_REGULAR), test_trace_nothing_choice_priority);
 
     g_test_add_data_func("/core/parser/packrat/trace_debug_success", GINT_TO_POINTER(PB_PACKRAT),
                          test_trace_debug_success);
@@ -535,6 +607,12 @@ void register_trace_tests(void) {
                          GINT_TO_POINTER(PB_PACKRAT), test_trace_debug_error_on_failure);
     g_test_add_data_func("/core/parser/packrat/trace_debug_null_error", GINT_TO_POINTER(PB_PACKRAT),
                          test_trace_debug_null_error);
+    g_test_add_data_func("/core/parser/packrat/trace_nothing_failure",
+                         GINT_TO_POINTER(PB_PACKRAT), test_trace_nothing_failure);
+    g_test_add_data_func("/core/parser/packrat/trace_sequence_ending_in_nothing",
+                         GINT_TO_POINTER(PB_PACKRAT), test_trace_sequence_ending_in_nothing);
+    g_test_add_data_func("/core/parser/packrat/trace_nothing_choice_priority",
+                         GINT_TO_POINTER(PB_PACKRAT), test_trace_nothing_choice_priority);
 
     g_test_add_data_func("/core/parser/ll/trace_debug_success", GINT_TO_POINTER(PB_LL),
                          test_trace_debug_success);
@@ -548,6 +626,12 @@ void register_trace_tests(void) {
                          test_trace_cf_range_failure);
     g_test_add_data_func("/core/parser/ll/trace_attr_bool_nonzero_offset",
                          GINT_TO_POINTER(PB_LL), test_trace_attr_bool_nonzero_offset);
+    g_test_add_data_func("/core/parser/ll/trace_nothing_failure", GINT_TO_POINTER(PB_LL),
+                         test_trace_nothing_failure);
+    g_test_add_data_func("/core/parser/ll/trace_sequence_ending_in_nothing",
+                         GINT_TO_POINTER(PB_LL), test_trace_sequence_ending_in_nothing);
+    g_test_add_data_func("/core/parser/ll/trace_nothing_choice_priority", GINT_TO_POINTER(PB_LL),
+                         test_trace_nothing_choice_priority);
     g_test_add_data_func("/core/parser/ll/trace_verbose_dump", GINT_TO_POINTER(PB_LL),
                          test_trace_cf_verbose_dump);
 
@@ -565,6 +649,12 @@ void register_trace_tests(void) {
                          test_trace_attr_bool_checksum);
     g_test_add_data_func("/core/parser/lalr/trace_attr_bool_nonzero_offset",
                          GINT_TO_POINTER(PB_LALR), test_trace_attr_bool_nonzero_offset);
+    g_test_add_data_func("/core/parser/lalr/trace_nothing_failure", GINT_TO_POINTER(PB_LALR),
+                         test_trace_nothing_failure);
+    g_test_add_data_func("/core/parser/lalr/trace_sequence_ending_in_nothing",
+                         GINT_TO_POINTER(PB_LALR), test_trace_sequence_ending_in_nothing);
+    g_test_add_data_func("/core/parser/lalr/trace_nothing_choice_priority", GINT_TO_POINTER(PB_LALR),
+                         test_trace_nothing_choice_priority);
     g_test_add_data_func("/core/parser/lalr/trace_verbose_dump", GINT_TO_POINTER(PB_LALR),
                          test_trace_cf_verbose_dump);
 
@@ -582,6 +672,12 @@ void register_trace_tests(void) {
                          test_trace_attr_bool_checksum);
     g_test_add_data_func("/core/parser/glr/trace_attr_bool_nonzero_offset",
                          GINT_TO_POINTER(PB_GLR), test_trace_attr_bool_nonzero_offset);
+    g_test_add_data_func("/core/parser/glr/trace_nothing_failure", GINT_TO_POINTER(PB_GLR),
+                         test_trace_nothing_failure);
+    g_test_add_data_func("/core/parser/glr/trace_sequence_ending_in_nothing",
+                         GINT_TO_POINTER(PB_GLR), test_trace_sequence_ending_in_nothing);
+    g_test_add_data_func("/core/parser/glr/trace_nothing_choice_priority", GINT_TO_POINTER(PB_GLR),
+                         test_trace_nothing_choice_priority);
     g_test_add_func("/core/parser/glr/trace_ambiguous_failure",
                     test_trace_glr_ambiguous_failure);
     g_test_add_data_func("/core/parser/glr/trace_verbose_dump", GINT_TO_POINTER(PB_GLR),

@@ -259,6 +259,12 @@ void h_lrengine_trace_action_failure(const HLREngine *engine) {
         origin = engine->root_parser;
     CF_TRACE_LR_ERROR(engine->trace_id, state, input.pos + input.index, origin);
 
+    if (!map) {
+        size_t index = input.pos + input.index;
+        CF_TRACE_FAILURE(index, index, H_PARSE_ERROR_HIGHER_ORDER, origin, NULL, false);
+        return;
+    }
+
     while (map && !map->epsilon_branch) {
         size_t index = input.pos + input.index;
         uint8_t actual = h_read_bits(&input, 8, false);

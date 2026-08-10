@@ -713,6 +713,7 @@ const HTTEntry *h_get_token_type_entry(HTokenType token_type);
 bool h_false(void *);
 bool h_true(void *);
 bool h_not_regular(HRVMProg *, void *);
+bool h_is_nothing_parser(const HParser *parser);
 
 #if 0
 #include <stdlib.h>

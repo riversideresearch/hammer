@@ -328,6 +328,11 @@ static void llk_expected_from_map(const HStringMap *map, bool expected[256],
 static void llk_trace_lookup_failure(const HStringMap *row, HInputStream stream,
                                      const HParser *parser) {
     const HStringMap *map = row;
+    if (!map) {
+        size_t index = stream.pos + stream.index;
+        CF_TRACE_FAILURE(index, index, H_PARSE_ERROR_HIGHER_ORDER, parser, NULL, false);
+        return;
+    }
     while (map && !map->epsilon_branch) {
         size_t index = stream.pos + stream.index;
         uint8_t actual = h_read_bits(&stream, 8, false);

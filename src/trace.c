@@ -464,6 +464,8 @@ void h_trace_enter(const HParser *parser, HParseState *state) {
 
 static HParseErrorKind trace_failure_kind(const HParser *parser, const char *name, size_t index,
                                           size_t length) {
+    if (h_is_nothing_parser(parser))
+        return H_PARSE_ERROR_EXPLICIT_FAILURE;
     if (strcmp(name, "parse_attr_bool") == 0)
         return H_PARSE_ERROR_SEMANTIC_PREDICATE;
     if (strcmp(name, "parse_int_range") == 0)
@@ -488,6 +490,8 @@ static size_t trace_failure_progress(HParseErrorKind kind, size_t start, size_t 
     }
 }
 
+static unsigned int trace_error_priority(HParseErrorKind kind);
+
 static void trace_record_failure(const HParser *parser, HParseState *state,
                                  const HTraceFrame *frame) {
     HTraceContext *context = trace_context;
@@ -504,8 +508,8 @@ static void trace_record_failure(const HParser *parser, HParseState *state,
     size_t progress = trace_failure_progress(kind, index, end);
     size_t previous_progress = trace_failure_progress(error->kind, error->index, error->end_index);
     bool replace = error->kind == H_PARSE_ERROR_NONE || progress > previous_progress ||
-                   (progress == previous_progress && parser->vtable->higher &&
-                    error->kind == H_PARSE_ERROR_PRIMITIVE_MISMATCH);
+                   (progress == previous_progress &&
+                    trace_error_priority(kind) > trace_error_priority(error->kind));
 
     if (replace) {
         memset(error, 0, sizeof(*error));
@@ -516,7 +520,7 @@ static void trace_record_failure(const HParser *parser, HParseState *state,
                                 : state->input_stream.bit_offset;
         error->kind = kind;
         error->parser = frame->name;
-        if (index < context->input_len) {
+        if (kind != H_PARSE_ERROR_EXPLICIT_FAILURE && index < context->input_len) {
             error->actual = context->input[index];
             error->has_actual = true;
         }
@@ -755,6 +759,8 @@ static void trace_render_diagnostic(HTraceContext *context) {
         fputs("error: semantic predicate failed", stderr);
     } else if (error->kind == H_PARSE_ERROR_ACTION) {
         fputs("error: semantic action failed", stderr);
+    } else if (error->kind == H_PARSE_ERROR_EXPLICIT_FAILURE) {
+        fprintf(stderr, "error: parser always fails at index %zu", error->index);
     } else if (!error->has_actual) {
         fprintf(stderr, "error: unexpected end of input at index %zu", error->index);
     } else {
@@ -770,7 +776,7 @@ static void trace_render_diagnostic(HTraceContext *context) {
         error->kind == H_PARSE_ERROR_SEMANTIC_PREDICATE ||
         error->kind == H_PARSE_ERROR_ACTION)
         fprintf(stderr, " starting at index %zu", error->index);
-    else
+    else if (error->kind != H_PARSE_ERROR_EXPLICIT_FAILURE)
         trace_print_expectations(context->expected_bytes, context->expected_eof);
 
     if (error->n_deepest > 0)
@@ -899,6 +905,12 @@ void h_backend_trace_failure(size_t start, size_t end, HParseErrorKind kind,
     const HParser *origin = parser ? parser : context->root_parser;
     const char *name = origin && origin->vtable ? trace_vt_name(origin->vtable) : "?(no parser)";
     size_t index = start;
+    if (h_is_nothing_parser(origin)) {
+        kind = H_PARSE_ERROR_EXPLICIT_FAILURE;
+        end = start;
+        expected = NULL;
+        expected_eof = false;
+    }
     if (kind == H_PARSE_ERROR_SEMANTIC_PREDICATE && strcmp(name, "parse_int_range") == 0) {
         kind = H_PARSE_ERROR_RANGE;
     }
@@ -918,7 +930,7 @@ void h_backend_trace_failure(size_t start, size_t end, HParseErrorKind kind,
         error->end_index = end;
         error->kind = kind;
         error->parser = name;
-        if (index < context->input_len) {
+        if (kind != H_PARSE_ERROR_EXPLICIT_FAILURE && index < context->input_len) {
             error->actual = context->input[index];
             error->has_actual = true;
         }
