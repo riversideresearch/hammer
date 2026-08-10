@@ -694,10 +694,10 @@ struct HParserVtable_ {
     bool (*compile_to_rvm)(HRVMProg *prog, void *env);
     void (*desugar)(HAllocator *mm__, HCFStack *stk__, void *env);
     bool higher; // false if primitive
-    /* Optional Packrat diagnostic metadata. Implementations add the bytes or
-     * EOF accepted by a primitive at its failed input position. */
-    void (*trace_expectations)(void *env, size_t consumed, bool expected[256],
-                               bool *expected_eof);
+    /* Optional Packrat diagnostic metadata. Implementations return the byte
+     * offset of the failure and add the bytes or EOF accepted there. */
+    size_t (*trace_expectations)(void *env, size_t consumed, bool overrun, bool expected[256],
+                                 bool *expected_eof);
 };
 
 // {{{ Token type registry internal

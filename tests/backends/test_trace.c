@@ -253,6 +253,51 @@ static void test_trace_nothing_choice_priority(gconstpointer backend) {
     h_parse_diagnostic_free(diagnostic);
 }
 
+static void test_trace_token_mismatch_position(gconstpointer backend) {
+    HParserBackend be = (HParserBackend)GPOINTER_TO_INT(backend);
+    HParser *p = h_token((const uint8_t *)"ABCE", 4);
+    const uint8_t mismatch[] = {'A', 'B', 'C', 'D', 0xff};
+    g_check_cmp_int(h_compile(p, be, NULL), ==, 0);
+
+    HParseDiagnostic *diagnostic = NULL;
+    HParseResult *res = h_parse_debug_ex(p, mismatch, sizeof(mismatch), &diagnostic, false);
+    g_check_cmp_ptr(res, ==, NULL);
+    g_check_cmp_ptr(diagnostic, !=, NULL);
+    if (!diagnostic)
+        return;
+
+    const HParseError *error = h_parse_diagnostic_error(diagnostic);
+    g_check_cmp_int(error->kind, ==, H_PARSE_ERROR_PRIMITIVE_MISMATCH);
+    g_check_cmp_size(error->index, ==, 3);
+    g_check_cmp_size(error->end_index, ==, 4);
+    g_check_cmp_int(error->actual, ==, 'D');
+
+    HParseExpectation expected;
+    g_check_cmp_size(h_parse_diagnostic_expected_count(diagnostic), ==, 1);
+    g_check_cmp_int(h_parse_diagnostic_expected(diagnostic, 0, &expected), ==, true);
+    g_check_cmp_int(expected.kind, ==, H_PARSE_EXPECT_BYTE_RANGE);
+    g_check_cmp_int(expected.lower, ==, 'E');
+    g_check_cmp_int(expected.upper, ==, 'E');
+    h_parse_diagnostic_free(diagnostic);
+
+    diagnostic = NULL;
+    res = h_parse_debug_ex(p, (const uint8_t *)"ABC", 3, &diagnostic, false);
+    g_check_cmp_ptr(res, ==, NULL);
+    g_check_cmp_ptr(diagnostic, !=, NULL);
+    if (!diagnostic)
+        return;
+    error = h_parse_diagnostic_error(diagnostic);
+    g_check_cmp_int(error->kind, ==, H_PARSE_ERROR_UNEXPECTED_EOF);
+    g_check_cmp_size(error->index, ==, 3);
+    g_check_cmp_size(error->end_index, ==, 3);
+    g_check_cmp_int(error->has_actual, ==, false);
+    g_check_cmp_size(h_parse_diagnostic_expected_count(diagnostic), ==, 1);
+    g_check_cmp_int(h_parse_diagnostic_expected(diagnostic, 0, &expected), ==, true);
+    g_check_cmp_int(expected.lower, ==, 'E');
+    g_check_cmp_int(expected.upper, ==, 'E');
+    h_parse_diagnostic_free(diagnostic);
+}
+
 static void test_trace_relational_failure_starts(void) {
     const uint8_t input[] = {'Z', 'A', 'B'};
     struct {
@@ -623,6 +668,8 @@ void register_trace_tests(void) {
                          GINT_TO_POINTER(PB_REGULAR), test_trace_sequence_ending_in_nothing);
     g_test_add_data_func("/core/parser/regex/trace_nothing_choice_priority",
                          GINT_TO_POINTER(PB_REGULAR), test_trace_nothing_choice_priority);
+    g_test_add_data_func("/core/parser/regex/trace_token_mismatch_position",
+                         GINT_TO_POINTER(PB_REGULAR), test_trace_token_mismatch_position);
 
     g_test_add_data_func("/core/parser/packrat/trace_debug_success", GINT_TO_POINTER(PB_PACKRAT),
                          test_trace_debug_success);
@@ -638,6 +685,8 @@ void register_trace_tests(void) {
                          GINT_TO_POINTER(PB_PACKRAT), test_trace_sequence_ending_in_nothing);
     g_test_add_data_func("/core/parser/packrat/trace_nothing_choice_priority",
                          GINT_TO_POINTER(PB_PACKRAT), test_trace_nothing_choice_priority);
+    g_test_add_data_func("/core/parser/packrat/trace_token_mismatch_position",
+                         GINT_TO_POINTER(PB_PACKRAT), test_trace_token_mismatch_position);
     g_test_add_func("/core/parser/packrat/trace_relational_failure_starts",
                     test_trace_relational_failure_starts);
 
@@ -659,6 +708,8 @@ void register_trace_tests(void) {
                          test_trace_sequence_ending_in_nothing);
     g_test_add_data_func("/core/parser/ll/trace_nothing_choice_priority", GINT_TO_POINTER(PB_LL),
                          test_trace_nothing_choice_priority);
+    g_test_add_data_func("/core/parser/ll/trace_token_mismatch_position", GINT_TO_POINTER(PB_LL),
+                         test_trace_token_mismatch_position);
     g_test_add_data_func("/core/parser/ll/trace_verbose_dump", GINT_TO_POINTER(PB_LL),
                          test_trace_cf_verbose_dump);
 
@@ -682,6 +733,8 @@ void register_trace_tests(void) {
                          GINT_TO_POINTER(PB_LALR), test_trace_sequence_ending_in_nothing);
     g_test_add_data_func("/core/parser/lalr/trace_nothing_choice_priority",
                          GINT_TO_POINTER(PB_LALR), test_trace_nothing_choice_priority);
+    g_test_add_data_func("/core/parser/lalr/trace_token_mismatch_position",
+                         GINT_TO_POINTER(PB_LALR), test_trace_token_mismatch_position);
     g_test_add_data_func("/core/parser/lalr/trace_verbose_dump", GINT_TO_POINTER(PB_LALR),
                          test_trace_cf_verbose_dump);
 
@@ -705,6 +758,8 @@ void register_trace_tests(void) {
                          GINT_TO_POINTER(PB_GLR), test_trace_sequence_ending_in_nothing);
     g_test_add_data_func("/core/parser/glr/trace_nothing_choice_priority", GINT_TO_POINTER(PB_GLR),
                          test_trace_nothing_choice_priority);
+    g_test_add_data_func("/core/parser/glr/trace_token_mismatch_position", GINT_TO_POINTER(PB_GLR),
+                         test_trace_token_mismatch_position);
     g_test_add_func("/core/parser/glr/trace_ambiguous_failure", test_trace_glr_ambiguous_failure);
     g_test_add_data_func("/core/parser/glr/trace_verbose_dump", GINT_TO_POINTER(PB_GLR),
                          test_trace_cf_verbose_dump);

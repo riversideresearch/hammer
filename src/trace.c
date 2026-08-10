@@ -501,13 +501,16 @@ static size_t trace_failure_progress(HParseErrorKind kind, size_t start, size_t 
 
 static unsigned int trace_error_priority(HParseErrorKind kind);
 
-static void trace_add_expectations(HTraceContext *context, const HParser *parser,
-                                   const HTraceFrame *frame, size_t end) {
+static size_t trace_collect_expectations(const HParser *parser, const HTraceFrame *frame,
+                                         size_t end, bool overrun, bool expected[256],
+                                         bool *expected_eof) {
+    memset(expected, 0, 256 * sizeof(*expected));
+    *expected_eof = false;
     if (!parser || !parser->vtable || !parser->vtable->trace_expectations)
-        return;
+        return 0;
     size_t consumed = end >= frame->start ? end - frame->start : 0;
-    parser->vtable->trace_expectations(parser->env, consumed, context->expected_bytes,
-                                       &context->expected_eof);
+    return parser->vtable->trace_expectations(parser->env, consumed, overrun, expected,
+                                              expected_eof);
 }
 
 static void trace_record_failure(const HParser *parser, HParseState *state,
@@ -515,7 +518,11 @@ static void trace_record_failure(const HParser *parser, HParseState *state,
     HTraceContext *context = trace_context;
     HParseError *error = &context->error;
     size_t end = state->input_stream.pos + state->input_stream.index;
-    size_t index = parser->vtable->higher ? end : frame->start;
+    bool expected[256];
+    bool expected_eof;
+    size_t failure_offset = trace_collect_expectations(
+        parser, frame, end, state->input_stream.overrun, expected, &expected_eof);
+    size_t index = parser->vtable->higher ? end : frame->start + failure_offset;
     HParseErrorKind kind = trace_failure_kind(parser, frame->name, index, context->input_len);
     bool value_failure = kind == H_PARSE_ERROR_SEMANTIC_PREDICATE ||
                          kind == H_PARSE_ERROR_RANGE || kind == H_PARSE_ERROR_XOR ||
@@ -549,10 +556,13 @@ static void trace_record_failure(const HParser *parser, HParseState *state,
         for (size_t i = context->frame_count; i > 0 && error->n_context < H_PARSE_ERROR_MAX_PARSERS;
              i--)
             error->context[error->n_context++] = context->frames[i - 1].name;
-        trace_add_expectations(context, parser, frame, end);
+        memcpy(context->expected_bytes, expected, sizeof(context->expected_bytes));
+        context->expected_eof = expected_eof;
     } else if (progress == previous_progress && kind == error->kind) {
         trace_error_add_parser(error, frame->name);
-        trace_add_expectations(context, parser, frame, end);
+        for (size_t i = 0; i < 256; i++)
+            context->expected_bytes[i] |= expected[i];
+        context->expected_eof |= expected_eof;
     }
 }
 

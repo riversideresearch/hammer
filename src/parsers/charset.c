@@ -79,13 +79,15 @@ static bool cs_ctrvm(HRVMProg *prog, void *env) {
     return true;
 }
 
-static void trace_expectations_charset(void *env, size_t consumed, bool expected[256],
-                                       bool *expected_eof) {
+static size_t trace_expectations_charset(void *env, size_t consumed, bool overrun,
+                                         bool expected[256], bool *expected_eof) {
     (void)consumed;
+    (void)overrun;
     (void)expected_eof;
     HCharset cs = env;
     for (size_t i = 0; i < 256; i++)
         expected[i] |= charset_isset(cs, (uint8_t)i);
+    return 0;
 }
 
 static const HParserVtable charset_vt = {

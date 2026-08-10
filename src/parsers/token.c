@@ -85,13 +85,14 @@ static bool token_ctrvm(HRVMProg *prog, void *env) {
     return true;
 }
 
-static void trace_expectations_token(void *env, size_t consumed, bool expected[256],
-                                     bool *expected_eof) {
+static size_t trace_expectations_token(void *env, size_t consumed, bool overrun,
+                                       bool expected[256], bool *expected_eof) {
     (void)expected_eof;
     HToken *token = env;
-    size_t offset = consumed > 0 ? consumed - 1 : 0;
+    size_t offset = overrun ? consumed : (consumed > 0 ? consumed - 1 : 0);
     if (offset < token->len)
         expected[token->str[offset]] = true;
+    return offset;
 }
 
 const HParserVtable token_vt = {

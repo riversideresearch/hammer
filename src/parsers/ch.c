@@ -45,11 +45,13 @@ static bool ch_ctrvm(HRVMProg *prog, void *env) {
     return true;
 }
 
-static void trace_expectations_ch(void *env, size_t consumed, bool expected[256],
-                                  bool *expected_eof) {
+static size_t trace_expectations_ch(void *env, size_t consumed, bool overrun, bool expected[256],
+                                    bool *expected_eof) {
     (void)consumed;
+    (void)overrun;
     (void)expected_eof;
     expected[(uint8_t)(uintptr_t)env] = true;
+    return 0;
 }
 
 static const HParserVtable ch_vt = {
