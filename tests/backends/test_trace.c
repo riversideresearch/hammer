@@ -345,12 +345,40 @@ static void test_trace_attr_bool_checksum(gconstpointer backend) {
     g_check_cmp_ptr(res, ==, NULL);
     g_check_cmp_int(err.n_deepest, >, 0);
     if (err.n_deepest > 0) {
-        g_check_cmp_size(err.index, ==, 2);
+        g_check_cmp_size(err.index, ==, 0);
         g_check_cmp_size(err.end_index, ==, 2);
-        g_check_cmp_int(err.has_actual, ==, false);
+        g_check_cmp_int(err.actual, ==, 0x55);
+        g_check_cmp_int(err.has_actual, ==, true);
         g_check_cmp_int(err.kind, ==, H_PARSE_ERROR_SEMANTIC_PREDICATE);
         g_check_string(err.parser, ==, "parse_attr_bool");
     }
+    h_parse_error_free(&err);
+}
+
+static bool trace_reject_value(HParseResult *p, void *user_data) {
+    (void)p;
+    (void)user_data;
+    return false;
+}
+
+/* A semantic predicate runs after its child has consumed input. The reported
+ * location is the start of the rejected value, while end_index remains the
+ * exclusive end of that value. */
+static void test_trace_attr_bool_nonzero_offset(gconstpointer backend) {
+    HParserBackend be = (HParserBackend)GPOINTER_TO_INT(backend);
+    HParser *p = h_sequence(h_ch('A'),
+                            h_attr_bool(h_uint8(), trace_reject_value, NULL), NULL);
+    g_check_cmp_int(h_compile(p, be, NULL), ==, 0);
+
+    const uint8_t input[] = {'A', 0x12};
+    HParseError err;
+    HParseResult *res = h_parse_debug(p, input, sizeof(input), &err, false);
+    g_check_cmp_ptr(res, ==, NULL);
+    g_check_cmp_size(err.index, ==, 1);
+    g_check_cmp_size(err.end_index, ==, 2);
+    g_check_cmp_int(err.actual, ==, 0x12);
+    g_check_cmp_int(err.has_actual, ==, true);
+    g_check_cmp_int(err.kind, ==, H_PARSE_ERROR_SEMANTIC_PREDICATE);
     h_parse_error_free(&err);
 }
 
@@ -389,7 +417,8 @@ static void test_trace_nested_parse_isolation(gconstpointer backend) {
     HParseResult *result = h_parse_debug(outer, input, sizeof(input), &err, true);
     g_check_cmp_ptr(result, ==, NULL);
     g_check_cmp_int(err.kind, ==, H_PARSE_ERROR_SEMANTIC_PREDICATE);
-    g_check_cmp_size(err.index, ==, 2);
+    g_check_cmp_size(err.index, ==, 0);
+    g_check_cmp_size(err.end_index, ==, 2);
     g_check_string(err.parser, ==, "parse_attr_bool");
     h_parse_error_free(&err);
 }
@@ -410,7 +439,8 @@ static void test_trace_nested_debug_restores_outer(gconstpointer backend) {
     g_check_cmp_int(trace_nested_error.kind, ==, H_PARSE_ERROR_UNEXPECTED_EOF);
     g_check_cmp_size(trace_nested_error.index, ==, 0);
     g_check_cmp_int(err.kind, ==, H_PARSE_ERROR_SEMANTIC_PREDICATE);
-    g_check_cmp_size(err.index, ==, 2);
+    g_check_cmp_size(err.index, ==, 0);
+    g_check_cmp_size(err.end_index, ==, 2);
     h_parse_error_free(&trace_nested_error);
     h_parse_error_free(&err);
 }
@@ -511,6 +541,8 @@ void register_trace_tests(void) {
                          test_trace_cf_unexpected_eof);
     g_test_add_data_func("/core/parser/ll/trace_range_failure", GINT_TO_POINTER(PB_LL),
                          test_trace_cf_range_failure);
+    g_test_add_data_func("/core/parser/ll/trace_attr_bool_nonzero_offset",
+                         GINT_TO_POINTER(PB_LL), test_trace_attr_bool_nonzero_offset);
     g_test_add_data_func("/core/parser/ll/trace_verbose_dump", GINT_TO_POINTER(PB_LL),
                          test_trace_cf_verbose_dump);
 
@@ -526,6 +558,8 @@ void register_trace_tests(void) {
                          test_trace_cf_range_failure);
     g_test_add_data_func("/core/parser/lalr/trace_attr_bool_checksum", GINT_TO_POINTER(PB_LALR),
                          test_trace_attr_bool_checksum);
+    g_test_add_data_func("/core/parser/lalr/trace_attr_bool_nonzero_offset",
+                         GINT_TO_POINTER(PB_LALR), test_trace_attr_bool_nonzero_offset);
     g_test_add_data_func("/core/parser/lalr/trace_verbose_dump", GINT_TO_POINTER(PB_LALR),
                          test_trace_cf_verbose_dump);
 
@@ -541,6 +575,8 @@ void register_trace_tests(void) {
                          test_trace_cf_range_failure);
     g_test_add_data_func("/core/parser/glr/trace_attr_bool_checksum", GINT_TO_POINTER(PB_GLR),
                          test_trace_attr_bool_checksum);
+    g_test_add_data_func("/core/parser/glr/trace_attr_bool_nonzero_offset",
+                         GINT_TO_POINTER(PB_GLR), test_trace_attr_bool_nonzero_offset);
     g_test_add_func("/core/parser/glr/trace_ambiguous_failure",
                     test_trace_glr_ambiguous_failure);
     g_test_add_data_func("/core/parser/glr/trace_verbose_dump", GINT_TO_POINTER(PB_GLR),
@@ -568,6 +604,8 @@ void register_trace_tests(void) {
                          GINT_TO_POINTER(PB_PACKRAT), test_trace_int_range_reject);
     g_test_add_data_func("/core/parser/packrat/trace_attr_bool_checksum",
                          GINT_TO_POINTER(PB_PACKRAT), test_trace_attr_bool_checksum);
+    g_test_add_data_func("/core/parser/packrat/trace_attr_bool_nonzero_offset",
+                         GINT_TO_POINTER(PB_PACKRAT), test_trace_attr_bool_nonzero_offset);
     g_test_add_data_func("/core/parser/packrat/trace_nested_parse_isolation",
                          GINT_TO_POINTER(PB_PACKRAT), test_trace_nested_parse_isolation);
     g_test_add_data_func("/core/parser/packrat/trace_nested_debug_restores_outer",

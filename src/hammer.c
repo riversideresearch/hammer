@@ -715,6 +715,11 @@ void h_parse_diagnostic_fprint(FILE *stream, const HParseDiagnostic *diagnostic)
                 error->index);
     }
 
+    if (error->kind == H_PARSE_ERROR_RANGE ||
+        error->kind == H_PARSE_ERROR_SEMANTIC_PREDICATE ||
+        error->kind == H_PARSE_ERROR_ACTION)
+        fprintf(stream, " starting at index %zu", error->index);
+
     size_t count = h_parse_diagnostic_expected_count(diagnostic);
     if (count > 0) {
         fputs("; expected ", stream);

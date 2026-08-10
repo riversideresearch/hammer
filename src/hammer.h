@@ -196,8 +196,8 @@ typedef enum HParseErrorKind_ {
  * structure is left empty.
  */
 typedef struct HParseError_ {
-    size_t index;       /**< Furthest byte offset reached in the input. */
-    size_t end_index;   /**< End position for a failure after consuming input. */
+    size_t index;       /**< Start byte offset of the selected failure. */
+    size_t end_index;   /**< Exclusive end offset after any input was consumed. */
     uint8_t actual;     /**< Input byte at that offset (0 at end of input). */
     bool has_actual;    /**< Whether actual contains an input byte. */
     uint8_t bit_offset; /**< Sub-byte bit position, for bitwise grammars. */
