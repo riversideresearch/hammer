@@ -673,6 +673,8 @@ void register_trace_tests(void) {
                          GINT_TO_POINTER(PB_REGULAR), test_trace_debug_error_on_failure);
     g_test_add_data_func("/core/parser/regex/trace_debug_null_error", GINT_TO_POINTER(PB_REGULAR),
                          test_trace_debug_null_error);
+    g_test_add_data_func("/core/parser/regex/trace_range_failure", GINT_TO_POINTER(PB_REGULAR),
+                         test_trace_cf_range_failure);
     g_test_add_data_func("/core/parser/regex/trace_float_range_failure",
                          GINT_TO_POINTER(PB_REGULAR), test_trace_float_range_failure);
     g_test_add_data_func("/core/parser/regex/trace_structured_expectations",
@@ -698,6 +700,8 @@ void register_trace_tests(void) {
                          GINT_TO_POINTER(PB_PACKRAT), test_trace_debug_error_on_failure);
     g_test_add_data_func("/core/parser/packrat/trace_debug_null_error", GINT_TO_POINTER(PB_PACKRAT),
                          test_trace_debug_null_error);
+    g_test_add_data_func("/core/parser/packrat/trace_range_failure", GINT_TO_POINTER(PB_PACKRAT),
+                         test_trace_cf_range_failure);
     g_test_add_data_func("/core/parser/packrat/trace_float_range_failure",
                          GINT_TO_POINTER(PB_PACKRAT), test_trace_float_range_failure);
     g_test_add_data_func("/core/parser/packrat/trace_structured_expectations",
