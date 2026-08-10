@@ -79,8 +79,13 @@ static bool h_svm_action_attr_bool(HArena *arena, HSVMContext *ctx, void *arg) {
 
     res.ast = head;
     res.arena = arena;
-    if (!ab->pred(&res, ab->user_data))
+    if (!ab->pred(&res, ab->user_data)) {
+        ctx->failure.kind = SVM_FAILURE_SEMANTIC_PREDICATE;
+        ctx->failure.start = ctx->stack[boundary]->index;
+        ctx->failure.end = ctx->input_pos;
+        ctx->failure.parser = "h_attr_bool";
         return false;
+    }
 
     ctx->stack[boundary] = head;
     ctx->stack_count = boundary + 1;

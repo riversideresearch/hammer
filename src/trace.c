@@ -821,10 +821,19 @@ void svm_failure_error(HSVMContext *ctx, HRVMProg *orig_prog, HRVMTrace *trace,
                           input_len);
     if(dump_trace)
         dump_svm_prog(orig_prog, trace);
-    h_backend_trace_failure(ctx->failure.start, ctx->failure.end,
-                            ctx->failure.kind == SVM_FAILURE_RANGE ? H_PARSE_ERROR_RANGE
-                                                                   : H_PARSE_ERROR_ACTION,
-                            ctx->parser, NULL, false);
+    HParseErrorKind kind;
+    switch (ctx->failure.kind) {
+    case SVM_FAILURE_RANGE:
+        kind = H_PARSE_ERROR_RANGE;
+        break;
+    case SVM_FAILURE_SEMANTIC_PREDICATE:
+        kind = H_PARSE_ERROR_SEMANTIC_PREDICATE;
+        break;
+    default:
+        kind = H_PARSE_ERROR_ACTION;
+        break;
+    }
+    h_backend_trace_failure(ctx->failure.start, ctx->failure.end, kind, ctx->parser, NULL, false);
     h_backend_trace_end(false);
 }
 

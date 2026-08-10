@@ -58,6 +58,7 @@ typedef struct HRVMInsn_ {
 typedef enum HSVMFailureKind_ {
     SVM_FAILURE_NONE = 0,
     SVM_FAILURE_RANGE,
+    SVM_FAILURE_SEMANTIC_PREDICATE,
 } HSVMFailureKind;
 
 typedef struct HSVMFailure_ {
