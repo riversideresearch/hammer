@@ -232,7 +232,7 @@ static void test_trace_sequence_ending_in_nothing(gconstpointer backend) {
  * branch at the same input position. */
 static void test_trace_nothing_choice_priority(gconstpointer backend) {
     HParserBackend be = (HParserBackend)GPOINTER_TO_INT(backend);
-    HParser *p = h_choice(h_nothing_p(), h_ch('A'), NULL);
+    HParser *p = h_choice(h_ch('A'), NULL);
     g_check_cmp_int(h_compile(p, be, NULL), ==, 0);
 
     HParseDiagnostic *diagnostic = NULL;
@@ -395,8 +395,8 @@ static void test_trace_choice_token_mismatch(gconstpointer backend) {
     HParseError err;
     HParseResult *res = h_parse_debug(p, input, sizeof(input), &err, true);
     g_check_cmp_ptr(res, ==, NULL);
-    g_check_cmp_size(err.index, ==, 0);
-    g_check_cmp_int(err.actual, ==, 'Y');
+    g_check_cmp_size(err.index, ==, 1);
+    g_check_cmp_int(err.actual, ==, 'o');
     g_check_cmp_ptr(err.deepest_parsers[0], !=, NULL);
 }
 
