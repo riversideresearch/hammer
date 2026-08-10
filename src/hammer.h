@@ -213,6 +213,7 @@ typedef struct HParseError_ {
     size_t n_deepest; /**< Number of valid entries in deepest_parsers. */
     const char *context[H_PARSE_ERROR_MAX_PARSERS];
     size_t n_context;
+    const char *message; /**< User-defined failure message, or NULL. */
 } HParseError;
 
 /** Opaque, extensible diagnostic returned by h_parse_debug_ex(). */
@@ -263,6 +264,8 @@ typedef struct HParser_ {
     HCFChoice *augmented;
     HAllocator *owner_mm__;
     HDesugarContext *desugar_ctx;
+    char *diagnostic_label;
+    char *diagnostic_message;
 } HParser;
 
 typedef struct HSuspendedParser_ HSuspendedParser;
@@ -1569,6 +1572,27 @@ void h_parser_free(HParser *p);
  * @param p Parser to free.
  */
 void h_parser_free__m(HAllocator *mm__, HParser *p);
+
+/**
+ * @brief Give a parser a stable user-defined name in debug diagnostics.
+ *
+ * The label is copied and replaces the backend-derived parser name whenever
+ * this parser is selected as the source of a failure. Pass NULL to clear it.
+ * This annotation does not affect parsing behavior.
+ *
+ * @return true on success, false for an invalid parser or allocation failure.
+ */
+bool h_parser_set_label(HParser *parser, const char *label);
+
+/**
+ * @brief Override the formatted debug message when this parser fails.
+ *
+ * The message is copied. The underlying HParseErrorKind and structured byte
+ * expectations remain available to callers. Pass NULL to clear it.
+ *
+ * @return true on success, false for an invalid parser or allocation failure.
+ */
+bool h_parser_set_error_message(HParser *parser, const char *message);
 
 #ifdef __cplusplus
 }

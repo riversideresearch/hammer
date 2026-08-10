@@ -180,3 +180,7 @@ HParser *h_float_range__m(HAllocator *mm__, const HParser *p, const double lower
     r_env->upper = upper;
     return h_new_parser(mm__, &float_range_vt, r_env);
 }
+
+bool h_is_float_range_parser(const HParser *parser) {
+    return parser && parser->vtable == &float_range_vt;
+}

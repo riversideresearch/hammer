@@ -631,6 +631,8 @@ void h_parse_error_free(HParseError *error) {
     error->n_deepest = 0;
     free((void *)error->parser);
     error->parser = NULL;
+    free((void *)error->message);
+    error->message = NULL;
     for (size_t i = 0; i < error->n_context; i++) {
         free((void *)error->context[i]);
         error->context[i] = NULL;
@@ -701,7 +703,9 @@ void h_parse_diagnostic_fprint(FILE *stream, const HParseDiagnostic *diagnostic)
     if (!stream || !diagnostic)
         return;
     const HParseError *error = &diagnostic->error;
-    if (error->kind == H_PARSE_ERROR_RANGE &&
+    if (error->message)
+        fprintf(stream, "error: %s", error->message);
+    else if (error->kind == H_PARSE_ERROR_RANGE &&
         diagnostic->numeric_range.kind == H_TRACE_NUMERIC_RANGE_SINT)
         fprintf(stream, "error: unexpected int %" PRId64,
                 diagnostic->numeric_range.actual.sint);
@@ -727,6 +731,8 @@ void h_parse_diagnostic_fprint(FILE *stream, const HParseDiagnostic *diagnostic)
         fputs("error: difference rejected a longer right-hand match", stream);
     else if (error->kind == H_PARSE_ERROR_BUTNOT)
         fputs("error: but-not rejected a right-hand match that was not shorter", stream);
+    else if (error->kind == H_PARSE_ERROR_NO_VALUE)
+        fputs("error: no value to retrieve from provided name", stream);
     else if (!error->has_actual)
         fprintf(stream, "error: unexpected end of input at index %zu", error->index);
     else {
@@ -735,12 +741,19 @@ void h_parse_diagnostic_fprint(FILE *stream, const HParseDiagnostic *diagnostic)
         fprintf(stream, " (0x%02x = %u) at index %zu", error->actual, error->actual, error->index);
     }
 
-    if (error->kind == H_PARSE_ERROR_RANGE || error->kind == H_PARSE_ERROR_SEMANTIC_PREDICATE ||
+    if (error->message)
+        fprintf(stream, " at index %zu", error->index);
+    if (error->bit_offset)
+        fprintf(stream, ".%ub", error->bit_offset);
+
+    if (!error->message &&
+        (error->kind == H_PARSE_ERROR_RANGE ||
+         error->kind == H_PARSE_ERROR_SEMANTIC_PREDICATE ||
         error->kind == H_PARSE_ERROR_ACTION || error->kind == H_PARSE_ERROR_XOR ||
-        error->kind == H_PARSE_ERROR_DIFFERENCE || error->kind == H_PARSE_ERROR_BUTNOT)
+         error->kind == H_PARSE_ERROR_DIFFERENCE || error->kind == H_PARSE_ERROR_BUTNOT))
         fprintf(stream, " starting at index %zu", error->index);
 
-    if (error->kind == H_PARSE_ERROR_RANGE) {
+    if (!error->message && error->kind == H_PARSE_ERROR_RANGE) {
         if (diagnostic->numeric_range.kind == H_TRACE_NUMERIC_RANGE_SINT ||
             diagnostic->numeric_range.kind == H_TRACE_NUMERIC_RANGE_UINT)
             fprintf(stream, "; expected value between %" PRId64 " and %" PRId64,
@@ -752,7 +765,7 @@ void h_parse_diagnostic_fprint(FILE *stream, const HParseDiagnostic *diagnostic)
                     diagnostic->numeric_range.expected.floating.upper);
     }
 
-    size_t count = h_parse_diagnostic_expected_count(diagnostic);
+    size_t count = error->message ? 0 : h_parse_diagnostic_expected_count(diagnostic);
     if (count > 0) {
         fputs("; expected ", stream);
         for (size_t i = 0; i < count; i++) {
@@ -771,6 +784,23 @@ void h_parse_diagnostic_fprint(FILE *stream, const HParseDiagnostic *diagnostic)
                 }
             }
         }
+    }
+    if (error->n_deepest > 0) {
+        fputs(" while running [", stream);
+        for (size_t i = 0; i < error->n_deepest; i++) {
+            const char *name = error->deepest_parsers[i];
+            fprintf(stream, "%s", i ? ", " : "");
+            if (name && strncmp(name, "parse_", 6) == 0)
+                fprintf(stream, "h%s", name + 5);
+            else
+                fprintf(stream, "%s", name ? name : "?(no parser)");
+        }
+        fputc(']', stream);
+    } else if (error->parser) {
+        if (strncmp(error->parser, "parse_", 6) == 0)
+            fprintf(stream, " while running [h%s]", error->parser + 5);
+        else
+            fprintf(stream, " while running [%s]", error->parser);
     }
     fputc('\n', stream);
 }
@@ -946,6 +976,36 @@ void h_parser_free__m(HAllocator *mm__, HParser *parser) {
 
     if (parser->free_env != NULL) // callback handles explicit environment clenaup
         parser->free_env(mm__, parser->env);
+    mm__->free(mm__, parser->diagnostic_label);
+    mm__->free(mm__, parser->diagnostic_message);
     h_desugar_context_release(parser->desugar_ctx);
     mm__->free(mm__, parser);
+}
+
+static bool h_parser_set_diagnostic_text(HParser *parser, char **field, const char *text) {
+    if (!parser || !field || !parser->owner_mm__)
+        return false;
+
+    HAllocator *allocator = parser->owner_mm__;
+    char *copy = NULL;
+    if (text) {
+        size_t length = strlen(text) + 1;
+        copy = allocator->alloc(allocator, length);
+        if (!copy)
+            return false;
+        memcpy(copy, text, length);
+    }
+
+    allocator->free(allocator, *field);
+    *field = copy;
+    return true;
+}
+
+bool h_parser_set_label(HParser *parser, const char *label) {
+    return parser && h_parser_set_diagnostic_text(parser, &parser->diagnostic_label, label);
+}
+
+bool h_parser_set_error_message(HParser *parser, const char *message) {
+    return parser &&
+           h_parser_set_diagnostic_text(parser, &parser->diagnostic_message, message);
 }

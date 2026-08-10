@@ -127,3 +127,7 @@ HParser *h_attr_bool__m(HAllocator *mm__, const HParser *p, HPredicate pred, voi
     env->user_data = user_data;
     return h_new_parser(mm__, &attr_bool_vt, env);
 }
+
+bool h_is_attr_bool_parser(const HParser *parser) {
+    return parser && parser->vtable == &attr_bool_vt;
+}

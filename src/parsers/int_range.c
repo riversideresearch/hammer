@@ -172,3 +172,7 @@ HParser *h_int_range__m(HAllocator *mm__, const HParser *p, const int64_t lower,
     r_env->upper = upper;
     return h_new_parser(mm__, &int_range_vt, r_env);
 }
+
+bool h_is_int_range_parser(const HParser *parser) {
+    return parser && parser->vtable == &int_range_vt;
+}

@@ -205,6 +205,63 @@ static void test_trace_structured_expected_eof(void) {
     h_parse_diagnostic_free(diagnostic);
 }
 
+static void test_trace_custom_label_and_message(gconstpointer backend) {
+    HParserBackend be = (HParserBackend)GPOINTER_TO_INT(backend);
+    char label[] = "udp.protocol";
+    char message[] = "invalid UDP protocol";
+    HParser *prefix = h_ch('A');
+    HParser *protocol = h_ch(0x11);
+    HParser *p = h_sequence(prefix, protocol, NULL);
+
+    g_check_cmp_int(h_parser_set_label(p, label), ==, true);
+    g_check_cmp_int(h_parser_set_error_message(p, message), ==, true);
+    label[0] = 'X';
+    message[0] = 'X';
+    g_check_cmp_int(h_compile(p, be, NULL), ==, 0);
+
+    const uint8_t input[] = {'A', 0x12};
+    HParseDiagnostic *diagnostic = NULL;
+    HParseResult *result = h_parse_debug_ex(p, input, sizeof(input), &diagnostic, false);
+    g_check_cmp_ptr(result, ==, NULL);
+    g_check_cmp_ptr(diagnostic, !=, NULL);
+    if (diagnostic) {
+        const HParseError *error = h_parse_diagnostic_error(diagnostic);
+        g_check_cmp_int(error->kind, ==, H_PARSE_ERROR_PRIMITIVE_MISMATCH);
+        g_check_string(error->parser, ==, "udp.protocol");
+        g_check_string(error->message, ==, "invalid UDP protocol");
+        g_check_cmp_size(error->index, ==, 1);
+        g_check_cmp_size(h_parse_diagnostic_expected_count(diagnostic), ==, 1);
+        h_parse_diagnostic_free(diagnostic);
+    }
+    h_parser_free(p);
+    h_parser_free(prefix);
+    h_parser_free(protocol);
+}
+
+static void test_trace_custom_failure(gconstpointer backend) {
+    HParserBackend be = (HParserBackend)GPOINTER_TO_INT(backend);
+    HParser *p = h_nothing_p();
+    h_parser_set_error_message(p, "unsupported packet variant");
+    g_check_cmp_ptr(p, !=, NULL);
+    if (!p)
+        return;
+    g_check_cmp_int(h_compile(p, be, NULL), ==, 0);
+
+    HParseDiagnostic *diagnostic = NULL;
+    HParseResult *result =
+        h_parse_debug_ex(p, (const uint8_t *)"A", 1, &diagnostic, false);
+    g_check_cmp_ptr(result, ==, NULL);
+    g_check_cmp_ptr(diagnostic, !=, NULL);
+    if (diagnostic) {
+        const HParseError *error = h_parse_diagnostic_error(diagnostic);
+        g_check_cmp_int(error->kind, ==, H_PARSE_ERROR_EXPLICIT_FAILURE);
+        g_check_string(error->message, ==, "unsupported packet variant");
+        g_check_cmp_size(error->index, ==, 0);
+        h_parse_diagnostic_free(diagnostic);
+    }
+    h_parser_free(p);
+}
+
 static void test_trace_nothing_failure(gconstpointer backend) {
     HParserBackend be = (HParserBackend)GPOINTER_TO_INT(backend);
     HParser *p = h_nothing_p();
@@ -803,6 +860,28 @@ void register_trace_tests(void) {
                          GINT_TO_POINTER(PB_LALR), test_trace_structured_expectations);
     g_test_add_data_func("/core/parser/glr/trace_structured_expectations", GINT_TO_POINTER(PB_GLR),
                          test_trace_structured_expectations);
+
+    g_test_add_data_func("/core/parser/regex/trace_custom_label_and_message",
+                         GINT_TO_POINTER(PB_REGULAR), test_trace_custom_label_and_message);
+    g_test_add_data_func("/core/parser/packrat/trace_custom_label_and_message",
+                         GINT_TO_POINTER(PB_PACKRAT), test_trace_custom_label_and_message);
+    g_test_add_data_func("/core/parser/ll/trace_custom_label_and_message", GINT_TO_POINTER(PB_LL),
+                         test_trace_custom_label_and_message);
+    g_test_add_data_func("/core/parser/lalr/trace_custom_label_and_message",
+                         GINT_TO_POINTER(PB_LALR), test_trace_custom_label_and_message);
+    g_test_add_data_func("/core/parser/glr/trace_custom_label_and_message", GINT_TO_POINTER(PB_GLR),
+                         test_trace_custom_label_and_message);
+
+    g_test_add_data_func("/core/parser/regex/trace_custom_failure", GINT_TO_POINTER(PB_REGULAR),
+                         test_trace_custom_failure);
+    g_test_add_data_func("/core/parser/packrat/trace_custom_failure", GINT_TO_POINTER(PB_PACKRAT),
+                         test_trace_custom_failure);
+    g_test_add_data_func("/core/parser/ll/trace_custom_failure", GINT_TO_POINTER(PB_LL),
+                         test_trace_custom_failure);
+    g_test_add_data_func("/core/parser/lalr/trace_custom_failure", GINT_TO_POINTER(PB_LALR),
+                         test_trace_custom_failure);
+    g_test_add_data_func("/core/parser/glr/trace_custom_failure", GINT_TO_POINTER(PB_GLR),
+                         test_trace_custom_failure);
 
     // Ported from the debugtest/ sample parsers.
     g_test_add_data_func("/core/parser/packrat/trace_uint8_success", GINT_TO_POINTER(PB_PACKRAT),
