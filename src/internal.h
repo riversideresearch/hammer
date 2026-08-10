@@ -716,11 +716,12 @@ const HTTEntry *h_get_token_type_entry(HTokenType token_type);
 bool h_false(void *);
 bool h_true(void *);
 bool h_not_regular(HRVMProg *, void *);
-// internal checks to verify parser type
+// internal checks to verify parser type for error reporting
 bool h_is_nothing_parser(const HParser *parser);
 bool h_is_xor_parser(const HParser *parser);
 bool h_is_difference_parser(const HParser *parser);
 bool h_is_butnot_parser(const HParser *parser);
+bool h_is_get_value_parser(const HParser *parser); // either h_get_value or h_free_value parser
 
 
 

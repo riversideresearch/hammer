@@ -102,3 +102,7 @@ HParser *h_free_value__m(HAllocator *mm__, const char *name) {
     env->key = name;
     return h_new_parser(mm__, &free_vt, env);
 }
+
+bool h_is_get_value_parser(const HParser *parser){
+    return parser && (parser->vtable == &free_vt || parser->vtable == &get_vt);
+}

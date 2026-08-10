@@ -1,6 +1,7 @@
 /* Copyright (c) 2026 Riverside Research */
 #ifndef _GNU_SOURCE
 #define _GNU_SOURCE /* dladdr(), strdup() used by the AST tracer below */
+#include "hammer.h"
 #endif
 
 #include "trace.h"
@@ -504,6 +505,8 @@ static HParseErrorKind trace_failure_kind(const HParser *parser, const char *nam
                                           size_t length) {
     if (h_is_nothing_parser(parser)) // same functionality as strcmp name but works in stripped builds
         return H_PARSE_ERROR_EXPLICIT_FAILURE;
+    if (h_is_get_value_parser(parser))
+        return H_PARSE_ERROR_NO_VALUE;
     if (h_is_xor_parser(parser))
         return H_PARSE_ERROR_XOR;
     if (h_is_difference_parser(parser))
@@ -533,6 +536,7 @@ static size_t trace_failure_progress(HParseErrorKind kind, size_t start, size_t 
     case H_PARSE_ERROR_XOR:
     case H_PARSE_ERROR_DIFFERENCE:
     case H_PARSE_ERROR_BUTNOT:
+    case H_PARSE_ERROR_NO_VALUE:
         return end;
     default:
         return start;
@@ -568,7 +572,8 @@ static void trace_record_failure(const HParser *parser, HParseState *state,
     memset(&context->pending_numeric_range, 0, sizeof(context->pending_numeric_range));
     bool value_failure = kind == H_PARSE_ERROR_SEMANTIC_PREDICATE ||
                          kind == H_PARSE_ERROR_RANGE || kind == H_PARSE_ERROR_XOR ||
-                         kind == H_PARSE_ERROR_DIFFERENCE || kind == H_PARSE_ERROR_BUTNOT;
+                         kind == H_PARSE_ERROR_DIFFERENCE || kind == H_PARSE_ERROR_BUTNOT ||
+                         kind == H_PARSE_ERROR_NO_VALUE;
 
     if (value_failure)
         index = frame->start;
@@ -855,6 +860,8 @@ static void trace_render_diagnostic(HTraceContext *context) {
         fputs("error: difference rejected a longer right-hand match", stderr);
     } else if (error->kind == H_PARSE_ERROR_BUTNOT) {
         fputs("error: but-not rejected a right-hand match that was not shorter", stderr);
+    } else if (error->kind == H_PARSE_ERROR_NO_VALUE) {
+        fputs("error: no value stored under that name", stderr);
     } else if (!error->has_actual) {
         fprintf(stderr, "error: unexpected end of input at index %zu", error->index);
     } else {
@@ -870,7 +877,8 @@ static void trace_render_diagnostic(HTraceContext *context) {
         error->kind == H_PARSE_ERROR_DIFFERENCE ||
         error->kind == H_PARSE_ERROR_XOR)
         fprintf(stderr, " starting at index %zu", error->index);
-    else if (error->kind != H_PARSE_ERROR_EXPLICIT_FAILURE) {
+    else if (error->kind != H_PARSE_ERROR_EXPLICIT_FAILURE &&
+             error->kind != H_PARSE_ERROR_NO_VALUE) {
         trace_print_expectations(context->expected_bytes, context->expected_eof);
     }
     if (error->kind == H_PARSE_ERROR_RANGE) {
