@@ -85,12 +85,22 @@ static bool token_ctrvm(HRVMProg *prog, void *env) {
     return true;
 }
 
+static void trace_expectations_token(void *env, size_t consumed, bool expected[256],
+                                     bool *expected_eof) {
+    (void)expected_eof;
+    HToken *token = env;
+    size_t offset = consumed > 0 ? consumed - 1 : 0;
+    if (offset < token->len)
+        expected[token->str[offset]] = true;
+}
+
 const HParserVtable token_vt = {
     .parse = parse_token,
     .isValidRegular = h_true,
     .isValidCF = h_true,
     .compile_to_rvm = token_ctrvm,
     .desugar = desugar_token,
+    .trace_expectations = trace_expectations_token,
     .higher = false,
 };
 

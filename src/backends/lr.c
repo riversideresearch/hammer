@@ -231,13 +231,26 @@ static const HLRAction *terminal_lookup(const HLREngine *engine, const HInputStr
     }
 }
 
+static bool lr_action_only_nothing(const HLRAction *action) {
+    if (!action)
+        return false;
+    if (action->type == HLR_REDUCE)
+        return h_is_nothing_parser(action->data.production.lhs->parser);
+    if (action->type != HLR_CONFLICT || h_slist_empty(action->data.branches))
+        return false;
+    for (HSlistNode *branch = action->data.branches->head; branch; branch = branch->next)
+        if (!lr_action_only_nothing(branch->elem))
+            return false;
+    return true;
+}
+
 static void lr_expected_from_map(const HStringMap *map, bool expected[256], bool *expected_eof) {
     memset(expected, 0, 256 * sizeof(*expected));
     *expected_eof = false;
     if (!map)
         return;
 
-    *expected_eof = map->end_branch != NULL;
+    *expected_eof = map->end_branch != NULL && !lr_action_only_nothing(map->end_branch);
     const HHashTable *branches = map->char_branches;
     for (size_t i = 0; i < branches->capacity; i++) {
         for (HHashTableEntry *entry = &branches->contents[i]; entry; entry = entry->next) {

@@ -79,12 +79,22 @@ static bool cs_ctrvm(HRVMProg *prog, void *env) {
     return true;
 }
 
+static void trace_expectations_charset(void *env, size_t consumed, bool expected[256],
+                                       bool *expected_eof) {
+    (void)consumed;
+    (void)expected_eof;
+    HCharset cs = env;
+    for (size_t i = 0; i < 256; i++)
+        expected[i] |= charset_isset(cs, (uint8_t)i);
+}
+
 static const HParserVtable charset_vt = {
     .parse = parse_charset,
     .isValidRegular = h_true,
     .isValidCF = h_true,
     .compile_to_rvm = cs_ctrvm,
     .desugar = desugar_charset,
+    .trace_expectations = trace_expectations_charset,
     .higher = false,
 };
 

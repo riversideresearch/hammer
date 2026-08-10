@@ -25,12 +25,21 @@ static bool end_ctrvm(HRVMProg *prog, void *env) {
     return true;
 }
 
+static void trace_expectations_end(void *env, size_t consumed, bool expected[256],
+                                   bool *expected_eof) {
+    (void)env;
+    (void)consumed;
+    (void)expected;
+    *expected_eof = true;
+}
+
 static const HParserVtable end_vt = {
     .parse = parse_end,
     .isValidRegular = h_true,
     .isValidCF = h_true,
     .compile_to_rvm = end_ctrvm,
     .desugar = desugar_end,
+    .trace_expectations = trace_expectations_end,
     .higher = false,
 };
 

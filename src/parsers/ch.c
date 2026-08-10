@@ -45,12 +45,20 @@ static bool ch_ctrvm(HRVMProg *prog, void *env) {
     return true;
 }
 
+static void trace_expectations_ch(void *env, size_t consumed, bool expected[256],
+                                  bool *expected_eof) {
+    (void)consumed;
+    (void)expected_eof;
+    expected[(uint8_t)(uintptr_t)env] = true;
+}
+
 static const HParserVtable ch_vt = {
     .parse = parse_ch,
     .isValidRegular = h_true,
     .isValidCF = h_true,
     .compile_to_rvm = ch_ctrvm,
     .desugar = desugar_ch,
+    .trace_expectations = trace_expectations_ch,
     .higher = false,
 };
 

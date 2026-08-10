@@ -708,6 +708,12 @@ void h_parse_diagnostic_fprint(FILE *stream, const HParseDiagnostic *diagnostic)
         fputs("error: semantic action failed", stream);
     else if (error->kind == H_PARSE_ERROR_EXPLICIT_FAILURE)
         fprintf(stream, "error: parser always fails at index %zu", error->index);
+    else if (error->kind == H_PARSE_ERROR_XOR)
+        fputs("error: both XOR alternatives matched; exactly one must match", stream);
+    else if (error->kind == H_PARSE_ERROR_DIFFERENCE)
+        fputs("error: difference rejected a longer right-hand match", stream);
+    else if (error->kind == H_PARSE_ERROR_BUTNOT)
+        fputs("error: but-not rejected a right-hand match that was not shorter", stream);
     else if (!error->has_actual)
         fprintf(stream, "error: unexpected end of input at index %zu", error->index);
     else {
@@ -717,7 +723,8 @@ void h_parse_diagnostic_fprint(FILE *stream, const HParseDiagnostic *diagnostic)
     }
 
     if (error->kind == H_PARSE_ERROR_RANGE || error->kind == H_PARSE_ERROR_SEMANTIC_PREDICATE ||
-        error->kind == H_PARSE_ERROR_ACTION)
+        error->kind == H_PARSE_ERROR_ACTION || error->kind == H_PARSE_ERROR_XOR ||
+        error->kind == H_PARSE_ERROR_DIFFERENCE || error->kind == H_PARSE_ERROR_BUTNOT)
         fprintf(stream, " starting at index %zu", error->index);
 
     size_t count = h_parse_diagnostic_expected_count(diagnostic);

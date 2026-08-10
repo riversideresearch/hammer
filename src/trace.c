@@ -464,8 +464,14 @@ void h_trace_enter(const HParser *parser, HParseState *state) {
 
 static HParseErrorKind trace_failure_kind(const HParser *parser, const char *name, size_t index,
                                           size_t length) {
-    if (h_is_nothing_parser(parser))
+    if (h_is_nothing_parser(parser)) // same functionality as strcmp name but works in stripped builds
         return H_PARSE_ERROR_EXPLICIT_FAILURE;
+    if (h_is_xor_parser(parser))
+        return H_PARSE_ERROR_XOR;
+    if (h_is_difference_parser(parser))
+        return H_PARSE_ERROR_DIFFERENCE;
+    if (h_is_butnot_parser(parser))
+        return H_PARSE_ERROR_BUTNOT;
     if (strcmp(name, "parse_attr_bool") == 0)
         return H_PARSE_ERROR_SEMANTIC_PREDICATE;
     if (strcmp(name, "parse_int_range") == 0)
@@ -484,6 +490,9 @@ static size_t trace_failure_progress(HParseErrorKind kind, size_t start, size_t 
     case H_PARSE_ERROR_RANGE:
     case H_PARSE_ERROR_ACTION:
     case H_PARSE_ERROR_HIGHER_ORDER:
+    case H_PARSE_ERROR_XOR:
+    case H_PARSE_ERROR_DIFFERENCE:
+    case H_PARSE_ERROR_BUTNOT:
         return end;
     default:
         return start;
@@ -492,6 +501,15 @@ static size_t trace_failure_progress(HParseErrorKind kind, size_t start, size_t 
 
 static unsigned int trace_error_priority(HParseErrorKind kind);
 
+static void trace_add_expectations(HTraceContext *context, const HParser *parser,
+                                   const HTraceFrame *frame, size_t end) {
+    if (!parser || !parser->vtable || !parser->vtable->trace_expectations)
+        return;
+    size_t consumed = end >= frame->start ? end - frame->start : 0;
+    parser->vtable->trace_expectations(parser->env, consumed, context->expected_bytes,
+                                       &context->expected_eof);
+}
+
 static void trace_record_failure(const HParser *parser, HParseState *state,
                                  const HTraceFrame *frame) {
     HTraceContext *context = trace_context;
@@ -499,7 +517,9 @@ static void trace_record_failure(const HParser *parser, HParseState *state,
     size_t end = state->input_stream.pos + state->input_stream.index;
     size_t index = parser->vtable->higher ? end : frame->start;
     HParseErrorKind kind = trace_failure_kind(parser, frame->name, index, context->input_len);
-    bool value_failure = kind == H_PARSE_ERROR_SEMANTIC_PREDICATE || kind == H_PARSE_ERROR_RANGE;
+    bool value_failure = kind == H_PARSE_ERROR_SEMANTIC_PREDICATE ||
+                         kind == H_PARSE_ERROR_RANGE || kind == H_PARSE_ERROR_XOR ||
+                         kind == H_PARSE_ERROR_DIFFERENCE || kind == H_PARSE_ERROR_BUTNOT;
 
     if (value_failure)
         index = frame->start;
@@ -512,6 +532,8 @@ static void trace_record_failure(const HParser *parser, HParseState *state,
 
     if (replace) {
         memset(error, 0, sizeof(*error));
+        memset(context->expected_bytes, 0, sizeof(context->expected_bytes));
+        context->expected_eof = false;
         error->index = index;
         error->end_index = end;
         error->bit_offset = value_failure || !parser->vtable->higher
@@ -527,8 +549,10 @@ static void trace_record_failure(const HParser *parser, HParseState *state,
         for (size_t i = context->frame_count; i > 0 && error->n_context < H_PARSE_ERROR_MAX_PARSERS;
              i--)
             error->context[error->n_context++] = context->frames[i - 1].name;
+        trace_add_expectations(context, parser, frame, end);
     } else if (progress == previous_progress && kind == error->kind) {
         trace_error_add_parser(error, frame->name);
+        trace_add_expectations(context, parser, frame, end);
     }
 }
 
@@ -760,6 +784,12 @@ static void trace_render_diagnostic(HTraceContext *context) {
         fputs("error: semantic action failed", stderr);
     } else if (error->kind == H_PARSE_ERROR_EXPLICIT_FAILURE) {
         fprintf(stderr, "error: parser always fails at index %zu", error->index);
+    } else if (error->kind == H_PARSE_ERROR_XOR) {
+        fputs("error: both XOR alternatives matched; exactly one must match", stderr);
+    } else if (error->kind == H_PARSE_ERROR_DIFFERENCE) {
+        fputs("error: difference rejected a longer right-hand match", stderr);
+    } else if (error->kind == H_PARSE_ERROR_BUTNOT) {
+        fputs("error: but-not rejected a right-hand match that was not shorter", stderr);
     } else if (!error->has_actual) {
         fprintf(stderr, "error: unexpected end of input at index %zu", error->index);
     } else {
@@ -771,11 +801,13 @@ static void trace_render_diagnostic(HTraceContext *context) {
     if (error->bit_offset)
         fprintf(stderr, ".%ub", error->bit_offset);
     if (error->kind == H_PARSE_ERROR_RANGE || error->kind == H_PARSE_ERROR_SEMANTIC_PREDICATE ||
-        error->kind == H_PARSE_ERROR_ACTION)
+        error->kind == H_PARSE_ERROR_ACTION || error->kind == H_PARSE_ERROR_BUTNOT ||
+        error->kind == H_PARSE_ERROR_DIFFERENCE ||
+        error->kind == H_PARSE_ERROR_XOR)
         fprintf(stderr, " starting at index %zu", error->index);
-    else if (error->kind != H_PARSE_ERROR_EXPLICIT_FAILURE)
+    else if (error->kind != H_PARSE_ERROR_EXPLICIT_FAILURE) {
         trace_print_expectations(context->expected_bytes, context->expected_eof);
-
+    }
     if (error->n_deepest > 0)
         trace_print_error_parsers(error);
     else

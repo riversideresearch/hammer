@@ -244,9 +244,40 @@ static void test_trace_nothing_choice_priority(gconstpointer backend) {
 
     const HParseError *error = h_parse_diagnostic_error(diagnostic);
     g_check_cmp_int(error->kind, ==, H_PARSE_ERROR_PRIMITIVE_MISMATCH);
-    if (be != PB_PACKRAT)
-        g_check_cmp_size(h_parse_diagnostic_expected_count(diagnostic), ==, 1);
+    g_check_cmp_size(h_parse_diagnostic_expected_count(diagnostic), ==, 1);
+    HParseExpectation expected;
+    g_check_cmp_int(h_parse_diagnostic_expected(diagnostic, 0, &expected), ==, true);
+    g_check_cmp_int(expected.kind, ==, H_PARSE_EXPECT_BYTE_RANGE);
+    g_check_cmp_int(expected.lower, ==, 'A');
+    g_check_cmp_int(expected.upper, ==, 'A');
     h_parse_diagnostic_free(diagnostic);
+}
+
+static void test_trace_relational_failure_starts(void) {
+    const uint8_t input[] = {'Z', 'A', 'B'};
+    struct {
+        HParser *parser;
+        HParseErrorKind kind;
+    } cases[] = {
+        {h_xor(h_token((const uint8_t *)"AB", 2), h_ch('A')), H_PARSE_ERROR_XOR},
+        {h_difference(h_ch('A'), h_token((const uint8_t *)"AB", 2)),
+         H_PARSE_ERROR_DIFFERENCE},
+        {h_butnot(h_ch('A'), h_ch('A')), H_PARSE_ERROR_BUTNOT},
+    };
+
+    for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
+        HParser *parser = h_sequence(h_ch('Z'), cases[i].parser, NULL);
+        g_check_cmp_int(h_compile(parser, PB_PACKRAT, NULL), ==, 0);
+
+        HParseError error;
+        HParseResult *result = h_parse_debug(parser, input, sizeof(input), &error, false);
+        g_check_cmp_ptr(result, ==, NULL);
+        g_check_cmp_int(error.kind, ==, cases[i].kind);
+        g_check_cmp_size(error.index, ==, 1);
+        g_check_cmp_int(error.actual, ==, 'A');
+        g_check_cmp_int(error.has_actual, ==, true);
+        h_parse_error_free(&error);
+    }
 }
 
 // --- Cases ported from the debugtest/ sample parsers ---------------------
@@ -599,12 +630,16 @@ void register_trace_tests(void) {
                          GINT_TO_POINTER(PB_PACKRAT), test_trace_debug_error_on_failure);
     g_test_add_data_func("/core/parser/packrat/trace_debug_null_error", GINT_TO_POINTER(PB_PACKRAT),
                          test_trace_debug_null_error);
+    g_test_add_data_func("/core/parser/packrat/trace_structured_expectations",
+                         GINT_TO_POINTER(PB_PACKRAT), test_trace_structured_expectations);
     g_test_add_data_func("/core/parser/packrat/trace_nothing_failure", GINT_TO_POINTER(PB_PACKRAT),
                          test_trace_nothing_failure);
     g_test_add_data_func("/core/parser/packrat/trace_sequence_ending_in_nothing",
                          GINT_TO_POINTER(PB_PACKRAT), test_trace_sequence_ending_in_nothing);
     g_test_add_data_func("/core/parser/packrat/trace_nothing_choice_priority",
                          GINT_TO_POINTER(PB_PACKRAT), test_trace_nothing_choice_priority);
+    g_test_add_func("/core/parser/packrat/trace_relational_failure_starts",
+                    test_trace_relational_failure_starts);
 
     g_test_add_data_func("/core/parser/ll/trace_debug_success", GINT_TO_POINTER(PB_LL),
                          test_trace_debug_success);

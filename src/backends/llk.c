@@ -308,13 +308,23 @@ typedef struct {
     uint8_t bit_offset;
 } HLLkFrame;
 
+static bool llk_sequence_contains_nothing(const HCFSequence *sequence) {
+    if (!sequence || sequence == CONFLICT || sequence == NEED_INPUT)
+        return false;
+    for (HCFChoice **item = sequence->items; item && *item; item++)
+        if (h_is_nothing_parser((*item)->parser))
+            return true;
+    return false;
+}
+
 static void llk_expected_from_map(const HStringMap *map, bool expected[256], bool *expected_eof) {
     memset(expected, 0, 256 * sizeof(*expected));
     *expected_eof = false;
     if (!map)
         return;
 
-    *expected_eof = map->end_branch != NULL;
+    *expected_eof = map->end_branch != NULL &&
+                    !llk_sequence_contains_nothing(map->end_branch);
     const HHashTable *branches = map->char_branches;
     for (size_t i = 0; i < branches->capacity; i++) {
         for (HHashTableEntry *entry = &branches->contents[i]; entry; entry = entry->next) {

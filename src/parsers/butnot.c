@@ -56,3 +56,7 @@ HParser *h_butnot__m(HAllocator *mm__, const HParser *p1, const HParser *p2) {
     env->p2 = p2;
     return h_new_parser(mm__, &butnot_vt, env);
 }
+
+bool h_is_butnot_parser(const HParser *parser) {
+    return parser && parser->vtable == &butnot_vt;
+}

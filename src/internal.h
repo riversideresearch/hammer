@@ -694,7 +694,10 @@ struct HParserVtable_ {
     bool (*compile_to_rvm)(HRVMProg *prog, void *env);
     void (*desugar)(HAllocator *mm__, HCFStack *stk__, void *env);
     bool higher; // false if primitive
-    char error;  // 0 if no error, otherwise error code
+    /* Optional Packrat diagnostic metadata. Implementations add the bytes or
+     * EOF accepted by a primitive at its failed input position. */
+    void (*trace_expectations)(void *env, size_t consumed, bool expected[256],
+                               bool *expected_eof);
 };
 
 // {{{ Token type registry internal
@@ -713,7 +716,13 @@ const HTTEntry *h_get_token_type_entry(HTokenType token_type);
 bool h_false(void *);
 bool h_true(void *);
 bool h_not_regular(HRVMProg *, void *);
+// internal checks to verify parser type
 bool h_is_nothing_parser(const HParser *parser);
+bool h_is_xor_parser(const HParser *parser);
+bool h_is_difference_parser(const HParser *parser);
+bool h_is_butnot_parser(const HParser *parser);
+
+
 
 #if 0
 #include <stdlib.h>
