@@ -861,7 +861,7 @@ static void trace_render_diagnostic(HTraceContext *context) {
     } else if (error->kind == H_PARSE_ERROR_BUTNOT) {
         fputs("error: but-not rejected a right-hand match that was not shorter", stderr);
     } else if (error->kind == H_PARSE_ERROR_NO_VALUE) {
-        fputs("error: no value stored under that name", stderr);
+        fputs("error: no value to retrieve from provided name", stderr);
     } else if (!error->has_actual) {
         fprintf(stderr, "error: unexpected end of input at index %zu", error->index);
     } else {
