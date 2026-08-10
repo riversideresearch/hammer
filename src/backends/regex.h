@@ -68,6 +68,9 @@ typedef struct HSVMFailure_ {
     HTokenType actual_type;
     int64_t lower;
     int64_t upper;
+    double float_lower;
+    double float_upper;
+    double float_actual;
     union {
         int64_t sint;
         uint64_t uint;

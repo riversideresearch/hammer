@@ -1,5 +1,6 @@
 /* Copyright (c) 2026 Riverside Research */
 #include "parser_internal.h"
+#include "../trace.h"
 
 typedef struct {
     const HParser *p;
@@ -28,7 +29,10 @@ static bool float_range_match(const HParsedToken *token, const HFloatRange *rang
      * Writing this as a conjunction deliberately rejects NaNs.  It also
      * preserves double-precision bounds when p produces a TT_FLOAT.
      */
-    return range->lower <= value && value <= range->upper;
+    bool valid = range->lower <= value && value <= range->upper;
+    if (!valid)
+        h_trace_note_float_range(token, range->lower, range->upper);
+    return valid;
 }
 
 static HParseResult *parse_float_range(void *env, HParseState *state) {
@@ -109,6 +113,15 @@ static bool h_svm_action_validate_float_range(HArena *arena, HSVMContext *ctx, v
         }
         return false;
     }
+    ctx->failure.kind = SVM_FAILURE_RANGE;
+    ctx->failure.start = head->index;
+    ctx->failure.end = ctx->input_pos;
+    ctx->failure.actual_type = head->token_type;
+    ctx->failure.float_lower = r_env->lower;
+    ctx->failure.float_upper = r_env->upper;
+    ctx->failure.float_actual =
+        head->token_type == TT_FLOAT ? (double)head->token_data.flt : head->token_data.dbl;
+    ctx->failure.parser = "h_float_range";
     return false;
 }
 

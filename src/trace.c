@@ -105,6 +105,8 @@ typedef struct HTraceContext_ {
     const HParser *failure_parser;
     bool expected_bytes[256];
     bool expected_eof;
+    HTraceNumericRange numeric_range;
+    HTraceNumericRange pending_numeric_range;
     size_t next_branch_id;
     struct HTraceContext_ *parent;
 } HTraceContext;
@@ -119,6 +121,7 @@ static void trace_complete(const HTraceContext *context) {
     memcpy(trace_completed.expected_bytes, context->expected_bytes,
            sizeof(trace_completed.expected_bytes));
     trace_completed.expected_eof = context->expected_eof;
+    trace_completed.numeric_range = context->numeric_range;
 }
 
 /* Copy the current furthest-failure record out to the caller (see trace.h).
@@ -151,6 +154,41 @@ void h_trace_get_diagnostic(HParseDiagnostic **out) {
     trace_copy_error(&(*out)->error, &trace_completed.error);
     memcpy((*out)->expected_bytes, trace_completed.expected_bytes, sizeof((*out)->expected_bytes));
     (*out)->expected_eof = trace_completed.expected_eof;
+    (*out)->numeric_range = trace_completed.numeric_range;
+}
+
+void h_trace_note_int_range(const HParsedToken *token, int64_t lower, int64_t upper) {
+    if (!display_trace || !trace_context || !token)
+        return;
+    HTraceNumericRange *range = &trace_context->pending_numeric_range;
+    memset(range, 0, sizeof(*range));
+    if (token->token_type == TT_SINT) {
+        range->kind = H_TRACE_NUMERIC_RANGE_SINT;
+        range->actual.sint = token->token_data.sint;
+    } else if (token->token_type == TT_UINT) {
+        range->kind = H_TRACE_NUMERIC_RANGE_UINT;
+        range->actual.uint = token->token_data.uint;
+    } else {
+        return;
+    }
+    range->expected.integer.lower = lower;
+    range->expected.integer.upper = upper;
+}
+
+void h_trace_note_float_range(const HParsedToken *token, double lower, double upper) {
+    if (!display_trace || !trace_context || !token)
+        return;
+    HTraceNumericRange *range = &trace_context->pending_numeric_range;
+    memset(range, 0, sizeof(*range));
+    if (token->token_type == TT_FLOAT)
+        range->actual.floating = token->token_data.flt;
+    else if (token->token_type == TT_DOUBLE)
+        range->actual.floating = token->token_data.dbl;
+    else
+        return;
+    range->kind = H_TRACE_NUMERIC_RANGE_FLOAT;
+    range->expected.floating.lower = lower;
+    range->expected.floating.upper = upper;
 }
 
 static const char *trace_tt_name(HTokenType t) {
@@ -476,6 +514,8 @@ static HParseErrorKind trace_failure_kind(const HParser *parser, const char *nam
         return H_PARSE_ERROR_SEMANTIC_PREDICATE;
     if (strcmp(name, "parse_int_range") == 0)
         return H_PARSE_ERROR_RANGE;
+    if (strcmp(name, "parse_float_range") == 0)
+        return H_PARSE_ERROR_RANGE;
     if (index >= length)
         return H_PARSE_ERROR_UNEXPECTED_EOF;
     return parser->vtable->higher ? H_PARSE_ERROR_HIGHER_ORDER : H_PARSE_ERROR_PRIMITIVE_MISMATCH;
@@ -524,6 +564,8 @@ static void trace_record_failure(const HParser *parser, HParseState *state,
         parser, frame, end, state->input_stream.overrun, expected, &expected_eof);
     size_t index = parser->vtable->higher ? end : frame->start + failure_offset;
     HParseErrorKind kind = trace_failure_kind(parser, frame->name, index, context->input_len);
+    HTraceNumericRange numeric_range = context->pending_numeric_range;
+    memset(&context->pending_numeric_range, 0, sizeof(context->pending_numeric_range));
     bool value_failure = kind == H_PARSE_ERROR_SEMANTIC_PREDICATE ||
                          kind == H_PARSE_ERROR_RANGE || kind == H_PARSE_ERROR_XOR ||
                          kind == H_PARSE_ERROR_DIFFERENCE || kind == H_PARSE_ERROR_BUTNOT;
@@ -541,6 +583,9 @@ static void trace_record_failure(const HParser *parser, HParseState *state,
         memset(error, 0, sizeof(*error));
         memset(context->expected_bytes, 0, sizeof(context->expected_bytes));
         context->expected_eof = false;
+        memset(&context->numeric_range, 0, sizeof(context->numeric_range));
+        if (kind == H_PARSE_ERROR_RANGE)
+            context->numeric_range = numeric_range;
         error->index = index;
         error->end_index = end;
         error->bit_offset = value_failure || !parser->vtable->higher
@@ -786,8 +831,18 @@ static void trace_render_diagnostic(HTraceContext *context) {
     if (!error || error->kind == H_PARSE_ERROR_NONE)
         return;
 
-    if (error->kind == H_PARSE_ERROR_RANGE) {
-        fputs("error: integer outside permitted range", stderr);
+    if (error->kind == H_PARSE_ERROR_RANGE &&
+        context->numeric_range.kind == H_TRACE_NUMERIC_RANGE_SINT) {
+        fprintf(stderr, "error: unexpected int %" PRId64, context->numeric_range.actual.sint);
+    } else if (error->kind == H_PARSE_ERROR_RANGE &&
+               context->numeric_range.kind == H_TRACE_NUMERIC_RANGE_UINT) {
+        fprintf(stderr, "error: unexpected int %" PRIu64, context->numeric_range.actual.uint);
+    } else if (error->kind == H_PARSE_ERROR_RANGE &&
+               context->numeric_range.kind == H_TRACE_NUMERIC_RANGE_FLOAT) {
+        fprintf(stderr, "error: unexpected float %.17g",
+                context->numeric_range.actual.floating);
+    } else if (error->kind == H_PARSE_ERROR_RANGE) {
+        fputs("error: value outside permitted range", stderr);
     } else if (error->kind == H_PARSE_ERROR_SEMANTIC_PREDICATE) {
         fputs("error: semantic predicate failed", stderr);
     } else if (error->kind == H_PARSE_ERROR_ACTION) {
@@ -817,6 +872,17 @@ static void trace_render_diagnostic(HTraceContext *context) {
         fprintf(stderr, " starting at index %zu", error->index);
     else if (error->kind != H_PARSE_ERROR_EXPLICIT_FAILURE) {
         trace_print_expectations(context->expected_bytes, context->expected_eof);
+    }
+    if (error->kind == H_PARSE_ERROR_RANGE) {
+        if (context->numeric_range.kind == H_TRACE_NUMERIC_RANGE_SINT ||
+            context->numeric_range.kind == H_TRACE_NUMERIC_RANGE_UINT)
+            fprintf(stderr, "; expected value between %" PRId64 " and %" PRId64,
+                    context->numeric_range.expected.integer.lower,
+                    context->numeric_range.expected.integer.upper);
+        else if (context->numeric_range.kind == H_TRACE_NUMERIC_RANGE_FLOAT)
+            fprintf(stderr, "; expected value between %.17g and %.17g",
+                    context->numeric_range.expected.floating.lower,
+                    context->numeric_range.expected.floating.upper);
     }
     if (error->n_deepest > 0)
         trace_print_error_parsers(error);
@@ -864,6 +930,21 @@ void svm_failure_error(HSVMContext *ctx, HRVMProg *orig_prog, HRVMTrace *trace,
                           input, input_len);
     if (dump_trace)
         dump_svm_prog(orig_prog, trace);
+    if (ctx->failure.kind == SVM_FAILURE_RANGE) {
+        HParsedToken actual = {.token_type = ctx->failure.actual_type};
+        if (actual.token_type == TT_SINT) {
+            actual.token_data.sint = ctx->failure.actual.sint;
+            h_trace_note_int_range(&actual, ctx->failure.lower, ctx->failure.upper);
+        } else if (actual.token_type == TT_UINT) {
+            actual.token_data.uint = ctx->failure.actual.uint;
+            h_trace_note_int_range(&actual, ctx->failure.lower, ctx->failure.upper);
+        } else if (actual.token_type == TT_FLOAT || actual.token_type == TT_DOUBLE) {
+            actual.token_type = TT_DOUBLE;
+            actual.token_data.dbl = ctx->failure.float_actual;
+            h_trace_note_float_range(&actual, ctx->failure.float_lower,
+                                     ctx->failure.float_upper);
+        }
+    }
     HParseErrorKind kind;
     switch (ctx->failure.kind) {
     case SVM_FAILURE_RANGE:
@@ -948,11 +1029,14 @@ void h_backend_trace_failure(size_t start, size_t end, HParseErrorKind kind, con
         expected = NULL;
         expected_eof = false;
     }
-    if (kind == H_PARSE_ERROR_SEMANTIC_PREDICATE && strcmp(name, "parse_int_range") == 0) {
+    if (kind == H_PARSE_ERROR_SEMANTIC_PREDICATE &&
+        (strcmp(name, "parse_int_range") == 0 || strcmp(name, "parse_float_range") == 0)) {
         kind = H_PARSE_ERROR_RANGE;
     }
 
     HParseError *error = &context->error;
+    HTraceNumericRange numeric_range = context->pending_numeric_range;
+    memset(&context->pending_numeric_range, 0, sizeof(context->pending_numeric_range));
     size_t progress = trace_failure_progress(kind, index, end);
     size_t previous_progress = trace_failure_progress(error->kind, error->index, error->end_index);
     bool replace = error->kind == H_PARSE_ERROR_NONE || progress > previous_progress ||
@@ -962,6 +1046,9 @@ void h_backend_trace_failure(size_t start, size_t end, HParseErrorKind kind, con
         memset(error, 0, sizeof(*error));
         memset(context->expected_bytes, 0, sizeof(context->expected_bytes));
         context->expected_eof = false;
+        memset(&context->numeric_range, 0, sizeof(context->numeric_range));
+        if (kind == H_PARSE_ERROR_RANGE)
+            context->numeric_range = numeric_range;
         context->failure_parser = origin;
         error->index = index;
         error->end_index = end;

@@ -26,6 +26,7 @@
 
 #include <assert.h>
 #include <ctype.h>
+#include <inttypes.h>
 #include <limits.h>
 #include <stdarg.h>
 #include <string.h>
@@ -700,8 +701,20 @@ void h_parse_diagnostic_fprint(FILE *stream, const HParseDiagnostic *diagnostic)
     if (!stream || !diagnostic)
         return;
     const HParseError *error = &diagnostic->error;
-    if (error->kind == H_PARSE_ERROR_RANGE)
-        fputs("error: integer outside permitted range", stream);
+    if (error->kind == H_PARSE_ERROR_RANGE &&
+        diagnostic->numeric_range.kind == H_TRACE_NUMERIC_RANGE_SINT)
+        fprintf(stream, "error: unexpected int %" PRId64,
+                diagnostic->numeric_range.actual.sint);
+    else if (error->kind == H_PARSE_ERROR_RANGE &&
+             diagnostic->numeric_range.kind == H_TRACE_NUMERIC_RANGE_UINT)
+        fprintf(stream, "error: unexpected int %" PRIu64,
+                diagnostic->numeric_range.actual.uint);
+    else if (error->kind == H_PARSE_ERROR_RANGE &&
+             diagnostic->numeric_range.kind == H_TRACE_NUMERIC_RANGE_FLOAT)
+        fprintf(stream, "error: unexpected float %.17g",
+                diagnostic->numeric_range.actual.floating);
+    else if (error->kind == H_PARSE_ERROR_RANGE)
+        fputs("error: value outside permitted range", stream);
     else if (error->kind == H_PARSE_ERROR_SEMANTIC_PREDICATE)
         fputs("error: semantic predicate failed", stream);
     else if (error->kind == H_PARSE_ERROR_ACTION)
@@ -726,6 +739,18 @@ void h_parse_diagnostic_fprint(FILE *stream, const HParseDiagnostic *diagnostic)
         error->kind == H_PARSE_ERROR_ACTION || error->kind == H_PARSE_ERROR_XOR ||
         error->kind == H_PARSE_ERROR_DIFFERENCE || error->kind == H_PARSE_ERROR_BUTNOT)
         fprintf(stream, " starting at index %zu", error->index);
+
+    if (error->kind == H_PARSE_ERROR_RANGE) {
+        if (diagnostic->numeric_range.kind == H_TRACE_NUMERIC_RANGE_SINT ||
+            diagnostic->numeric_range.kind == H_TRACE_NUMERIC_RANGE_UINT)
+            fprintf(stream, "; expected value between %" PRId64 " and %" PRId64,
+                    diagnostic->numeric_range.expected.integer.lower,
+                    diagnostic->numeric_range.expected.integer.upper);
+        else if (diagnostic->numeric_range.kind == H_TRACE_NUMERIC_RANGE_FLOAT)
+            fprintf(stream, "; expected value between %.17g and %.17g",
+                    diagnostic->numeric_range.expected.floating.lower,
+                    diagnostic->numeric_range.expected.floating.upper);
+    }
 
     size_t count = h_parse_diagnostic_expected_count(diagnostic);
     if (count > 0) {

@@ -7,10 +7,37 @@
 
 #include <stddef.h>
 
+typedef enum HTraceNumericRangeKind_ {
+    H_TRACE_NUMERIC_RANGE_NONE = 0,
+    H_TRACE_NUMERIC_RANGE_SINT,
+    H_TRACE_NUMERIC_RANGE_UINT,
+    H_TRACE_NUMERIC_RANGE_FLOAT
+} HTraceNumericRangeKind;
+
+typedef struct HTraceNumericRange_ {
+    HTraceNumericRangeKind kind;
+    union {
+        int64_t sint;
+        uint64_t uint;
+        double floating;
+    } actual;
+    union {
+        struct {
+            int64_t lower;
+            int64_t upper;
+        } integer;
+        struct {
+            double lower;
+            double upper;
+        } floating;
+    } expected;
+} HTraceNumericRange;
+
 struct HParseDiagnostic_ {
     HParseError error;
     bool expected_bytes[256];
     bool expected_eof;
+    HTraceNumericRange numeric_range;
 };
 
 /* Compile-time master switch for the AST tracer.
@@ -33,6 +60,8 @@ void h_trace_enter(const HParser *parser, HParseState *state);
 void h_trace_exit(const HParser *parser, HParseState *state, HParseResult *res, const char *note);
 void h_trace_end(HParseResult *res, HParseState *state);
 void h_trace_file_context(const uint8_t *input, size_t length, size_t highlight_index);
+void h_trace_note_int_range(const HParsedToken *token, int64_t lower, int64_t upper);
+void h_trace_note_float_range(const HParsedToken *token, double lower, double upper);
 
 // context-free backend trace functions
 void h_cf_trace_begin(HParserBackend backend, const HParser *parser, const uint8_t *input,

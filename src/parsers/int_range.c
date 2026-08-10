@@ -1,5 +1,6 @@
 /* Copyright (c) 2026 Riverside Research */
 #include "parser_internal.h"
+#include "../trace.h"
 
 typedef struct {
     const HParser *p;
@@ -7,26 +8,32 @@ typedef struct {
     int64_t upper;
 } HRange;
 
+static bool int_range_match(const HParsedToken *token, const HRange *range) {
+    bool valid;
+    if (!token)
+        return false;
+    switch (token->token_type) {
+    case TT_SINT:
+        valid = range->lower <= token->token_data.sint && token->token_data.sint <= range->upper;
+        break;
+    case TT_UINT:
+        valid = (uint64_t)range->lower <= token->token_data.uint &&
+                token->token_data.uint <= (uint64_t)range->upper;
+        break;
+    default:
+        return false;
+    }
+    if (!valid)
+        h_trace_note_int_range(token, range->lower, range->upper);
+    return valid;
+}
+
 static HParseResult *parse_int_range(void *env, HParseState *state) {
     HRange *r_env = (HRange *)env;
     HParseResult *ret = h_do_parse(r_env->p, state);
     if (!ret || !ret->ast)
         return NULL;
-    switch (ret->ast->token_type) {
-    case TT_SINT:
-        if (r_env->lower <= ret->ast->token_data.sint && r_env->upper >= ret->ast->token_data.sint)
-            return ret;
-        else
-            return NULL;
-    case TT_UINT:
-        if ((uint64_t)r_env->lower <= ret->ast->token_data.uint &&
-            (uint64_t)r_env->upper >= ret->ast->token_data.uint)
-            return ret;
-        else
-            return NULL;
-    default:
-        return NULL;
-    }
+    return int_range_match(ret->ast, r_env) ? ret : NULL;
 }
 
 static bool int_range_predicate(HParseResult *result, void *user_data) {
@@ -35,18 +42,7 @@ static bool int_range_predicate(HParseResult *result, void *user_data) {
     if (!result || !result->ast)
         return false;
 
-    switch (result->ast->token_type) {
-    case TT_SINT:
-        return range->lower <= result->ast->token_data.sint &&
-               result->ast->token_data.sint <= range->upper;
-
-    case TT_UINT:
-        return (uint64_t)range->lower <= result->ast->token_data.uint &&
-               result->ast->token_data.uint <= (uint64_t)range->upper;
-
-    default:
-        return false;
-    }
+    return int_range_match(result->ast, range);
 }
 
 struct bits_env {

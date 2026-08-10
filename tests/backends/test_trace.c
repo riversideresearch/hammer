@@ -101,6 +101,25 @@ static void test_trace_cf_range_failure(gconstpointer backend) {
     h_parse_error_free(&err);
 }
 
+static void test_trace_float_range_failure(gconstpointer backend) {
+    HParserBackend be = (HParserBackend)GPOINTER_TO_INT(backend);
+    HParser *p = h_float_range(h_float32(), 1.0, 2.0);
+    const uint8_t input[] = {0x40, 0x20, 0x00, 0x00}; /* 2.5 */
+    g_check_cmp_int(h_compile(p, be, NULL), ==, 0);
+
+    HParseDiagnostic *diagnostic = NULL;
+    HParseResult *res = h_parse_debug_ex(p, input, sizeof(input), &diagnostic, false);
+    g_check_cmp_ptr(res, ==, NULL);
+    g_check_cmp_ptr(diagnostic, !=, NULL);
+    if (!diagnostic)
+        return;
+    const HParseError *error = h_parse_diagnostic_error(diagnostic);
+    g_check_cmp_int(error->kind, ==, H_PARSE_ERROR_RANGE);
+    g_check_cmp_size(error->index, ==, 0);
+    g_check_cmp_size(error->end_index, ==, 4);
+    h_parse_diagnostic_free(diagnostic);
+}
+
 static void test_trace_glr_ambiguous_failure(void) {
     HParser *value = h_indirect();
     h_bind_indirect(value, h_choice(h_sequence(value, value, NULL), h_ch('a'), NULL));
@@ -654,6 +673,8 @@ void register_trace_tests(void) {
                          GINT_TO_POINTER(PB_REGULAR), test_trace_debug_error_on_failure);
     g_test_add_data_func("/core/parser/regex/trace_debug_null_error", GINT_TO_POINTER(PB_REGULAR),
                          test_trace_debug_null_error);
+    g_test_add_data_func("/core/parser/regex/trace_float_range_failure",
+                         GINT_TO_POINTER(PB_REGULAR), test_trace_float_range_failure);
     g_test_add_data_func("/core/parser/regex/trace_structured_expectations",
                          GINT_TO_POINTER(PB_REGULAR), test_trace_structured_expectations);
     g_test_add_func("/core/parser/regex/trace_structured_expected_eof",
@@ -677,6 +698,8 @@ void register_trace_tests(void) {
                          GINT_TO_POINTER(PB_PACKRAT), test_trace_debug_error_on_failure);
     g_test_add_data_func("/core/parser/packrat/trace_debug_null_error", GINT_TO_POINTER(PB_PACKRAT),
                          test_trace_debug_null_error);
+    g_test_add_data_func("/core/parser/packrat/trace_float_range_failure",
+                         GINT_TO_POINTER(PB_PACKRAT), test_trace_float_range_failure);
     g_test_add_data_func("/core/parser/packrat/trace_structured_expectations",
                          GINT_TO_POINTER(PB_PACKRAT), test_trace_structured_expectations);
     g_test_add_data_func("/core/parser/packrat/trace_nothing_failure", GINT_TO_POINTER(PB_PACKRAT),
@@ -700,6 +723,8 @@ void register_trace_tests(void) {
                          test_trace_cf_unexpected_eof);
     g_test_add_data_func("/core/parser/ll/trace_range_failure", GINT_TO_POINTER(PB_LL),
                          test_trace_cf_range_failure);
+    g_test_add_data_func("/core/parser/ll/trace_float_range_failure", GINT_TO_POINTER(PB_LL),
+                         test_trace_float_range_failure);
     g_test_add_data_func("/core/parser/ll/trace_attr_bool_nonzero_offset", GINT_TO_POINTER(PB_LL),
                          test_trace_attr_bool_nonzero_offset);
     g_test_add_data_func("/core/parser/ll/trace_nothing_failure", GINT_TO_POINTER(PB_LL),
@@ -723,6 +748,8 @@ void register_trace_tests(void) {
                          test_trace_cf_unexpected_eof);
     g_test_add_data_func("/core/parser/lalr/trace_range_failure", GINT_TO_POINTER(PB_LALR),
                          test_trace_cf_range_failure);
+    g_test_add_data_func("/core/parser/lalr/trace_float_range_failure", GINT_TO_POINTER(PB_LALR),
+                         test_trace_float_range_failure);
     g_test_add_data_func("/core/parser/lalr/trace_attr_bool_checksum", GINT_TO_POINTER(PB_LALR),
                          test_trace_attr_bool_checksum);
     g_test_add_data_func("/core/parser/lalr/trace_attr_bool_nonzero_offset",
@@ -748,6 +775,8 @@ void register_trace_tests(void) {
                          test_trace_cf_unexpected_eof);
     g_test_add_data_func("/core/parser/glr/trace_range_failure", GINT_TO_POINTER(PB_GLR),
                          test_trace_cf_range_failure);
+    g_test_add_data_func("/core/parser/glr/trace_float_range_failure", GINT_TO_POINTER(PB_GLR),
+                         test_trace_float_range_failure);
     g_test_add_data_func("/core/parser/glr/trace_attr_bool_checksum", GINT_TO_POINTER(PB_GLR),
                          test_trace_attr_bool_checksum);
     g_test_add_data_func("/core/parser/glr/trace_attr_bool_nonzero_offset", GINT_TO_POINTER(PB_GLR),
