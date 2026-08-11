@@ -78,7 +78,7 @@ void h_trace_set_enabled(bool enabled, bool dumpExecutionTrace, bool dumpInputCo
     dump_trace = display_trace && trace_enable_depth <= H_TRACE_MAX_NESTING
                      ? trace_dump_stack[trace_enable_depth - 1]
                      : dumpExecutionTrace;
-    
+
     dump_input = display_trace && trace_enable_depth <= H_TRACE_MAX_NESTING
                      ? trace_dump_stack[trace_enable_depth - 1]
                      : dumpInputContext;
@@ -427,8 +427,9 @@ static void trace_token(const HParsedToken *tok) {
 }
 
 #define BYTES_PER_LINE 16
-void h_trace_file_context(const uint8_t *input, size_t length, size_t start_index,
-                          size_t end_index) {
+#define MAX_CONTEXT_BYTES 256
+void h_trace_file_context(const uint8_t *input, size_t length, size_t start_highlight,
+                          size_t end_highlight) {
     const char *color_red = "\x1b[31m";
     const char *color_reset = "\x1b[0m";
     int use_color = ISATTY(stderr);
@@ -455,20 +456,51 @@ void h_trace_file_context(const uint8_t *input, size_t length, size_t start_inde
         }
     }
     fprintf(stderr, "=== %s: input context (%zu bytes) ===\n", backend_name, length);
-    /*for (size_t i = 0; i < length; i++) {
-        uint8_t c = input[i];
-        char disp[2] = { isprint(c) ? (char)c : '\0', '\0' };
-        fprintf(stderr, "%02x %s\n", c, disp);
-    }*/
-    for (size_t off = 0; off < length; off += BYTES_PER_LINE) {
-        size_t line_len = (length - off < BYTES_PER_LINE) ? (length - off) : BYTES_PER_LINE;
+
+    if (!input || length == 0)
+        return;
+
+    /* Diagnostic positions can point at EOF or arrive with an empty/reversed
+     * range. Use a clamped copy for window selection so rendering an error can
+     * never wrap a size_t. Keep the original range for highlighting: an EOF
+     * position must not incorrectly highlight the final input byte. */
+    size_t focus_start = start_highlight < length ? start_highlight : length - 1;
+    size_t focus_end = end_highlight < length ? end_highlight : length - 1;
+    if (focus_end < focus_start)
+        focus_end = focus_start;
+
+    size_t window_start = 0;
+    size_t window_end = length;
+    if (length > MAX_CONTEXT_BYTES) {
+        size_t range_width = focus_end - focus_start;
+
+        if (range_width >= MAX_CONTEXT_BYTES - 1) {
+            /* The complete range cannot fit; show it from its first byte. */
+            window_start = focus_start;
+        } else {
+            size_t range_length = range_width + 1;
+            size_t context_before = (MAX_CONTEXT_BYTES - range_length) / 2;
+            window_start = focus_start > context_before ? focus_start - context_before : 0;
+        }
+
+        /* Keep a full window where possible, especially near EOF. */
+        if (window_start > length - MAX_CONTEXT_BYTES)
+            window_start = length - MAX_CONTEXT_BYTES;
+        window_end = window_start + MAX_CONTEXT_BYTES;
+    }
+
+    if (window_start > 0)
+        fprintf(stderr, "... %zu byte(s) omitted ...\n", window_start);
+
+    for (size_t off = window_start; off < window_end; off += BYTES_PER_LINE) {
+        size_t line_len = (window_end - off < BYTES_PER_LINE) ? (window_end - off) : BYTES_PER_LINE;
         fprintf(stderr, "%04zx:  ", off);
 
         /* Hex bytes, grouped by 4 for readability */
         for (size_t i = 0; i < BYTES_PER_LINE; ++i) {
             size_t idx = off + i;
             if (i < line_len) {
-                int is_highlight = (idx >= start_index && idx <= end_index);
+                int is_highlight = (idx >= start_highlight && idx <= end_highlight);
                 if (use_color && is_highlight)
                     fputs(color_red, stderr);
                 fprintf(stderr, "%02x", input[idx]);
@@ -488,7 +520,7 @@ void h_trace_file_context(const uint8_t *input, size_t length, size_t start_inde
         for (size_t i = 0; i < line_len; ++i) {
             size_t idx = off + i;
             uint8_t c = input[idx];
-            int is_highlight = (idx >= start_index && idx <= end_index);
+            int is_highlight = (idx >= start_highlight && idx <= end_highlight);
             if (use_color && is_highlight)
                 fputs(color_red, stderr);
             fputc(isprint(c) ? (char)c : '.', stderr);
@@ -497,6 +529,9 @@ void h_trace_file_context(const uint8_t *input, size_t length, size_t start_inde
         }
         fprintf(stderr, "\n");
     }
+
+    if (window_end < length)
+        fprintf(stderr, "... %zu byte(s) omitted ...\n", length - window_end);
 }
 
 void h_trace_begin(const uint8_t *input, size_t input_len) {
