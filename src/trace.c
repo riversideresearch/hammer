@@ -1169,8 +1169,8 @@ void h_backend_trace_failure(size_t start, size_t end, HParseErrorKind kind, con
         expected_eof = false;
     }
     if (kind == H_PARSE_ERROR_SEMANTIC_PREDICATE &&
-        (strcmp(name, "parse_int_range") == 0 || strcmp(name, "parse_float_range") == 0)) {
-        kind = H_PARSE_ERROR_RANGE;
+        (h_is_float_range_parser(parser) || h_is_int_range_parser(parser))) {
+        kind = H_PARSE_ERROR_RANGE; 
     }
 
     HParseError *error = &context->error;
