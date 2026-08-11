@@ -4,10 +4,9 @@
 #include "hammer.h"
 #endif
 
-#include "trace.h"
-
 #include "backends/regex.h"
 #include "internal.h"
+#include "trace.h"
 
 /* ------------------------------------------------------------------------- *
  * AST-construction trace.
@@ -140,6 +139,26 @@ static void trace_copy_error(HParseError *out, const HParseError *source) {
         out->deepest_parsers[i] = strdup(out->deepest_parsers[i]);
     for (size_t i = 0; i < out->n_context; i++)
         out->context[i] = strdup(out->context[i]);
+    out->source = NULL;
+    if (source->source) {
+        HSourceLocation *source_copy = calloc(1, sizeof(*source_copy));
+        if (source_copy) {
+            source_copy->line = source->source->line;
+            source_copy->column = source->source->column;
+            if (source->source->file_name)
+                source_copy->file_name = strdup(source->source->file_name);
+            if (source->source->function_name)
+                source_copy->function_name = strdup(source->source->function_name);
+            if ((!source->source->file_name || source_copy->file_name) &&
+                (!source->source->function_name || source_copy->function_name)) {
+                out->source = source_copy;
+            } else {
+                free((void *)source_copy->file_name);
+                free((void *)source_copy->function_name);
+                free(source_copy);
+            }
+        }
+    }
 }
 
 void h_trace_get_error(HParseError *out) {
@@ -402,7 +421,7 @@ static void trace_token(const HParsedToken *tok) {
 }
 
 #define BYTES_PER_LINE 16
-void h_trace_file_context(const uint8_t *input, size_t length, size_t highlight_index) {
+void h_trace_file_context(const uint8_t *input, size_t length, size_t start_index, size_t end_index) {
     const char *color_red = "\x1b[31m";
     const char *color_reset = "\x1b[0m";
     int use_color = ISATTY(stderr);
@@ -442,7 +461,7 @@ void h_trace_file_context(const uint8_t *input, size_t length, size_t highlight_
         for (size_t i = 0; i < BYTES_PER_LINE; ++i) {
             size_t idx = off + i;
             if (i < line_len) {
-                int is_highlight = (idx == highlight_index);
+                int is_highlight = (idx >= start_index && idx <= end_index);
                 if (use_color && is_highlight)
                     fputs(color_red, stderr);
                 fprintf(stderr, "%02x", input[idx]);
@@ -462,7 +481,7 @@ void h_trace_file_context(const uint8_t *input, size_t length, size_t highlight_
         for (size_t i = 0; i < line_len; ++i) {
             size_t idx = off + i;
             uint8_t c = input[idx];
-            int is_highlight = (idx == highlight_index);
+            int is_highlight = (idx >= start_index && idx <= end_index);
             if (use_color && is_highlight)
                 fputs(color_red, stderr);
             fputc(isprint(c) ? (char)c : '.', stderr);
@@ -516,7 +535,8 @@ void h_trace_enter(const HParser *parser, HParseState *state) {
 
 static HParseErrorKind trace_failure_kind(const HParser *parser, const char *name, size_t index,
                                           size_t length) {
-    if (h_is_nothing_parser(parser)) // same functionality as strcmp name but works in stripped builds
+    if (h_is_nothing_parser(
+            parser)) // same functionality as strcmp name but works in stripped builds
         return H_PARSE_ERROR_EXPLICIT_FAILURE;
     if (h_is_get_value_parser(parser))
         return H_PARSE_ERROR_NO_VALUE;
@@ -528,7 +548,7 @@ static HParseErrorKind trace_failure_kind(const HParser *parser, const char *nam
         return H_PARSE_ERROR_BUTNOT;
     if (h_is_attr_bool_parser(parser))
         return H_PARSE_ERROR_SEMANTIC_PREDICATE;
-    if (h_is_int_range_parser(parser)||h_is_float_range_parser(parser))
+    if (h_is_int_range_parser(parser) || h_is_float_range_parser(parser))
         return H_PARSE_ERROR_RANGE;
     if (index >= length)
         return H_PARSE_ERROR_UNEXPECTED_EOF;
@@ -581,14 +601,15 @@ static void trace_record_failure(const HParser *parser, HParseState *state,
     HParseErrorKind kind = trace_failure_kind(parser, frame->name, index, context->input_len);
     HTraceNumericRange numeric_range = context->pending_numeric_range;
     memset(&context->pending_numeric_range, 0, sizeof(context->pending_numeric_range));
-    bool value_failure = kind == H_PARSE_ERROR_SEMANTIC_PREDICATE ||
-                         kind == H_PARSE_ERROR_RANGE || kind == H_PARSE_ERROR_XOR ||
-                         kind == H_PARSE_ERROR_DIFFERENCE || kind == H_PARSE_ERROR_BUTNOT ||
-                         kind == H_PARSE_ERROR_NO_VALUE;
+    bool value_failure = kind == H_PARSE_ERROR_SEMANTIC_PREDICATE || kind == H_PARSE_ERROR_RANGE ||
+                         kind == H_PARSE_ERROR_XOR || kind == H_PARSE_ERROR_DIFFERENCE ||
+                         kind == H_PARSE_ERROR_BUTNOT || kind == H_PARSE_ERROR_NO_VALUE;
 
     const HParser *label_parser = parser && parser->diagnostic_label ? parser : NULL;
     const HParser *message_parser = parser && parser->diagnostic_message ? parser : NULL;
-    for (size_t i = context->frame_count; i > 0 && (!label_parser || !message_parser); i--) {
+    const HParser *source_parser = parser && parser->diagnostic_source ? parser : NULL;
+    for (size_t i = context->frame_count;
+         i > 0 && (!label_parser || !message_parser || !source_parser); i--) {
         const HParser *candidate = context->frames[i - 1].parser;
         if (!candidate)
             continue;
@@ -596,11 +617,12 @@ static void trace_record_failure(const HParser *parser, HParseState *state,
             label_parser = candidate;
         if (!message_parser && candidate->diagnostic_message)
             message_parser = candidate;
+        if (!source_parser && candidate->diagnostic_source)
+            source_parser = candidate;
     }
     const char *failure_name =
         label_parser ? label_parser->diagnostic_label : trace_parser_diagnostic_name(parser);
-    const char *failure_message =
-        message_parser ? message_parser->diagnostic_message : NULL;
+    const char *failure_message = message_parser ? message_parser->diagnostic_message : NULL;
 
     if (value_failure)
         index = frame->start;
@@ -619,6 +641,7 @@ static void trace_record_failure(const HParser *parser, HParseState *state,
         memset(&context->numeric_range, 0, sizeof(context->numeric_range));
         if (kind == H_PARSE_ERROR_RANGE)
             context->numeric_range = numeric_range;
+        context->failure_parser = label_parser ? label_parser : parser;
         error->index = index;
         error->end_index = end;
         error->bit_offset = value_failure || !parser->vtable->higher
@@ -627,6 +650,7 @@ static void trace_record_failure(const HParser *parser, HParseState *state,
         error->kind = kind;
         error->parser = failure_name;
         error->message = failure_message;
+        error->source = source_parser ? source_parser->diagnostic_source : NULL;
         if (kind != H_PARSE_ERROR_EXPLICIT_FAILURE && index < context->input_len) {
             error->actual = context->input[index];
             error->has_actual = true;
@@ -868,39 +892,53 @@ static void trace_render_diagnostic(HTraceContext *context) {
     HParseError *error = context ? &context->error : NULL;
     if (!error || error->kind == H_PARSE_ERROR_NONE)
         return;
+    size_t last_index = error->end_index > error->index ? error->end_index - 1 : error->end_index;
 
+    fprintf(stderr, "error: ");
+    if (error->source) {
+        if (error->source->file_name)
+            fprintf(stderr, "%s", error->source->file_name);
+        else
+            fputs("<unknown source>", stderr);
+        if (error->source->line)
+            fprintf(stderr, ":%zu", error->source->line);
+        if (error->source->column)
+            fprintf(stderr, ":%zu", error->source->column);
+        if (error->source->function_name)
+            fprintf(stderr, " in %s", error->source->function_name);
+        fputs(": ", stderr);
+    }
     if (error->message) {
-        fprintf(stderr, "error: %s", error->message);
+        fprintf(stderr, "%s", error->message);
     } else if (error->kind == H_PARSE_ERROR_RANGE &&
-        context->numeric_range.kind == H_TRACE_NUMERIC_RANGE_SINT) {
-        fprintf(stderr, "error: unexpected int %" PRId64, context->numeric_range.actual.sint);
+               context->numeric_range.kind == H_TRACE_NUMERIC_RANGE_SINT) {
+        fprintf(stderr, "unexpected int %" PRId64, context->numeric_range.actual.sint);
     } else if (error->kind == H_PARSE_ERROR_RANGE &&
                context->numeric_range.kind == H_TRACE_NUMERIC_RANGE_UINT) {
-        fprintf(stderr, "error: unexpected int %" PRIu64, context->numeric_range.actual.uint);
+        fprintf(stderr, "unexpected int %" PRIu64, context->numeric_range.actual.uint);
     } else if (error->kind == H_PARSE_ERROR_RANGE &&
                context->numeric_range.kind == H_TRACE_NUMERIC_RANGE_FLOAT) {
-        fprintf(stderr, "error: unexpected float %.17g",
-                context->numeric_range.actual.floating);
+        fprintf(stderr, "unexpected float %.17g", context->numeric_range.actual.floating);
     } else if (error->kind == H_PARSE_ERROR_RANGE) {
-        fputs("error: value outside permitted range", stderr);
+        fputs("mismatched token type", stderr);
     } else if (error->kind == H_PARSE_ERROR_SEMANTIC_PREDICATE) {
-        fputs("error: semantic predicate failed", stderr);
+        fputs("semantic predicate failed", stderr);
     } else if (error->kind == H_PARSE_ERROR_ACTION) {
-        fputs("error: semantic action failed", stderr);
+        fputs("semantic action failed", stderr);
     } else if (error->kind == H_PARSE_ERROR_EXPLICIT_FAILURE) {
-        fprintf(stderr, "error: parser always fails at index %zu", error->index);
+        fprintf(stderr, "parser always fails at index %zu", error->index);
     } else if (error->kind == H_PARSE_ERROR_XOR) {
-        fputs("error: both XOR alternatives matched; exactly one must match", stderr);
+        fputs("both XOR alternatives matched; exactly one must match", stderr);
     } else if (error->kind == H_PARSE_ERROR_DIFFERENCE) {
-        fputs("error: difference rejected a longer right-hand match", stderr);
+        fputs("difference rejected a longer right-hand match", stderr);
     } else if (error->kind == H_PARSE_ERROR_BUTNOT) {
-        fputs("error: but-not rejected a right-hand match that was not shorter", stderr);
+        fputs("but-not rejected a right-hand match that was not shorter", stderr);
     } else if (error->kind == H_PARSE_ERROR_NO_VALUE) {
-        fputs("error: no value to retrieve from provided name", stderr);
+        fputs("no value to retrieve from provided name", stderr);
     } else if (!error->has_actual) {
-        fprintf(stderr, "error: unexpected end of input at index %zu", error->index);
+        fprintf(stderr, "unexpected end of input at index %zu", error->index);
     } else {
-        fputs("error: unexpected byte ", stderr);
+        fputs("unexpected byte ", stderr);
         trace_print_expected_byte(error->actual);
         fprintf(stderr, " (0x%02x = %u) at index %zu", error->actual, error->actual, error->index);
     }
@@ -910,14 +948,15 @@ static void trace_render_diagnostic(HTraceContext *context) {
     if (error->bit_offset)
         fprintf(stderr, ".%ub", error->bit_offset);
     if (!error->message &&
-        (error->kind == H_PARSE_ERROR_RANGE ||
-         error->kind == H_PARSE_ERROR_SEMANTIC_PREDICATE ||
-        error->kind == H_PARSE_ERROR_ACTION || error->kind == H_PARSE_ERROR_BUTNOT ||
-        error->kind == H_PARSE_ERROR_DIFFERENCE ||
-         error->kind == H_PARSE_ERROR_XOR))
-        fprintf(stderr, " starting at index %zu", error->index);
-    else if (!error->message && error->kind != H_PARSE_ERROR_EXPLICIT_FAILURE &&
-             error->kind != H_PARSE_ERROR_NO_VALUE) {
+        (error->kind == H_PARSE_ERROR_RANGE || error->kind == H_PARSE_ERROR_SEMANTIC_PREDICATE ||
+         error->kind == H_PARSE_ERROR_ACTION || error->kind == H_PARSE_ERROR_BUTNOT ||
+         error->kind == H_PARSE_ERROR_DIFFERENCE || error->kind == H_PARSE_ERROR_XOR)) {
+        if (error->index != last_index)
+            fprintf(stderr, " from index %zu to index %zu", error->index, last_index);
+        else
+            fprintf(stderr, " at index %zu", error->index);
+    } else if (!error->message && error->kind != H_PARSE_ERROR_EXPLICIT_FAILURE &&
+               error->kind != H_PARSE_ERROR_NO_VALUE) {
         trace_print_expectations(context->expected_bytes, context->expected_eof);
     }
     if (!error->message && error->kind == H_PARSE_ERROR_RANGE) {
@@ -938,7 +977,7 @@ static void trace_render_diagnostic(HTraceContext *context) {
     fputc('\n', stderr);
 
     if (context->input && context->input_len > 0)
-        h_trace_file_context(context->input, context->input_len, error->index);
+        h_trace_file_context(context->input, context->input_len, error->index, last_index);
 }
 
 void rvm_match_error(HRVMProg *prog, const uint8_t *input, size_t input_len, size_t index,
@@ -988,8 +1027,7 @@ void svm_failure_error(HSVMContext *ctx, HRVMProg *orig_prog, HRVMTrace *trace,
         } else if (actual.token_type == TT_FLOAT || actual.token_type == TT_DOUBLE) {
             actual.token_type = TT_DOUBLE;
             actual.token_data.dbl = ctx->failure.float_actual;
-            h_trace_note_float_range(&actual, ctx->failure.float_lower,
-                                     ctx->failure.float_upper);
+            h_trace_note_float_range(&actual, ctx->failure.float_lower, ctx->failure.float_upper);
         }
     }
     HParseErrorKind kind;
@@ -1071,14 +1109,16 @@ void h_backend_trace_failure(size_t start, size_t end, HParseErrorKind kind, con
     const char *name = origin && origin->vtable ? trace_vt_name(origin->vtable) : "?(no parser)";
     const HParser *label_parser = origin && origin->diagnostic_label ? origin : NULL;
     const HParser *message_parser = origin && origin->diagnostic_message ? origin : NULL;
+    const HParser *source_parser = origin && origin->diagnostic_source ? origin : NULL;
     if (!label_parser && context->root_parser && context->root_parser->diagnostic_label)
         label_parser = context->root_parser;
     if (!message_parser && context->root_parser && context->root_parser->diagnostic_message)
         message_parser = context->root_parser;
+    if (!source_parser && context->root_parser && context->root_parser->diagnostic_source)
+        source_parser = context->root_parser;
     const char *failure_name =
         label_parser ? label_parser->diagnostic_label : trace_parser_diagnostic_name(origin);
-    const char *failure_message =
-        message_parser ? message_parser->diagnostic_message : NULL;
+    const char *failure_message = message_parser ? message_parser->diagnostic_message : NULL;
     size_t index = start;
     if (h_is_nothing_parser(origin)) {
         kind = H_PARSE_ERROR_EXPLICIT_FAILURE;
@@ -1113,6 +1153,7 @@ void h_backend_trace_failure(size_t start, size_t end, HParseErrorKind kind, con
         error->kind = kind;
         error->parser = failure_name;
         error->message = failure_message;
+        error->source = source_parser ? source_parser->diagnostic_source : NULL;
         if (kind != H_PARSE_ERROR_EXPLICIT_FAILURE && index < context->input_len) {
             error->actual = context->input[index];
             error->has_actual = true;

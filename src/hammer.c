@@ -638,6 +638,12 @@ void h_parse_error_free(HParseError *error) {
         error->context[i] = NULL;
     }
     error->n_context = 0;
+    if (error->source) {
+        free((void *)error->source->file_name);
+        free((void *)error->source->function_name);
+        free((void *)error->source);
+        error->source = NULL;
+    }
 }
 
 const HParseError *h_parse_diagnostic_error(const HParseDiagnostic *diagnostic) {
@@ -703,40 +709,52 @@ void h_parse_diagnostic_fprint(FILE *stream, const HParseDiagnostic *diagnostic)
     if (!stream || !diagnostic)
         return;
     const HParseError *error = &diagnostic->error;
+    size_t last_index = error->end_index > error->index ? error->end_index - 1 : error->end_index;
+    fputs("error: ", stream);
+    if (error->source) {
+        if (error->source->file_name)
+            fprintf(stream, "%s", error->source->file_name);
+        else
+            fputs("<unknown source>", stream);
+        if (error->source->line)
+            fprintf(stream, ":%zu", error->source->line);
+        if (error->source->column)
+            fprintf(stream, ":%zu", error->source->column);
+        if (error->source->function_name)
+            fprintf(stream, " in %s", error->source->function_name);
+        fputs(": ", stream);
+    }
     if (error->message)
-        fprintf(stream, "error: %s", error->message);
+        fprintf(stream, "%s", error->message);
     else if (error->kind == H_PARSE_ERROR_RANGE &&
-        diagnostic->numeric_range.kind == H_TRACE_NUMERIC_RANGE_SINT)
-        fprintf(stream, "error: unexpected int %" PRId64,
-                diagnostic->numeric_range.actual.sint);
+             diagnostic->numeric_range.kind == H_TRACE_NUMERIC_RANGE_SINT)
+        fprintf(stream, "unexpected int %" PRId64, diagnostic->numeric_range.actual.sint);
     else if (error->kind == H_PARSE_ERROR_RANGE &&
              diagnostic->numeric_range.kind == H_TRACE_NUMERIC_RANGE_UINT)
-        fprintf(stream, "error: unexpected int %" PRIu64,
-                diagnostic->numeric_range.actual.uint);
+        fprintf(stream, "unexpected int %" PRIu64, diagnostic->numeric_range.actual.uint);
     else if (error->kind == H_PARSE_ERROR_RANGE &&
              diagnostic->numeric_range.kind == H_TRACE_NUMERIC_RANGE_FLOAT)
-        fprintf(stream, "error: unexpected float %.17g",
-                diagnostic->numeric_range.actual.floating);
+        fprintf(stream, "unexpected float %.17g", diagnostic->numeric_range.actual.floating);
     else if (error->kind == H_PARSE_ERROR_RANGE)
-        fputs("error: value outside permitted range", stream);
+        fputs("mismatched token type", stream);
     else if (error->kind == H_PARSE_ERROR_SEMANTIC_PREDICATE)
-        fputs("error: semantic predicate failed", stream);
+        fputs("semantic predicate failed", stream);
     else if (error->kind == H_PARSE_ERROR_ACTION)
-        fputs("error: semantic action failed", stream);
+        fputs("semantic action failed", stream);
     else if (error->kind == H_PARSE_ERROR_EXPLICIT_FAILURE)
-        fprintf(stream, "error: parser always fails at index %zu", error->index);
+        fprintf(stream, "parser always fails at index %zu", error->index);
     else if (error->kind == H_PARSE_ERROR_XOR)
-        fputs("error: both XOR alternatives matched; exactly one must match", stream);
+        fputs("both XOR alternatives matched; exactly one must match", stream);
     else if (error->kind == H_PARSE_ERROR_DIFFERENCE)
-        fputs("error: difference rejected a longer right-hand match", stream);
+        fputs("difference rejected a longer right-hand match", stream);
     else if (error->kind == H_PARSE_ERROR_BUTNOT)
-        fputs("error: but-not rejected a right-hand match that was not shorter", stream);
+        fputs("but-not rejected a right-hand match that was not shorter", stream);
     else if (error->kind == H_PARSE_ERROR_NO_VALUE)
-        fputs("error: no value to retrieve from provided name", stream);
+        fputs("no value to retrieve from provided name", stream);
     else if (!error->has_actual)
-        fprintf(stream, "error: unexpected end of input at index %zu", error->index);
+        fprintf(stream, "unexpected end of input at index %zu", error->index);
     else {
-        fputs("error: unexpected byte ", stream);
+        fputs("unexpected byte ", stream);
         diagnostic_print_byte(stream, error->actual);
         fprintf(stream, " (0x%02x = %u) at index %zu", error->actual, error->actual, error->index);
     }
@@ -747,11 +765,14 @@ void h_parse_diagnostic_fprint(FILE *stream, const HParseDiagnostic *diagnostic)
         fprintf(stream, ".%ub", error->bit_offset);
 
     if (!error->message &&
-        (error->kind == H_PARSE_ERROR_RANGE ||
-         error->kind == H_PARSE_ERROR_SEMANTIC_PREDICATE ||
-        error->kind == H_PARSE_ERROR_ACTION || error->kind == H_PARSE_ERROR_XOR ||
-         error->kind == H_PARSE_ERROR_DIFFERENCE || error->kind == H_PARSE_ERROR_BUTNOT))
-        fprintf(stream, " starting at index %zu", error->index);
+        (error->kind == H_PARSE_ERROR_RANGE || error->kind == H_PARSE_ERROR_SEMANTIC_PREDICATE ||
+         error->kind == H_PARSE_ERROR_ACTION || error->kind == H_PARSE_ERROR_XOR ||
+         error->kind == H_PARSE_ERROR_DIFFERENCE || error->kind == H_PARSE_ERROR_BUTNOT)) {
+        if (error->index != last_index)
+            fprintf(stream, " from index %zu to index %zu", error->index, last_index);
+        else
+            fprintf(stream, " at index %zu", error->index);
+    }
 
     if (!error->message && error->kind == H_PARSE_ERROR_RANGE) {
         if (diagnostic->numeric_range.kind == H_TRACE_NUMERIC_RANGE_SINT ||
@@ -978,6 +999,11 @@ void h_parser_free__m(HAllocator *mm__, HParser *parser) {
         parser->free_env(mm__, parser->env);
     mm__->free(mm__, parser->diagnostic_label);
     mm__->free(mm__, parser->diagnostic_message);
+    if (parser->diagnostic_source) {
+        mm__->free(mm__, (void *)parser->diagnostic_source->file_name);
+        mm__->free(mm__, (void *)parser->diagnostic_source->function_name);
+        mm__->free(mm__, parser->diagnostic_source);
+    }
     h_desugar_context_release(parser->desugar_ctx);
     mm__->free(mm__, parser);
 }
@@ -1006,6 +1032,65 @@ bool h_parser_set_label(HParser *parser, const char *label) {
 }
 
 bool h_parser_set_error_message(HParser *parser, const char *message) {
-    return parser &&
-           h_parser_set_diagnostic_text(parser, &parser->diagnostic_message, message);
+    return parser && h_parser_set_diagnostic_text(parser, &parser->diagnostic_message, message);
+}
+
+static char *h_parser_copy_diagnostic_text(HAllocator *allocator, const char *text) {
+    if (!text)
+        return NULL;
+
+    size_t length = strlen(text) + 1;
+    char *copy = allocator->alloc(allocator, length);
+    if (copy)
+        memcpy(copy, text, length);
+    return copy;
+}
+
+static void h_parser_free_source_location(HAllocator *allocator, HSourceLocation *source) {
+    if (!source)
+        return;
+    allocator->free(allocator, (void *)source->file_name);
+    allocator->free(allocator, (void *)source->function_name);
+    allocator->free(allocator, source);
+}
+
+static HSourceLocation *h_parser_copy_source_location(HAllocator *allocator,
+                                                      const HSourceLocation *source) {
+    HSourceLocation *copy = allocator->alloc(allocator, sizeof(*copy));
+    if (!copy)
+        return NULL;
+
+    *copy = *source;
+    copy->file_name = h_parser_copy_diagnostic_text(allocator, source->file_name);
+    if (source->file_name && !copy->file_name) {
+        allocator->free(allocator, copy);
+        return NULL;
+    }
+
+    copy->function_name = h_parser_copy_diagnostic_text(allocator, source->function_name);
+    if (source->function_name && !copy->function_name) {
+        allocator->free(allocator, (void *)copy->file_name);
+        allocator->free(allocator, copy);
+        return NULL;
+    }
+    return copy;
+}
+
+HParser *h_with_context(HParser *parser, const char *label, const HSourceLocation *source) {
+    if (!parser || !source || !parser->owner_mm__)
+        return NULL;
+
+    HAllocator *allocator = parser->owner_mm__;
+    HSourceLocation *copy = h_parser_copy_source_location(allocator, source);
+    if (!copy)
+        return NULL;
+
+    if (label && !h_parser_set_diagnostic_text(parser, &parser->diagnostic_label, label)) {
+        h_parser_free_source_location(allocator, copy);
+        return NULL;
+    }
+
+    h_parser_free_source_location(allocator, parser->diagnostic_source);
+    parser->diagnostic_source = copy;
+    return parser;
 }

@@ -190,6 +190,13 @@ typedef enum HParseErrorKind_ {
     H_PARSE_ERROR_NO_VALUE
 } HParseErrorKind;
 
+typedef struct HSourceLocation_ {
+    const char *file_name;
+    const char *function_name;
+    size_t line;
+    size_t column;
+} HSourceLocation;
+
 /**
  * @struct HParseError
  * @brief Structured furthest-failure information from a traced parse.
@@ -214,6 +221,8 @@ typedef struct HParseError_ {
     const char *context[H_PARSE_ERROR_MAX_PARSERS];
     size_t n_context;
     const char *message; /**< User-defined failure message, or NULL. */
+    /** Owned copy of the selected parser's grammar-construction location. */
+    const HSourceLocation *source;
 } HParseError;
 
 /** Opaque, extensible diagnostic returned by h_parse_debug_ex(). */
@@ -266,6 +275,7 @@ typedef struct HParser_ {
     HDesugarContext *desugar_ctx;
     char *diagnostic_label;
     char *diagnostic_message;
+    HSourceLocation *diagnostic_source;
 } HParser;
 
 typedef struct HSuspendedParser_ HSuspendedParser;
@@ -1573,6 +1583,10 @@ void h_parser_free(HParser *p);
  */
 void h_parser_free__m(HAllocator *mm__, HParser *p);
 
+/** @defgroup error labeling
+ * @{
+ */
+
 /**
  * @brief Give a parser a stable user-defined name in debug diagnostics.
  *
@@ -1593,6 +1607,29 @@ bool h_parser_set_label(HParser *parser, const char *label);
  * @return true on success, false for an invalid parser or allocation failure.
  */
 bool h_parser_set_error_message(HParser *parser, const char *message);
+
+/**
+ * @brief Attach a stable label and grammar-construction location to a parser.
+ *
+ * The parser owns copies of @p label and all strings in @p source. Passing a
+ * NULL label preserves the parser's existing label. Repeated calls replace the
+ * previous source location.
+ *
+ * @return @p parser on success, or NULL for invalid arguments or allocation
+ * failure.
+ */
+HParser *h_with_context(HParser *parser, const char *label, const HSourceLocation *source);
+
+static inline HParser *h_with_context_at(HParser *parser, const char *label, const char *file_name,
+                                         const char *function_name, size_t line, size_t column) {
+    HSourceLocation source = {file_name, function_name, line, column};
+    return h_with_context(parser, label, &source);
+}
+
+#define H_CONTEXT(parser, label)                                                                   \
+    h_with_context_at((parser), (label), __FILE__, __func__, __LINE__, 0)
+
+/** @} */
 
 #ifdef __cplusplus
 }

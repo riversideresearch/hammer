@@ -209,14 +209,20 @@ static void test_trace_custom_label_and_message(gconstpointer backend) {
     HParserBackend be = (HParserBackend)GPOINTER_TO_INT(backend);
     char label[] = "udp.protocol";
     char message[] = "invalid UDP protocol";
+    char file_name[] = "udp.c";
+    char function_name[] = "make_udp_parser";
+    HSourceLocation source = {file_name, function_name, 42, 7};
     HParser *prefix = h_ch('A');
     HParser *protocol = h_ch(0x11);
     HParser *p = h_sequence(prefix, protocol, NULL);
 
     g_check_cmp_int(h_parser_set_label(p, label), ==, true);
     g_check_cmp_int(h_parser_set_error_message(p, message), ==, true);
+    g_check_cmp_ptr(h_with_context(p, NULL, &source), ==, p);
     label[0] = 'X';
     message[0] = 'X';
+    file_name[0] = 'X';
+    function_name[0] = 'X';
     g_check_cmp_int(h_compile(p, be, NULL), ==, 0);
 
     const uint8_t input[] = {'A', 0x12};
@@ -224,18 +230,55 @@ static void test_trace_custom_label_and_message(gconstpointer backend) {
     HParseResult *result = h_parse_debug_ex(p, input, sizeof(input), &diagnostic, false);
     g_check_cmp_ptr(result, ==, NULL);
     g_check_cmp_ptr(diagnostic, !=, NULL);
+    h_parser_free(p);
     if (diagnostic) {
         const HParseError *error = h_parse_diagnostic_error(diagnostic);
         g_check_cmp_int(error->kind, ==, H_PARSE_ERROR_PRIMITIVE_MISMATCH);
         g_check_string(error->parser, ==, "udp.protocol");
         g_check_string(error->message, ==, "invalid UDP protocol");
+        g_check_cmp_ptr(error->source, !=, NULL);
+        if (error->source) {
+            g_check_string(error->source->file_name, ==, "udp.c");
+            g_check_string(error->source->function_name, ==, "make_udp_parser");
+            g_check_cmp_size(error->source->line, ==, 42);
+            g_check_cmp_size(error->source->column, ==, 7);
+        }
         g_check_cmp_size(error->index, ==, 1);
         g_check_cmp_size(h_parse_diagnostic_expected_count(diagnostic), ==, 1);
         h_parse_diagnostic_free(diagnostic);
     }
-    h_parser_free(p);
     h_parser_free(prefix);
     h_parser_free(protocol);
+}
+
+static void test_with_context_owns_metadata(void) {
+    char label[] = "udp.protocol";
+    char file_name[] = "udp.c";
+    char function_name[] = "make_udp_parser";
+    HSourceLocation source = {file_name, function_name, 42, 7};
+    HParser *parser = h_ch(0x11);
+
+    g_check_cmp_ptr(h_with_context(parser, label, &source), ==, parser);
+    label[0] = 'X';
+    file_name[0] = 'X';
+    function_name[0] = 'X';
+
+    g_check_string(parser->diagnostic_label, ==, "udp.protocol");
+    g_check_cmp_ptr(parser->diagnostic_source, !=, &source);
+    g_check_string(parser->diagnostic_source->file_name, ==, "udp.c");
+    g_check_string(parser->diagnostic_source->function_name, ==, "make_udp_parser");
+    g_check_cmp_size(parser->diagnostic_source->line, ==, 42);
+    g_check_cmp_size(parser->diagnostic_source->column, ==, 7);
+
+    size_t macro_line = __LINE__ + 1;
+    g_check_cmp_ptr(H_CONTEXT(parser, "udp.protocol.byte"), ==, parser);
+    g_check_string(parser->diagnostic_label, ==, "udp.protocol.byte");
+    g_check_string(parser->diagnostic_source->file_name, ==, __FILE__);
+    g_check_string(parser->diagnostic_source->function_name, ==, "test_with_context_owns_metadata");
+    g_check_cmp_size(parser->diagnostic_source->line, ==, macro_line);
+    g_check_cmp_size(parser->diagnostic_source->column, ==, 0);
+
+    h_parser_free(parser);
 }
 
 static void test_trace_custom_failure(gconstpointer backend) {
@@ -724,6 +767,9 @@ static void test_trace_nested_list(gconstpointer backend) {
 }
 
 void register_trace_tests(void) {
+    g_test_add_func("/core/parser/trace_with_context_owns_metadata",
+                    test_with_context_owns_metadata);
+
     g_test_add_data_func("/core/parser/regex/trace_debug_success", GINT_TO_POINTER(PB_REGULAR),
                          test_trace_debug_success);
     g_test_add_data_func("/core/parser/regex/trace_debug_error_on_failure",
