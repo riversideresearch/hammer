@@ -17,7 +17,7 @@ static void test_trace_debug_success(gconstpointer backend) {
     h_compile(p, be, NULL);
 
     HParseError err;
-    HParseResult *res = h_parse_debug(p, (const uint8_t *)"ab", 2, &err, true);
+    HParseResult *res = h_parse_debug(p, (const uint8_t *)"ab", 2, &err, true, true);
     g_check_cmp_ptr(res, !=, NULL);
     if (res) {
         h_parse_result_free(res);
@@ -39,7 +39,7 @@ static void test_trace_debug_error_on_failure(gconstpointer backend) {
     h_compile(p, be, NULL);
 
     HParseError err;
-    HParseResult *res = h_parse_debug(p, (const uint8_t *)"ax", 2, &err, true);
+    HParseResult *res = h_parse_debug(p, (const uint8_t *)"ax", 2, &err, true, true);
     g_check_cmp_ptr(res, ==, NULL);
 
     // The failure-position fields are only populated when the library is built
@@ -64,7 +64,7 @@ static void test_trace_debug_null_error(gconstpointer backend) {
     HParser *p = h_sequence(h_ch('a'), h_ch('b'), NULL);
     h_compile(p, be, NULL);
 
-    HParseResult *res = h_parse_debug(p, (const uint8_t *)"ax", 2, NULL, true);
+    HParseResult *res = h_parse_debug(p, (const uint8_t *)"ax", 2, NULL, true, true);
     g_check_cmp_ptr(res, ==, NULL);
 }
 
@@ -74,7 +74,7 @@ static void test_trace_cf_unexpected_eof(gconstpointer backend) {
     g_check_cmp_int(h_compile(p, be, NULL), ==, 0);
 
     HParseError err;
-    HParseResult *res = h_parse_debug(p, (const uint8_t *)"AB", 2, &err, true);
+    HParseResult *res = h_parse_debug(p, (const uint8_t *)"AB", 2, &err, true, true);
     g_check_cmp_ptr(res, ==, NULL);
     g_check_cmp_size(err.index, ==, 2);
     g_check_cmp_size(err.end_index, ==, 2);
@@ -90,7 +90,7 @@ static void test_trace_cf_range_failure(gconstpointer backend) {
     g_check_cmp_int(h_compile(p, be, NULL), ==, 0);
 
     HParseError err;
-    HParseResult *res = h_parse_debug(p, (const uint8_t *)"A", 1, &err, true);
+    HParseResult *res = h_parse_debug(p, (const uint8_t *)"A", 1, &err, true, true);
     g_check_cmp_ptr(res, ==, NULL);
     g_check_cmp_size(err.index, ==, 0);
     g_check_cmp_size(err.end_index, ==, 1);
@@ -108,7 +108,7 @@ static void test_trace_float_range_failure(gconstpointer backend) {
     g_check_cmp_int(h_compile(p, be, NULL), ==, 0);
 
     HParseDiagnostic *diagnostic = NULL;
-    HParseResult *res = h_parse_debug_ex(p, input, sizeof(input), &diagnostic, false);
+    HParseResult *res = h_parse_debug_ex(p, input, sizeof(input), &diagnostic, false, true);
     g_check_cmp_ptr(res, ==, NULL);
     g_check_cmp_ptr(diagnostic, !=, NULL);
     if (!diagnostic)
@@ -127,7 +127,7 @@ static void test_trace_glr_ambiguous_failure(void) {
     g_check_cmp_int(h_compile(p, PB_GLR, NULL), ==, 0);
 
     HParseError err;
-    HParseResult *res = h_parse_debug(p, (const uint8_t *)"aab", 3, &err, true);
+    HParseResult *res = h_parse_debug(p, (const uint8_t *)"aab", 3, &err, true, true);
     g_check_cmp_ptr(res, ==, NULL);
     g_check_cmp_size(err.index, ==, 2);
     g_check_cmp_int(err.actual, ==, 'b');
@@ -142,7 +142,7 @@ static void test_trace_cf_verbose_dump(gconstpointer backend) {
     if (g_test_subprocess()) {
         HParser *p = h_sequence(h_ch('a'), h_ch('b'), NULL);
         g_assert_cmpint(h_compile(p, be, NULL), ==, 0);
-        HParseResult *res = h_parse_debug(p, (const uint8_t *)"ab", 2, NULL, true);
+        HParseResult *res = h_parse_debug(p, (const uint8_t *)"ab", 2, NULL, true, true);
         g_assert_nonnull(res);
         h_parse_result_free(res);
         return;
@@ -162,7 +162,7 @@ static void test_trace_structured_expectations(gconstpointer backend) {
     g_check_cmp_int(h_compile(p, be, NULL), ==, 0);
 
     HParseDiagnostic *diagnostic = NULL;
-    HParseResult *res = h_parse_debug_ex(p, (const uint8_t *)"z", 1, &diagnostic, false);
+    HParseResult *res = h_parse_debug_ex(p, (const uint8_t *)"z", 1, &diagnostic, false, true);
     g_check_cmp_ptr(res, ==, NULL);
     g_check_cmp_ptr(diagnostic, !=, NULL);
     if (!diagnostic)
@@ -192,7 +192,7 @@ static void test_trace_structured_expected_eof(void) {
     g_check_cmp_int(h_compile(p, PB_REGULAR, NULL), ==, 0);
 
     HParseDiagnostic *diagnostic = NULL;
-    HParseResult *res = h_parse_debug_ex(p, (const uint8_t *)"AB", 2, &diagnostic, false);
+    HParseResult *res = h_parse_debug_ex(p, (const uint8_t *)"AB", 2, &diagnostic, false, true);
     g_check_cmp_ptr(res, ==, NULL);
     g_check_cmp_ptr(diagnostic, !=, NULL);
     if (!diagnostic)
@@ -227,7 +227,7 @@ static void test_trace_custom_label_and_message(gconstpointer backend) {
 
     const uint8_t input[] = {'A', 0x12};
     HParseDiagnostic *diagnostic = NULL;
-    HParseResult *result = h_parse_debug_ex(p, input, sizeof(input), &diagnostic, false);
+    HParseResult *result = h_parse_debug_ex(p, input, sizeof(input), &diagnostic, false, true);
     g_check_cmp_ptr(result, ==, NULL);
     g_check_cmp_ptr(diagnostic, !=, NULL);
     h_parser_free(p);
@@ -292,7 +292,7 @@ static void test_trace_custom_failure(gconstpointer backend) {
 
     HParseDiagnostic *diagnostic = NULL;
     HParseResult *result =
-        h_parse_debug_ex(p, (const uint8_t *)"A", 1, &diagnostic, false);
+        h_parse_debug_ex(p, (const uint8_t *)"A", 1, &diagnostic, false, true);
     g_check_cmp_ptr(result, ==, NULL);
     g_check_cmp_ptr(diagnostic, !=, NULL);
     if (diagnostic) {
@@ -311,7 +311,7 @@ static void test_trace_nothing_failure(gconstpointer backend) {
     g_check_cmp_int(h_compile(p, be, NULL), ==, 0);
 
     HParseDiagnostic *diagnostic = NULL;
-    HParseResult *res = h_parse_debug_ex(p, (const uint8_t *)"A", 1, &diagnostic, false);
+    HParseResult *res = h_parse_debug_ex(p, (const uint8_t *)"A", 1, &diagnostic, false, true);
     g_check_cmp_ptr(res, ==, NULL);
     g_check_cmp_ptr(diagnostic, !=, NULL);
     if (!diagnostic)
@@ -332,7 +332,7 @@ static void test_trace_sequence_ending_in_nothing(gconstpointer backend) {
     g_check_cmp_int(h_compile(p, be, NULL), ==, 0);
 
     HParseDiagnostic *diagnostic = NULL;
-    HParseResult *res = h_parse_debug_ex(p, (const uint8_t *)"AB", 2, &diagnostic, false);
+    HParseResult *res = h_parse_debug_ex(p, (const uint8_t *)"AB", 2, &diagnostic, false, true);
     g_check_cmp_ptr(res, ==, NULL);
     g_check_cmp_ptr(diagnostic, !=, NULL);
     if (!diagnostic)
@@ -355,7 +355,7 @@ static void test_trace_nothing_choice_priority(gconstpointer backend) {
     g_check_cmp_int(h_compile(p, be, NULL), ==, 0);
 
     HParseDiagnostic *diagnostic = NULL;
-    HParseResult *res = h_parse_debug_ex(p, (const uint8_t *)"B", 1, &diagnostic, false);
+    HParseResult *res = h_parse_debug_ex(p, (const uint8_t *)"B", 1, &diagnostic, false, true);
     g_check_cmp_ptr(res, ==, NULL);
     g_check_cmp_ptr(diagnostic, !=, NULL);
     if (!diagnostic)
@@ -379,7 +379,7 @@ static void test_trace_token_mismatch_position(gconstpointer backend) {
     g_check_cmp_int(h_compile(p, be, NULL), ==, 0);
 
     HParseDiagnostic *diagnostic = NULL;
-    HParseResult *res = h_parse_debug_ex(p, mismatch, sizeof(mismatch), &diagnostic, false);
+    HParseResult *res = h_parse_debug_ex(p, mismatch, sizeof(mismatch), &diagnostic, false, true);
     g_check_cmp_ptr(res, ==, NULL);
     g_check_cmp_ptr(diagnostic, !=, NULL);
     if (!diagnostic)
@@ -400,7 +400,7 @@ static void test_trace_token_mismatch_position(gconstpointer backend) {
     h_parse_diagnostic_free(diagnostic);
 
     diagnostic = NULL;
-    res = h_parse_debug_ex(p, (const uint8_t *)"ABC", 3, &diagnostic, false);
+    res = h_parse_debug_ex(p, (const uint8_t *)"ABC", 3, &diagnostic, false, true);
     g_check_cmp_ptr(res, ==, NULL);
     g_check_cmp_ptr(diagnostic, !=, NULL);
     if (!diagnostic)
@@ -434,7 +434,7 @@ static void test_trace_relational_failure_starts(void) {
         g_check_cmp_int(h_compile(parser, PB_PACKRAT, NULL), ==, 0);
 
         HParseError error;
-        HParseResult *result = h_parse_debug(parser, input, sizeof(input), &error, false);
+        HParseResult *result = h_parse_debug(parser, input, sizeof(input), &error, false, true);
         g_check_cmp_ptr(result, ==, NULL);
         g_check_cmp_int(error.kind, ==, cases[i].kind);
         g_check_cmp_size(error.index, ==, 1);
@@ -475,7 +475,7 @@ static void test_trace_uint8_success(gconstpointer backend) {
     h_compile(p, be, NULL);
 
     uint8_t input[] = {0xFF, 0xFF, 0xFF, 0xFF};
-    HParseResult *res = h_parse_debug(p, input, sizeof(input), NULL, true);
+    HParseResult *res = h_parse_debug(p, input, sizeof(input), NULL, true, true);
     g_check_cmp_ptr(res, !=, NULL);
     if (res) {
         g_check_cmp_uint64(res->ast->token_data.uint, ==, 255);
@@ -493,7 +493,7 @@ static void test_trace_sequence_truncated(gconstpointer backend) {
 
     uint8_t input[] = {1};
     HParseError err;
-    HParseResult *res = h_parse_debug(p, input, 1, &err, true);
+    HParseResult *res = h_parse_debug(p, input, 1, &err, true, true);
     g_check_cmp_ptr(res, ==, NULL);
     g_check_cmp_size(err.index, ==, 1);
     g_check_cmp_int(err.has_actual, ==, false);
@@ -512,7 +512,7 @@ static void test_trace_choice_token_mismatch(gconstpointer backend) {
 
     uint8_t input[] = {'Y', 'o', 'S'};
     HParseError err;
-    HParseResult *res = h_parse_debug(p, input, sizeof(input), &err, true);
+    HParseResult *res = h_parse_debug(p, input, sizeof(input), &err, true, true);
     g_check_cmp_ptr(res, ==, NULL);
     g_check_cmp_size(err.index, ==, 1);
     g_check_cmp_int(err.actual, ==, 'o');
@@ -529,7 +529,7 @@ static void test_trace_many1_no_letter(gconstpointer backend) {
 
     uint8_t input[] = {'!', 'E', 'L', 'L', 'O', '!'};
     HParseError err;
-    HParseResult *res = h_parse_debug(p, input, sizeof(input), &err, true);
+    HParseResult *res = h_parse_debug(p, input, sizeof(input), &err, true, true);
     g_check_cmp_ptr(res, ==, NULL);
     g_check_cmp_size(err.index, ==, 0);
     g_check_cmp_int(err.actual, ==, '!');
@@ -547,7 +547,7 @@ static void test_trace_middle_bad_close(gconstpointer backend) {
 
     uint8_t input[] = {'(', 'H', 'E', 'L', 'L', 'O', '{'};
     HParseError err;
-    HParseResult *res = h_parse_debug(p, input, sizeof(input), &err, true);
+    HParseResult *res = h_parse_debug(p, input, sizeof(input), &err, true, true);
     g_check_cmp_ptr(res, ==, NULL);
 
     // Furthest progress is index 6, the '{' where ')' was expected. These
@@ -571,7 +571,7 @@ static void test_trace_int_range_reject(gconstpointer backend) {
 
     uint8_t input[] = {0xFF};
     HParseError err;
-    HParseResult *res = h_parse_debug(p, input, sizeof(input), &err, true);
+    HParseResult *res = h_parse_debug(p, input, sizeof(input), &err, true, true);
     g_check_cmp_ptr(res, ==, NULL);
     g_check_cmp_int(err.n_deepest, >, 0);
     if (err.n_deepest > 0) {
@@ -594,7 +594,7 @@ static void test_trace_attr_bool_checksum(gconstpointer backend) {
 
     uint8_t input[] = {0x55, 0xAA};
     HParseError err;
-    HParseResult *res = h_parse_debug(p, input, sizeof(input), &err, true);
+    HParseResult *res = h_parse_debug(p, input, sizeof(input), &err, true, true);
     g_check_cmp_ptr(res, ==, NULL);
     g_check_cmp_int(err.n_deepest, >, 0);
     if (err.n_deepest > 0) {
@@ -626,7 +626,7 @@ static void test_trace_attr_bool_nonzero_offset(gconstpointer backend) {
 
     const uint8_t input[] = {'A', 'B', 'C', 'D', 0x11, 0x12};
     HParseError err;
-    HParseResult *res = h_parse_debug(p, input, sizeof(input), &err, false);
+    HParseResult *res = h_parse_debug(p, input, sizeof(input), &err, false, true);
     g_check_cmp_ptr(res, ==, NULL);
     g_check_cmp_size(err.index, ==, 4);
     g_check_cmp_size(err.end_index, ==, 6);
@@ -653,7 +653,7 @@ static bool trace_nested_debug_failure_then_reject(HParseResult *p, void *user_d
     (void)p;
     (void)user_data;
     uint8_t nested[] = {7};
-    HParseResult *result = h_parse_debug(trace_nested_parser, nested, 0, &trace_nested_error, true);
+    HParseResult *result = h_parse_debug(trace_nested_parser, nested, 0, &trace_nested_error, true, true);
     g_assert_null(result);
     return false;
 }
@@ -668,7 +668,7 @@ static void test_trace_nested_parse_isolation(gconstpointer backend) {
 
     uint8_t input[] = {1, 2};
     HParseError err;
-    HParseResult *result = h_parse_debug(outer, input, sizeof(input), &err, true);
+    HParseResult *result = h_parse_debug(outer, input, sizeof(input), &err, true, true);
     g_check_cmp_ptr(result, ==, NULL);
     g_check_cmp_int(err.kind, ==, H_PARSE_ERROR_SEMANTIC_PREDICATE);
     g_check_cmp_size(err.index, ==, 0);
@@ -688,7 +688,7 @@ static void test_trace_nested_debug_restores_outer(gconstpointer backend) {
 
     uint8_t input[] = {1, 2};
     HParseError err;
-    HParseResult *result = h_parse_debug(outer, input, sizeof(input), &err, true);
+    HParseResult *result = h_parse_debug(outer, input, sizeof(input), &err, true, true);
     g_check_cmp_ptr(result, ==, NULL);
     g_check_cmp_int(trace_nested_error.kind, ==, H_PARSE_ERROR_UNEXPECTED_EOF);
     g_check_cmp_size(trace_nested_error.index, ==, 0);
@@ -706,20 +706,20 @@ static void test_trace_repeated_parses_and_nul_byte(gconstpointer backend) {
 
     uint8_t bad[] = {0};
     HParseError err;
-    HParseResult *result = h_parse_debug(parser, bad, sizeof(bad), &err, true);
+    HParseResult *result = h_parse_debug(parser, bad, sizeof(bad), &err, true, true);
     g_check_cmp_ptr(result, ==, NULL);
     g_check_cmp_int(err.has_actual, ==, true);
     g_check_cmp_int(err.actual, ==, 0);
     g_check_cmp_int(err.kind, ==, H_PARSE_ERROR_PRIMITIVE_MISMATCH);
     h_parse_error_free(&err);
 
-    result = h_parse_debug(parser, (const uint8_t *)"x", 1, &err, true);
+    result = h_parse_debug(parser, (const uint8_t *)"x", 1, &err, true, true);
     g_check_cmp_ptr(result, !=, NULL);
     g_check_cmp_int(err.kind, ==, H_PARSE_ERROR_NONE);
     g_check_cmp_size(err.n_deepest, ==, 0);
     h_parse_result_free(result);
 
-    result = h_parse_debug(parser, bad, sizeof(bad), &err, true);
+    result = h_parse_debug(parser, bad, sizeof(bad), &err, true, true);
     g_check_cmp_ptr(result, ==, NULL);
     g_check_cmp_int(err.has_actual, ==, true);
     g_check_cmp_int(err.actual, ==, 0);
@@ -735,7 +735,7 @@ static void test_trace_action_sum(gconstpointer backend) {
     h_compile(p, be, NULL);
 
     uint8_t input[] = {10, 20};
-    HParseResult *res = h_parse_debug(p, input, sizeof(input), NULL, true);
+    HParseResult *res = h_parse_debug(p, input, sizeof(input), NULL, true, true);
     g_check_cmp_ptr(res, !=, NULL);
     if (res) {
         g_check_cmp_uint64(res->ast->token_data.uint, ==, 30);
@@ -757,7 +757,7 @@ static void test_trace_nested_list(gconstpointer backend) {
 
     uint8_t input[] = {'[', 1, ',', '[', 2, ',', '[', 9, ']', ']', ']'};
     HParseError err;
-    HParseResult *res = h_parse_debug(list, input, sizeof(input), &err, true);
+    HParseResult *res = h_parse_debug(list, input, sizeof(input), &err, true, true);
     g_check_cmp_ptr(res, ==, NULL);
     g_check_cmp_int(err.n_deepest, >, 0);
     if (err.n_deepest > 0) {
