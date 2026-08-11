@@ -586,10 +586,12 @@ HParseResult *h_parse__m(HAllocator *mm__, const HParser *parser, const uint8_t 
 // (and a NULL trace) leaves well-defined, empty contents.
 HParseResult *h_parse_debug(const HParser *parser, const uint8_t *input, size_t length,
                             HParseError *error, bool dumpExecutionTrace, bool dumpInputContext) {
-    return h_parse_debug__m(&system_allocator, parser, input, length, error, dumpExecutionTrace, dumpInputContext);
+    return h_parse_debug__m(&system_allocator, parser, input, length, error, dumpExecutionTrace,
+                            dumpInputContext);
 }
 HParseResult *h_parse_debug__m(HAllocator *mm__, const HParser *parser, const uint8_t *input,
-                               size_t length, HParseError *error, bool dumpExecutionTrace, bool dumpInputContext) {
+                               size_t length, HParseError *error, bool dumpExecutionTrace,
+                               bool dumpInputContext) {
     if (error)
         memset(error, 0, sizeof(*error));
     TRACE_SET_ENABLED(true, dumpExecutionTrace, dumpInputContext);
@@ -601,7 +603,8 @@ HParseResult *h_parse_debug__m(HAllocator *mm__, const HParser *parser, const ui
 }
 
 HParseResult *h_parse_debug_ex(const HParser *parser, const uint8_t *input, size_t length,
-                               HParseDiagnostic **diagnostic, bool dumpExecutionTrace, bool dumpInputContext) {
+                               HParseDiagnostic **diagnostic, bool dumpExecutionTrace,
+                               bool dumpInputContext) {
     if (diagnostic)
         *diagnostic = NULL;
     TRACE_SET_ENABLED(true, dumpExecutionTrace, dumpInputContext);
@@ -1076,21 +1079,164 @@ static HSourceLocation *h_parser_copy_source_location(HAllocator *allocator,
     return copy;
 }
 
+typedef struct HContextEnv_ {
+    const HParser *child;
+    HParser *wrapper;
+} HContextEnv;
+
+typedef struct HContextCFClone_ {
+    const HCFChoice *source;
+    HCFChoice *clone;
+    struct HContextCFClone_ *next;
+} HContextCFClone;
+
+static HParseResult *parse_context(void *env, HParseState *state) {
+    return h_do_parse(((HContextEnv *)env)->child, state);
+}
+
+static bool context_is_valid_regular(void *env) {
+    const HParser *child = ((HContextEnv *)env)->child;
+    return child->vtable->isValidRegular(child->env);
+}
+
+static bool context_is_valid_cf(void *env) {
+    const HParser *child = ((HContextEnv *)env)->child;
+    return child->vtable->isValidCF(child->env);
+}
+
+static bool context_compile_to_rvm(HRVMProg *prog, void *env) {
+    HContextEnv *context = env;
+    const HParser *parent_context = prog->current_context;
+    prog->current_context = context->wrapper;
+    bool result = h_compile_regex(prog, context->child);
+    prog->current_context = parent_context;
+    return result;
+}
+
+static HCFChoice *context_clone_cf_choice(HAllocator *mm__, const HCFChoice *source,
+                                          const HParser *context, HContextCFClone **seen) {
+    for (HContextCFClone *entry = *seen; entry; entry = entry->next)
+        if (entry->source == source)
+            return entry->clone;
+
+    HCFChoice *clone = h_new(HCFChoice, 1);
+    HContextCFClone *entry = h_new(HContextCFClone, 1);
+    if (!clone || !entry)
+        return NULL;
+    *clone = *source;
+    clone->diagnostic_context = context;
+    entry->source = source;
+    entry->clone = clone;
+    entry->next = *seen;
+    *seen = entry;
+
+    if (source->type != HCF_CHOICE)
+        return clone;
+
+    size_t alternative_count = 0;
+    while (source->data.seq[alternative_count])
+        alternative_count++;
+    clone->data.seq = h_new(HCFSequence *, alternative_count + 1);
+    if (!clone->data.seq)
+        return NULL;
+
+    for (size_t i = 0; i < alternative_count; i++) {
+        HCFSequence *source_sequence = source->data.seq[i];
+        size_t item_count = 0;
+        while (source_sequence->items[item_count])
+            item_count++;
+
+        HCFSequence *clone_sequence = h_new(HCFSequence, 1);
+        if (!clone_sequence)
+            return NULL;
+        clone_sequence->items = h_new(HCFChoice *, item_count + 1);
+        if (!clone_sequence->items)
+            return NULL;
+        for (size_t j = 0; j < item_count; j++) {
+            clone_sequence->items[j] =
+                context_clone_cf_choice(mm__, source_sequence->items[j], context, seen);
+            if (!clone_sequence->items[j])
+                return NULL;
+        }
+        clone_sequence->items[item_count] = NULL;
+        clone->data.seq[i] = clone_sequence;
+    }
+    clone->data.seq[alternative_count] = NULL;
+    return clone;
+}
+
+static void desugar_context(HAllocator *mm__, HCFStack *stk__, void *env) {
+    HContextEnv *context = env;
+    HCFChoice *child = h_desugar(mm__, NULL, context->child);
+    HContextCFClone *seen = NULL;
+    HCFChoice *clone = child ? context_clone_cf_choice(mm__, child, context->wrapper, &seen) : NULL;
+
+    HCFS_BEGIN_CHOICE() {
+        HCFS_BEGIN_SEQ() {
+            if (clone)
+                HCFS_APPEND(clone);
+        }
+        HCFS_END_SEQ();
+        HCFS_THIS_CHOICE->reshape = h_act_first;
+        HCFS_THIS_CHOICE->diagnostic_context = context->wrapper;
+    }
+    HCFS_END_CHOICE();
+}
+
+static const HParserVtable context_vt = {
+    .parse = parse_context,
+    .isValidRegular = context_is_valid_regular,
+    .isValidCF = context_is_valid_cf,
+    .compile_to_rvm = context_compile_to_rvm,
+    .desugar = desugar_context,
+    .higher = true,
+};
+
+bool h_is_context_parser(const HParser *parser) { return parser && parser->vtable == &context_vt; }
+
+const HParser *h_context_parser_child(const HParser *parser) {
+    return h_is_context_parser(parser) ? ((const HContextEnv *)parser->env)->child : NULL;
+}
+
 HParser *h_with_context(HParser *parser, const char *label, const HSourceLocation *source) {
     if (!parser || !source || !parser->owner_mm__)
         return NULL;
 
     HAllocator *allocator = parser->owner_mm__;
-    HSourceLocation *copy = h_parser_copy_source_location(allocator, source);
-    if (!copy)
+    HContextEnv *env = allocator->alloc(allocator, sizeof(*env));
+    if (!env)
         return NULL;
+    env->child = parser;
+    env->wrapper = NULL;
 
-    if (label && !h_parser_set_diagnostic_text(parser, &parser->diagnostic_label, label)) {
-        h_parser_free_source_location(allocator, copy);
+    HParser *wrapper = h_new_parser(allocator, &context_vt, env);
+    if (!wrapper) {
+        allocator->free(allocator, env);
+        return NULL;
+    }
+    env->wrapper = wrapper;
+
+    HSourceLocation *copy = h_parser_copy_source_location(allocator, source);
+    if (!copy) {
+        h_parser_free__m(allocator, wrapper);
         return NULL;
     }
 
-    h_parser_free_source_location(allocator, parser->diagnostic_source);
-    parser->diagnostic_source = copy;
-    return parser;
+    const char *effective_label = label ? label : parser->diagnostic_label;
+    if (effective_label &&
+        !h_parser_set_diagnostic_text(wrapper, &wrapper->diagnostic_label, effective_label)) {
+        h_parser_free_source_location(allocator, copy);
+        h_parser_free__m(allocator, wrapper);
+        return NULL;
+    }
+    if (parser->diagnostic_message &&
+        !h_parser_set_diagnostic_text(wrapper, &wrapper->diagnostic_message,
+                                      parser->diagnostic_message)) {
+        h_parser_free_source_location(allocator, copy);
+        h_parser_free__m(allocator, wrapper);
+        return NULL;
+    }
+
+    wrapper->diagnostic_source = copy;
+    return wrapper;
 }

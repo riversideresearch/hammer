@@ -95,7 +95,8 @@ char *h_trace_parser_name(const HParser *parser);
 void dump_rvm_prog(HRVMProg *prog);
 void dump_svm_prog(HRVMProg *prog, HRVMTrace *trace);
 void rvm_match_error(HRVMProg *prog, const uint8_t *input, size_t input_len, size_t off,
-                     const bool expected[256], bool expected_eof, const HParser *parser);
+                     const bool expected[256], bool expected_eof, const HParser *parser,
+                     const HParser *diagnostic_context);
 void svm_action_error(HSVMContext *ctx, HRVMProg *orig_prog, HRVMTrace *trace, const uint8_t *input,
                       size_t input_len, const char *msg);
 void svm_failure_error(HSVMContext *ctx, HRVMProg *orig_prog, HRVMTrace *trace,

@@ -412,14 +412,18 @@ bool h_lrengine_step(HLREngine *engine, const HLRAction *action) {
         // call validation and semantic action, if present
         if (symbol->pred && !symbol->pred(make_result(tarena, value), symbol->user_data)) {
             if (engine->trace_failures) {
-                CF_TRACE_FAILURE(reduction_start, engine->input.pos + engine->input.index,
-                                 H_PARSE_ERROR_SEMANTIC_PREDICATE,
-                                 symbol->parser ? symbol->parser : engine->root_parser, NULL,
-                                 false);
+                HParseErrorKind kind = H_PARSE_ERROR_SEMANTIC_PREDICATE;
+                if (h_is_nothing_parser(symbol->parser))
+                    kind = H_PARSE_ERROR_EXPLICIT_FAILURE;
+                else if (h_is_float_range_parser(symbol->parser) ||
+                         h_is_int_range_parser(symbol->parser))
+                    kind = H_PARSE_ERROR_RANGE;
+                const HParser *origin = h_cfchoice_diagnostic_parser(symbol, engine->root_parser);
+                CF_TRACE_FAILURE(reduction_start, engine->input.pos + engine->input.index, kind,
+                                 origin, NULL, false);
                 CF_TRACE_LR_REDUCE(engine->trace_id, action_state, engine->state, len,
-                                   reduction_start, engine->input.pos + engine->input.index,
-                                   symbol->parser ? symbol->parser : engine->root_parser, value,
-                                   false);
+                                   reduction_start, engine->input.pos + engine->input.index, origin,
+                                   value, false);
             }
             return false; // validation failed -> no parse; terminate
         }
@@ -448,7 +452,8 @@ bool h_lrengine_step(HLREngine *engine, const HLRAction *action) {
         if (engine->trace_failures)
             CF_TRACE_LR_REDUCE(engine->trace_id, action_state, engine->state, len, reduction_start,
                                engine->input.pos + engine->input.index,
-                               symbol->parser ? symbol->parser : engine->root_parser, value, true);
+                               h_cfchoice_diagnostic_parser(symbol, engine->root_parser), value,
+                               true);
 
         // check for success
         if (engine->state == HLR_SUCCESS) {

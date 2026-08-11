@@ -53,6 +53,7 @@ static void expand_to_closure(HCFGrammar *g, HHashSet *items) {
                         rhs[0]->plan_action = NULL;
                         rhs[0]->pred = NULL;
                         rhs[0]->parser = sym->parser;
+                        rhs[0]->diagnostic_context = sym->diagnostic_context;
                         rhs[0]->env = NULL;
                         rhs[0]->user_data = NULL;
                         rhs[0]->dispatch_opcode = 0;
@@ -210,10 +211,11 @@ HLRTable *h_lr0_table(HCFGrammar *g, const HLRDFA *dfa) {
     for (size_t i = 0; i < dfa->nstates; i++) {
         H_FOREACH_KEY(dfa->states[i], HLRItem * item)
         HCFChoice *symbol = item->rhs[item->mark];
-        if (symbol && symbol->parser)
-            table->expected_parsers[i] = symbol->parser;
-        else if (!table->expected_parsers[i] && item->lhs->parser)
-            table->expected_parsers[i] = item->lhs->parser;
+        if (symbol && (symbol->diagnostic_context || symbol->parser))
+            table->expected_parsers[i] = h_cfchoice_diagnostic_parser(symbol, NULL);
+        else if (!table->expected_parsers[i] &&
+                 (item->lhs->diagnostic_context || item->lhs->parser))
+            table->expected_parsers[i] = h_cfchoice_diagnostic_parser(item->lhs, NULL);
         H_END_FOREACH
     }
 

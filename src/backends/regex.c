@@ -24,26 +24,31 @@ typedef struct HRVMMatchFailure_ {
     bool expected[256];
     bool expected_eof;
     const HParser *parser;
+    const HParser *diagnostic_context;
 } HRVMMatchFailure;
 
 static void record_rvm_match_failure(HRVMMatchFailure *failure, size_t index, uint8_t lo,
-                                     uint8_t hi, bool expected_eof, const HParser *parser) {
+                                     uint8_t hi, bool expected_eof, const HParser *parser,
+                                     const HParser *diagnostic_context) {
     bool explicit_failure = h_is_nothing_parser(parser);
     if (!failure->present || index > failure->index) {
         memset(failure, 0, sizeof(*failure));
         failure->present = true;
         failure->index = index;
         failure->parser = parser;
+        failure->diagnostic_context = diagnostic_context;
     } else if (index < failure->index) {
         return;
     } else if (h_is_nothing_parser(failure->parser) && !explicit_failure) {
         memset(failure->expected, 0, sizeof(failure->expected));
         failure->expected_eof = false;
         failure->parser = parser;
+        failure->diagnostic_context = diagnostic_context;
     } else if (!h_is_nothing_parser(failure->parser) && explicit_failure) {
         return;
     } else if (!failure->parser) {
         failure->parser = parser;
+        failure->diagnostic_context = diagnostic_context;
     }
 
     if (explicit_failure)
@@ -106,6 +111,7 @@ void *h_rvm_run__m(HAllocator *mm__, HRVMProg *prog, const uint8_t *input, size_
         nt->arg = (arg_);                                                                          \
         nt->opcode = (op_);                                                                        \
         nt->parser = prog->insn_parsers[THREAD.ip];                                                \
+        nt->diagnostic_context = prog->insn_contexts[THREAD.ip];                                   \
         nt->next = THREAD.trace;                                                                   \
         nt->input_pos = off;                                                                       \
         THREAD.trace = nt;                                                                         \
@@ -146,6 +152,7 @@ void *h_rvm_run__m(HAllocator *mm__, HRVMProg *prog, const uint8_t *input, size_
                 insn_seen[THREAD.ip] = 1;
                 arg = prog->insns[THREAD.ip].arg;
                 const HParser *insn_parser = prog->insn_parsers[THREAD.ip];
+                const HParser *insn_context = prog->insn_contexts[THREAD.ip];
                 switch (prog->insns[THREAD.ip].op) {
                 case RVM_ACCEPT:
                     PUSH_SVM(SVM_ACCEPT, 0);
@@ -157,7 +164,8 @@ void *h_rvm_run__m(HAllocator *mm__, HRVMProg *prog, const uint8_t *input, size_
                     lo = arg & 0xff;
                     THREAD.ip++;
                     if (off == len || ch < lo || ch > hi) {
-                        record_rvm_match_failure(&match_failure, off, lo, hi, false, insn_parser);
+                        record_rvm_match_failure(&match_failure, off, lo, hi, false, insn_parser,
+                                                 insn_context);
                         ipq_top--; // terminate thread
                     }
                     goto next_insn;
@@ -189,7 +197,8 @@ void *h_rvm_run__m(HAllocator *mm__, HRVMProg *prog, const uint8_t *input, size_
                 case RVM_EOF:
                     THREAD.ip++;
                     if (off != len) {
-                        record_rvm_match_failure(&match_failure, off, 0, 0, true, insn_parser);
+                        record_rvm_match_failure(&match_failure, off, 0, 0, true, insn_parser,
+                                                 insn_context);
                         ipq_top--; // Terminate thread
                     }
                     goto next_insn;
@@ -220,7 +229,8 @@ finalize:
         }
     } else if (match_failure.present) {
         rvm_match_error(prog, input, len, match_failure.index, match_failure.expected,
-                        match_failure.expected_eof, match_failure.parser);
+                        match_failure.expected_eof, match_failure.parser,
+                        match_failure.diagnostic_context);
     }
 
 end:
@@ -298,6 +308,7 @@ HParseResult *run_trace(HAllocator *mm__, HRVMProg *orig_prog, HRVMTrace *trace,
     for (cur = trace; cur; cur = cur->next) {
         ctx->input_pos = cur->input_pos;
         ctx->parser = cur->parser;
+        ctx->diagnostic_context = cur->diagnostic_context;
         switch (cur->opcode) {
         case SVM_PUSH:
             if (!svm_stack_ensure_cap(mm__, ctx, 1)) {
@@ -445,11 +456,17 @@ uint16_t h_rvm_insert_insn(HRVMProg *prog, HRVMOp op, uint16_t arg) {
         if (!prog->insn_parsers) {
             longjmp(prog->except, 1);
         }
+        prog->insn_contexts = prog->allocator->realloc(prog->allocator, prog->insn_contexts,
+                                                       array_size * sizeof(*prog->insn_contexts));
+        if (!prog->insn_contexts) {
+            longjmp(prog->except, 1);
+        }
     }
 
     prog->insns[prog->length].op = op;
     prog->insns[prog->length].arg = arg;
     prog->insn_parsers[prog->length] = prog->current_parser;
+    prog->insn_contexts[prog->length] = prog->current_context;
     return prog->length++;
 }
 
@@ -520,6 +537,7 @@ static void h_rvm_prog_free(HRVMProg *prog) {
     HAllocator *mm__ = prog->allocator;
     h_free(prog->insns);
     h_free(prog->insn_parsers);
+    h_free(prog->insn_contexts);
     h_free(prog->actions);
     if (prog->arena)
         h_delete_arena(prog->arena);
@@ -542,8 +560,10 @@ static int h_regex_compile(HAllocator *mm__, HParser *parser, const void *params
     prog->length = prog->action_count = 0;
     prog->insns = NULL;
     prog->insn_parsers = NULL;
+    prog->insn_contexts = NULL;
     prog->actions = NULL;
     prog->current_parser = NULL;
+    prog->current_context = NULL;
     prog->root_parser = parser;
     prog->allocator = mm__;
     prog->arena = NULL;

@@ -323,8 +323,7 @@ static void llk_expected_from_map(const HStringMap *map, bool expected[256], boo
     if (!map)
         return;
 
-    *expected_eof = map->end_branch != NULL &&
-                    !llk_sequence_contains_nothing(map->end_branch);
+    *expected_eof = map->end_branch != NULL && !llk_sequence_contains_nothing(map->end_branch);
     const HHashTable *branches = map->char_branches;
     for (size_t i = 0; i < branches->capacity; i++) {
         for (HHashTableEntry *entry = &branches->contents[i]; entry; entry = entry->next) {
@@ -380,7 +379,7 @@ static void llk_trace_terminal_failure(const HCFChoice *symbol, size_t index, si
     CF_TRACE_FAILURE(index, end,
                      unexpected_eof ? H_PARSE_ERROR_UNEXPECTED_EOF
                                     : H_PARSE_ERROR_PRIMITIVE_MISMATCH,
-                     symbol->parser ? symbol->parser : root_parser, expected, expected_eof);
+                     h_cfchoice_diagnostic_parser(symbol, root_parser), expected, expected_eof);
 }
 
 // in order to construct the parse tree, we delimit the symbol stack into
@@ -558,7 +557,7 @@ static HCountedArray *llk_parse_chunk_(HLLkState *s, const HParser *parser, HInp
 
         if (x != MARK && x->type == HCF_CHOICE) {
             // x is a nonterminal; apply the appropriate production and continue
-            const HParser *origin = x->parser ? x->parser : parser;
+            const HParser *origin = h_cfchoice_diagnostic_parser(x, parser);
             if (trace_failures)
                 CF_TRACE_PARSER_ENTER(origin, symbol_start, "predict");
 
@@ -640,7 +639,7 @@ static HCountedArray *llk_parse_chunk_(HLLkState *s, const HParser *parser, HInp
 
             tok->index = stream->pos + stream->index;
             tok->bit_offset = stream->bit_offset;
-            const HParser *origin = x->parser ? x->parser : parser;
+            const HParser *origin = h_cfchoice_diagnostic_parser(x, parser);
             if (trace_failures)
                 CF_TRACE_PARSER_ENTER(origin, tok->index, "terminal");
 
@@ -734,12 +733,17 @@ static HCountedArray *llk_parse_chunk_(HLLkState *s, const HParser *parser, HInp
 
         // call validation and semantic action, if present
         if (x->pred && !x->pred(make_result(tarena, tok), x->user_data)) {
+            if (trace_failures) {
+                HParseErrorKind kind = H_PARSE_ERROR_SEMANTIC_PREDICATE;
+                if (h_is_nothing_parser(x->parser))
+                    kind = H_PARSE_ERROR_EXPLICIT_FAILURE;
+                else if (h_is_float_range_parser(x->parser) || h_is_int_range_parser(x->parser))
+                    kind = H_PARSE_ERROR_RANGE;
+                CF_TRACE_FAILURE(symbol_start, stream->pos + stream->index, kind,
+                                 h_cfchoice_diagnostic_parser(x, parser), NULL, false);
+            }
             if (trace_failures)
-                CF_TRACE_FAILURE(symbol_start, stream->pos + stream->index,
-                                 H_PARSE_ERROR_SEMANTIC_PREDICATE, x->parser ? x->parser : parser,
-                                 NULL, false);
-            if (trace_failures)
-                CF_TRACE_PARSER_EXIT(x->parser ? x->parser : parser, symbol_start,
+                CF_TRACE_PARSER_EXIT(h_cfchoice_diagnostic_parser(x, parser), symbol_start,
                                      stream->pos + stream->index, tok, false,
                                      completed_nonterminal ? "predicate" : "terminal predicate");
             goto no_parse; // validation failed -> no parse
@@ -750,7 +754,7 @@ static HCountedArray *llk_parse_chunk_(HLLkState *s, const HParser *parser, HInp
             tok = (HParsedToken *)x->action(make_result(arena, tok), x->user_data);
 
         if (trace_failures)
-            CF_TRACE_PARSER_EXIT(x->parser ? x->parser : parser, symbol_start,
+            CF_TRACE_PARSER_EXIT(h_cfchoice_diagnostic_parser(x, parser), symbol_start,
                                  stream->pos + stream->index, tok, true,
                                  completed_nonterminal ? "reduce" : "terminal");
 

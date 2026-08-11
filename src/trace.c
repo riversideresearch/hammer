@@ -365,6 +365,8 @@ static const char *trace_parser_diagnostic_name(const HParser *parser) {
         return "?(no parser)";
     if (parser->diagnostic_label)
         return parser->diagnostic_label;
+    if (h_is_context_parser(parser))
+        return trace_parser_diagnostic_name(h_context_parser_child(parser));
     return parser->vtable ? trace_vt_name(parser->vtable) : "?(no parser)";
 }
 
@@ -650,17 +652,35 @@ static void trace_record_failure(const HParser *parser, HParseState *state,
     const HParser *label_parser = parser && parser->diagnostic_label ? parser : NULL;
     const HParser *message_parser = parser && parser->diagnostic_message ? parser : NULL;
     const HParser *source_parser = parser && parser->diagnostic_source ? parser : NULL;
+    bool context_label = false;
+    bool context_message = false;
+    bool context_source = false;
     for (size_t i = context->frame_count;
-         i > 0 && (!label_parser || !message_parser || !source_parser); i--) {
+         i > 0 && (!context_label || !context_message || !context_source); i--) {
         const HParser *candidate = context->frames[i - 1].parser;
         if (!candidate)
             continue;
-        if (!label_parser && candidate->diagnostic_label)
-            label_parser = candidate;
-        if (!message_parser && candidate->diagnostic_message)
-            message_parser = candidate;
-        if (!source_parser && candidate->diagnostic_source)
-            source_parser = candidate;
+        if (h_is_context_parser(candidate)) {
+            if (!context_label && candidate->diagnostic_label) {
+                label_parser = candidate;
+                context_label = true;
+            }
+            if (!context_message && candidate->diagnostic_message) {
+                message_parser = candidate;
+                context_message = true;
+            }
+            if (!context_source && candidate->diagnostic_source) {
+                source_parser = candidate;
+                context_source = true;
+            }
+        } else {
+            if (!label_parser && candidate->diagnostic_label)
+                label_parser = candidate;
+            if (!message_parser && candidate->diagnostic_message)
+                message_parser = candidate;
+            if (!source_parser && candidate->diagnostic_source)
+                source_parser = candidate;
+        }
     }
     const char *failure_name =
         label_parser ? label_parser->diagnostic_label : trace_parser_diagnostic_name(parser);
@@ -791,7 +811,9 @@ void dump_rvm_prog(HRVMProg *prog) {
     for (unsigned int i = 0; i < prog->length; i++) {
         HRVMInsn *insn = &prog->insns[i];
         printf("%4d %-10s", i, rvm_op_names[insn->op]);
-        char *parser_name = h_trace_parser_name(prog->insn_parsers[i]);
+        const HParser *display_parser =
+            prog->insn_contexts[i] ? prog->insn_contexts[i] : prog->insn_parsers[i];
+        char *parser_name = h_trace_parser_name(display_parser);
         switch (insn->op) {
         case RVM_PUSH:
             if (parser_name) {
@@ -854,7 +876,9 @@ void dump_svm_prog(HRVMProg *prog, HRVMTrace *trace) {
             break;
         }
 
-        char *parser_name = h_trace_parser_name(trace->parser);
+        const HParser *display_parser =
+            trace->diagnostic_context ? trace->diagnostic_context : trace->parser;
+        char *parser_name = h_trace_parser_name(display_parser);
         if (parser_name) {
             printf(" parser=%s", parser_name);
             free(parser_name);
@@ -1023,17 +1047,21 @@ static void trace_render_diagnostic(HTraceContext *context) {
 }
 
 void rvm_match_error(HRVMProg *prog, const uint8_t *input, size_t input_len, size_t index,
-                     const bool expected[256], bool expected_eof, const HParser *parser) {
+                     const bool expected[256], bool expected_eof, const HParser *parser,
+                     const HParser *diagnostic_context) {
     if (!display_trace)
         return;
     h_backend_trace_begin(PB_REGULAR, prog->root_parser ? prog->root_parser : parser, input,
                           input_len);
     if (dump_trace)
         dump_rvm_prog(prog);
-    h_backend_trace_failure(index, index < input_len ? index + 1 : index,
-                            index < input_len ? H_PARSE_ERROR_PRIMITIVE_MISMATCH
-                                              : H_PARSE_ERROR_UNEXPECTED_EOF,
-                            parser, expected, expected_eof);
+    HParseErrorKind kind =
+        index < input_len ? H_PARSE_ERROR_PRIMITIVE_MISMATCH : H_PARSE_ERROR_UNEXPECTED_EOF;
+    if (h_is_nothing_parser(parser))
+        kind = H_PARSE_ERROR_EXPLICIT_FAILURE;
+    h_backend_trace_failure(index, index < input_len ? index + 1 : index, kind,
+                            diagnostic_context ? diagnostic_context : parser, expected,
+                            expected_eof);
     h_backend_trace_end(false);
 }
 void svm_action_error(HSVMContext *ctx, HRVMProg *orig_prog, HRVMTrace *trace, const uint8_t *input,
@@ -1045,7 +1073,8 @@ void svm_action_error(HSVMContext *ctx, HRVMProg *orig_prog, HRVMTrace *trace, c
                           input, input_len);
     if (dump_trace)
         dump_svm_prog(orig_prog, trace);
-    h_backend_trace_failure(ctx->input_pos, ctx->input_pos, H_PARSE_ERROR_ACTION, ctx->parser, NULL,
+    h_backend_trace_failure(ctx->input_pos, ctx->input_pos, H_PARSE_ERROR_ACTION,
+                            ctx->diagnostic_context ? ctx->diagnostic_context : ctx->parser, NULL,
                             false);
     h_backend_trace_end(false);
 }
@@ -1088,7 +1117,9 @@ void svm_failure_error(HSVMContext *ctx, HRVMProg *orig_prog, HRVMTrace *trace,
         kind = H_PARSE_ERROR_ACTION;
         break;
     }
-    h_backend_trace_failure(ctx->failure.start, ctx->failure.end, kind, ctx->parser, NULL, false);
+    h_backend_trace_failure(ctx->failure.start, ctx->failure.end, kind,
+                            ctx->diagnostic_context ? ctx->diagnostic_context : ctx->parser, NULL,
+                            false);
     h_backend_trace_end(false);
 }
 
@@ -1152,6 +1183,9 @@ void h_backend_trace_failure(size_t start, size_t end, HParseErrorKind kind, con
 
     HTraceContext *context = trace_context;
     const HParser *origin = parser ? parser : context->root_parser;
+    const HParser *semantic_parser = origin;
+    while (h_is_context_parser(semantic_parser))
+        semantic_parser = h_context_parser_child(semantic_parser);
     const char *name = origin && origin->vtable ? trace_vt_name(origin->vtable) : "?(no parser)";
     const HParser *label_parser = origin && origin->diagnostic_label ? origin : NULL;
     const HParser *message_parser = origin && origin->diagnostic_message ? origin : NULL;
@@ -1166,14 +1200,14 @@ void h_backend_trace_failure(size_t start, size_t end, HParseErrorKind kind, con
         label_parser ? label_parser->diagnostic_label : trace_parser_diagnostic_name(origin);
     const char *failure_message = message_parser ? message_parser->diagnostic_message : NULL;
     size_t index = start;
-    if (h_is_nothing_parser(origin)) {
+    if (h_is_nothing_parser(semantic_parser)) {
         kind = H_PARSE_ERROR_EXPLICIT_FAILURE;
         end = start;
         expected = NULL;
         expected_eof = false;
     }
     if (kind == H_PARSE_ERROR_SEMANTIC_PREDICATE &&
-        (h_is_float_range_parser(parser) || h_is_int_range_parser(parser))) {
+        (h_is_float_range_parser(semantic_parser) || h_is_int_range_parser(semantic_parser))) {
         kind = H_PARSE_ERROR_RANGE;
     }
 

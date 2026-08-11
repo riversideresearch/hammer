@@ -533,7 +533,8 @@ HParseResult *h_parse__m(HAllocator *mm__, const HParser *parser, const uint8_t 
 HParseResult *h_parse_debug(const HParser *parser, const uint8_t *input, size_t length,
                             HParseError *error, bool dumpExecutionTrace, bool dumpInputContext);
 HParseResult *h_parse_debug__m(HAllocator *mm__, const HParser *parser, const uint8_t *input,
-                               size_t length, HParseError *error, bool dumpExecutionTrace, bool dumpInputContext);
+                               size_t length, HParseError *error, bool dumpExecutionTrace,
+                               bool dumpInputContext);
 
 /**
  * @brief Extensible form of h_parse_debug() with structured expectations.
@@ -544,7 +545,8 @@ HParseResult *h_parse_debug__m(HAllocator *mm__, const HParser *parser, const ui
  * accessors. The caller must release it with h_parse_diagnostic_free().
  */
 HParseResult *h_parse_debug_ex(const HParser *parser, const uint8_t *input, size_t length,
-                               HParseDiagnostic **diagnostic, bool dumpExecutionTrace, bool dumpInputContext);
+                               HParseDiagnostic **diagnostic, bool dumpExecutionTrace,
+                               bool dumpInputContext);
 
 const HParseError *h_parse_diagnostic_error(const HParseDiagnostic *diagnostic);
 size_t h_parse_diagnostic_expected_count(const HParseDiagnostic *diagnostic);
@@ -1612,16 +1614,19 @@ bool h_parser_set_label(HParser *parser, const char *label);
 bool h_parser_set_error_message(HParser *parser, const char *message);
 
 /**
- * @brief Attach a stable label and grammar-construction location to a parser.
+ * @brief Wrap one parser occurrence with a stable label and grammar-construction location.
  *
- * @param parser the HParser to wrap.
+ * @param parser the HParser to wrap. The child parser is not modified.
  * @param label replaces the backend-derived parser name whenever
  * this parser is selected as the source of a failure, NULL preserves existing label.
  * @param source provides the location of the parser whenever
  * this parser is selected as the source of a failure.
  * @note This annotation does not affect parsing behavior.
+ * @note The wrapper does not take ownership of parser; parser must remain alive while the wrapper
+ * is compiled or parsed.
  *
- * @return parser on success, or NULL for invalid arguments or allocation failure.
+ * @return a new context-wrapper parser on success, or NULL for invalid arguments or allocation
+ * failure. The wrapper and child remain independently owned and must each be freed by their owner.
  */
 HParser *h_with_context(HParser *parser, const char *label, const HSourceLocation *source);
 

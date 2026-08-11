@@ -514,6 +514,7 @@ struct HCFChoice_ {
     HCFPlanAction plan_action;
     HPredicate pred;
     HParser *parser; // if this is a parser, then this is the parser that produced it.
+    const HParser *diagnostic_context; // occurrence wrapper supplying label/source provenance
     void *env;
     void *user_data;
     size_t dispatch_opcode;
@@ -522,6 +523,15 @@ struct HCFChoice_ {
 struct HCFSequence_ {
     HCFChoice **items; // last one is NULL
 };
+
+static inline const HParser *h_cfchoice_diagnostic_parser(const HCFChoice *choice,
+                                                          const HParser *fallback) {
+    if (!choice)
+        return fallback;
+    if (choice->diagnostic_context)
+        return choice->diagnostic_context;
+    return choice->parser ? choice->parser : fallback;
+}
 
 // HCFStack - used for desugaring
 struct HCFStack_ {
@@ -600,6 +610,7 @@ static inline HCFChoice *h_cfstack_new_choice_raw(HAllocator *mm__, HCFStack *st
     ret->plan_action = NULL;
     ret->pred = NULL;
     ret->parser = NULL;
+    ret->diagnostic_context = NULL;
     ret->env = NULL;
     ret->user_data = NULL;
     ret->dispatch_opcode = 0;
@@ -724,9 +735,9 @@ bool h_is_butnot_parser(const HParser *parser);
 bool h_is_get_value_parser(const HParser *parser); // either h_get_value or h_free_value parser
 bool h_is_int_range_parser(const HParser *parser);
 bool h_is_float_range_parser(const HParser *parser);
+bool h_is_context_parser(const HParser *parser);
+const HParser *h_context_parser_child(const HParser *parser);
 bool h_is_attr_bool_parser(const HParser *parser);
-
-
 
 #if 0
 #include <stdlib.h>

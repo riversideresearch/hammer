@@ -245,11 +245,13 @@ static void test_trace_custom_label_and_message(gconstpointer backend) {
     HSourceLocation source = {file_name, function_name, 42, 7};
     HParser *prefix = h_ch('A');
     HParser *protocol = h_ch(0x11);
-    HParser *p = h_sequence(prefix, protocol, NULL);
+    HParser *sequence = h_sequence(prefix, protocol, NULL);
 
-    g_check_cmp_int(h_parser_set_label(p, label), ==, true);
-    g_check_cmp_int(h_parser_set_error_message(p, message), ==, true);
-    g_check_cmp_ptr(h_with_context(p, NULL, &source), ==, p);
+    g_check_cmp_int(h_parser_set_label(sequence, label), ==, true);
+    g_check_cmp_int(h_parser_set_error_message(sequence, message), ==, true);
+    HParser *p = h_with_context(sequence, NULL, &source);
+    g_check_cmp_ptr(p, !=, NULL);
+    g_check_cmp_ptr(p, !=, sequence);
     label[0] = 'X';
     message[0] = 'X';
     file_name[0] = 'X';
@@ -278,6 +280,7 @@ static void test_trace_custom_label_and_message(gconstpointer backend) {
         g_check_cmp_size(h_parse_diagnostic_expected_count(diagnostic), ==, 1);
         h_parse_diagnostic_free(diagnostic);
     }
+    h_parser_free(sequence);
     h_parser_free(prefix);
     h_parser_free(protocol);
 }
@@ -287,9 +290,11 @@ static void test_with_context_owns_metadata(void) {
     char file_name[] = "udp.c";
     char function_name[] = "make_udp_parser";
     HSourceLocation source = {file_name, function_name, 42, 7};
-    HParser *parser = h_ch(0x11);
+    HParser *child = h_ch(0x11);
 
-    g_check_cmp_ptr(h_with_context(parser, label, &source), ==, parser);
+    HParser *parser = h_with_context(child, label, &source);
+    g_check_cmp_ptr(parser, !=, NULL);
+    g_check_cmp_ptr(parser, !=, child);
     label[0] = 'X';
     file_name[0] = 'X';
     function_name[0] = 'X';
@@ -300,16 +305,106 @@ static void test_with_context_owns_metadata(void) {
     g_check_string(parser->diagnostic_source->function_name, ==, "make_udp_parser");
     g_check_cmp_size(parser->diagnostic_source->line, ==, 42);
     g_check_cmp_size(parser->diagnostic_source->column, ==, 7);
+    g_check_cmp_ptr(child->diagnostic_label, ==, NULL);
+    g_check_cmp_ptr(child->diagnostic_source, ==, NULL);
 
     size_t macro_line = __LINE__ + 1;
-    g_check_cmp_ptr(H_CONTEXT(parser, "udp.protocol.byte"), ==, parser);
-    g_check_string(parser->diagnostic_label, ==, "udp.protocol.byte");
-    g_check_string(parser->diagnostic_source->file_name, ==, __FILE__);
-    g_check_string(parser->diagnostic_source->function_name, ==, "test_with_context_owns_metadata");
-    g_check_cmp_size(parser->diagnostic_source->line, ==, macro_line);
-    g_check_cmp_size(parser->diagnostic_source->column, ==, 0);
+    HParser *outer = H_CONTEXT(parser, "udp.protocol.byte");
+    g_check_cmp_ptr(outer, !=, NULL);
+    g_check_cmp_ptr(outer, !=, parser);
+    g_check_string(outer->diagnostic_label, ==, "udp.protocol.byte");
+    g_check_string(outer->diagnostic_source->file_name, ==, __FILE__);
+    g_check_string(outer->diagnostic_source->function_name, ==, "test_with_context_owns_metadata");
+    g_check_cmp_size(outer->diagnostic_source->line, ==, macro_line);
+    g_check_cmp_size(outer->diagnostic_source->column, ==, 0);
+
+    h_parser_free(outer);
+    h_parser_free(parser);
+    h_parser_free(child);
+}
+
+static void test_trace_occurrence_provenance(gconstpointer backend) {
+    HParserBackend be = (HParserBackend)GPOINTER_TO_INT(backend);
+    HParser *shared = h_ch('A');
+    HSourceLocation first_source = {"grammar.ddl", "make_grammar", 10, 3};
+    HSourceLocation second_source = {"grammar.ddl", "make_grammar", 20, 7};
+    HParser *first = h_with_context(shared, "first.A", &first_source);
+    HParser *second = h_with_context(shared, "second.A", &second_source);
+    HParser *parser = h_sequence(first, second, NULL);
+
+    g_check_cmp_ptr(first, !=, shared);
+    g_check_cmp_ptr(second, !=, shared);
+    g_check_cmp_ptr(first, !=, second);
+    g_check_cmp_ptr(shared->diagnostic_source, ==, NULL);
+    g_check_cmp_int(h_compile(parser, be, NULL), ==, 0);
+
+    HParseResult *success = h_parse(parser, (const uint8_t *)"AA", 2);
+    g_check_cmp_ptr(success, !=, NULL);
+    if (success)
+        h_parse_result_free(success);
+
+    HParseDiagnostic *diagnostic = NULL;
+    HParseResult *result =
+        h_parse_debug_ex(parser, (const uint8_t *)"AB", 2, &diagnostic, false, false);
+    g_check_cmp_ptr(result, ==, NULL);
+    g_check_cmp_ptr(diagnostic, !=, NULL);
+    if (diagnostic) {
+        const HParseError *error = h_parse_diagnostic_error(diagnostic);
+        g_check_string(error->parser, ==, "second.A");
+        g_check_cmp_size(error->index, ==, 1);
+        g_check_cmp_ptr(error->source, !=, NULL);
+        if (error->source) {
+            g_check_string(error->source->file_name, ==, "grammar.ddl");
+            g_check_cmp_size(error->source->line, ==, 20);
+            g_check_cmp_size(error->source->column, ==, 7);
+        }
+        h_parse_diagnostic_free(diagnostic);
+    }
 
     h_parser_free(parser);
+    h_parser_free(first);
+    h_parser_free(second);
+    h_parser_free(shared);
+}
+
+static void test_trace_context_preserves_error_kind(gconstpointer backend) {
+    HParserBackend be = (HParserBackend)GPOINTER_TO_INT(backend);
+    HSourceLocation source = {"grammar.ddl", "make_grammar", 30, 2};
+
+    HParser *nothing = h_nothing_p();
+    HParser *nothing_at = h_with_context(nothing, "required.variant", &source);
+    g_check_cmp_int(h_compile(nothing_at, be, NULL), ==, 0);
+    HParseDiagnostic *diagnostic = NULL;
+    HParseResult *result =
+        h_parse_debug_ex(nothing_at, (const uint8_t *)"A", 1, &diagnostic, false, false);
+    g_check_cmp_ptr(result, ==, NULL);
+    g_check_cmp_ptr(diagnostic, !=, NULL);
+    if (diagnostic) {
+        const HParseError *error = h_parse_diagnostic_error(diagnostic);
+        g_check_cmp_int(error->kind, ==, H_PARSE_ERROR_EXPLICIT_FAILURE);
+        g_check_string(error->parser, ==, "required.variant");
+        h_parse_diagnostic_free(diagnostic);
+    }
+    h_parser_free(nothing_at);
+    h_parser_free(nothing);
+
+    HParser *byte = h_ch('A');
+    HParser *range = h_float_range(byte, 0.0, 1.0);
+    HParser *range_at = h_with_context(range, "typed.float", &source);
+    diagnostic = NULL;
+    g_check_cmp_int(h_compile(range_at, be, NULL), ==, 0);
+    result = h_parse_debug_ex(range_at, (const uint8_t *)"A", 1, &diagnostic, false, false);
+    g_check_cmp_ptr(result, ==, NULL);
+    g_check_cmp_ptr(diagnostic, !=, NULL);
+    if (diagnostic) {
+        const HParseError *error = h_parse_diagnostic_error(diagnostic);
+        g_check_cmp_int(error->kind, ==, H_PARSE_ERROR_RANGE);
+        g_check_string(error->parser, ==, "typed.float");
+        h_parse_diagnostic_free(diagnostic);
+    }
+    h_parser_free(range_at);
+    h_parser_free(range);
+    h_parser_free(byte);
 }
 
 static void test_trace_custom_failure(gconstpointer backend) {
@@ -949,14 +1044,34 @@ void register_trace_tests(void) {
 
     g_test_add_data_func("/core/parser/regex/trace_custom_label_and_message",
                          GINT_TO_POINTER(PB_REGULAR), test_trace_custom_label_and_message);
+    g_test_add_data_func("/core/parser/regex/trace_occurrence_provenance",
+                         GINT_TO_POINTER(PB_REGULAR), test_trace_occurrence_provenance);
+    g_test_add_data_func("/core/parser/regex/trace_context_preserves_error_kind",
+                         GINT_TO_POINTER(PB_REGULAR), test_trace_context_preserves_error_kind);
     g_test_add_data_func("/core/parser/packrat/trace_custom_label_and_message",
                          GINT_TO_POINTER(PB_PACKRAT), test_trace_custom_label_and_message);
+    g_test_add_data_func("/core/parser/packrat/trace_occurrence_provenance",
+                         GINT_TO_POINTER(PB_PACKRAT), test_trace_occurrence_provenance);
+    g_test_add_data_func("/core/parser/packrat/trace_context_preserves_error_kind",
+                         GINT_TO_POINTER(PB_PACKRAT), test_trace_context_preserves_error_kind);
     g_test_add_data_func("/core/parser/ll/trace_custom_label_and_message", GINT_TO_POINTER(PB_LL),
                          test_trace_custom_label_and_message);
+    g_test_add_data_func("/core/parser/ll/trace_occurrence_provenance", GINT_TO_POINTER(PB_LL),
+                         test_trace_occurrence_provenance);
+    g_test_add_data_func("/core/parser/ll/trace_context_preserves_error_kind",
+                         GINT_TO_POINTER(PB_LL), test_trace_context_preserves_error_kind);
     g_test_add_data_func("/core/parser/lalr/trace_custom_label_and_message",
                          GINT_TO_POINTER(PB_LALR), test_trace_custom_label_and_message);
+    g_test_add_data_func("/core/parser/lalr/trace_occurrence_provenance", GINT_TO_POINTER(PB_LALR),
+                         test_trace_occurrence_provenance);
+    g_test_add_data_func("/core/parser/lalr/trace_context_preserves_error_kind",
+                         GINT_TO_POINTER(PB_LALR), test_trace_context_preserves_error_kind);
     g_test_add_data_func("/core/parser/glr/trace_custom_label_and_message", GINT_TO_POINTER(PB_GLR),
                          test_trace_custom_label_and_message);
+    g_test_add_data_func("/core/parser/glr/trace_occurrence_provenance", GINT_TO_POINTER(PB_GLR),
+                         test_trace_occurrence_provenance);
+    g_test_add_data_func("/core/parser/glr/trace_context_preserves_error_kind",
+                         GINT_TO_POINTER(PB_GLR), test_trace_context_preserves_error_kind);
 
     g_test_add_data_func("/core/parser/regex/trace_custom_failure", GINT_TO_POINTER(PB_REGULAR),
                          test_trace_custom_failure);
