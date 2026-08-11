@@ -59,7 +59,8 @@ void h_trace_begin(const uint8_t *input, size_t input_len);
 void h_trace_enter(const HParser *parser, HParseState *state);
 void h_trace_exit(const HParser *parser, HParseState *state, HParseResult *res, const char *note);
 void h_trace_end(HParseResult *res, HParseState *state);
-void h_trace_file_context(const uint8_t *input, size_t length, size_t start_index, size_t end_index);
+void h_trace_file_context(const uint8_t *input, size_t length, size_t start_index,
+                          size_t end_index);
 void h_trace_note_int_range(const HParsedToken *token, int64_t lower, int64_t upper);
 void h_trace_note_float_range(const HParsedToken *token, double lower, double upper);
 

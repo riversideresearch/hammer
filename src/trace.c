@@ -421,7 +421,8 @@ static void trace_token(const HParsedToken *tok) {
 }
 
 #define BYTES_PER_LINE 16
-void h_trace_file_context(const uint8_t *input, size_t length, size_t start_index, size_t end_index) {
+void h_trace_file_context(const uint8_t *input, size_t length, size_t start_index,
+                          size_t end_index) {
     const char *color_red = "\x1b[31m";
     const char *color_reset = "\x1b[0m";
     int use_color = ISATTY(stderr);

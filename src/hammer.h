@@ -1590,9 +1590,10 @@ void h_parser_free__m(HAllocator *mm__, HParser *p);
 /**
  * @brief Give a parser a stable user-defined name in debug diagnostics.
  *
- * The label is copied and replaces the backend-derived parser name whenever
+ * @param parser the HParser to modify.
+ * @param label copied and replaces the backend-derived parser name whenever
  * this parser is selected as the source of a failure. Pass NULL to clear it.
- * This annotation does not affect parsing behavior.
+ * @note This annotation does not affect parsing behavior.
  *
  * @return true on success, false for an invalid parser or allocation failure.
  */
@@ -1601,8 +1602,10 @@ bool h_parser_set_label(HParser *parser, const char *label);
 /**
  * @brief Override the formatted debug message when this parser fails.
  *
- * The message is copied. The underlying HParseErrorKind and structured byte
- * expectations remain available to callers. Pass NULL to clear it.
+ * @param parser the HParser to modify.
+ * @param parser the parser The message is copied. The underlying HParseErrorKind and structured
+ * byte expectations remain available to callers. Pass NULL to clear it.
+ * @note This annotation does not affect parsing behavior.
  *
  * @return true on success, false for an invalid parser or allocation failure.
  */
@@ -1611,12 +1614,14 @@ bool h_parser_set_error_message(HParser *parser, const char *message);
 /**
  * @brief Attach a stable label and grammar-construction location to a parser.
  *
- * The parser owns copies of @p label and all strings in @p source. Passing a
- * NULL label preserves the parser's existing label. Repeated calls replace the
- * previous source location.
+ * @param parser the HParser to wrap.
+ * @param label replaces the backend-derived parser name whenever
+ * this parser is selected as the source of a failure, NULL preserves existing label.
+ * @param source provides the location of the parser whenever
+ * this parser is selected as the source of a failure.
+ * @note This annotation does not affect parsing behavior.
  *
- * @return @p parser on success, or NULL for invalid arguments or allocation
- * failure.
+ * @return parser on success, or NULL for invalid arguments or allocation failure.
  */
 HParser *h_with_context(HParser *parser, const char *label, const HSourceLocation *source);
 
