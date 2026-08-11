@@ -1636,8 +1636,19 @@ static inline HParser *h_with_context_at(HParser *parser, const char *label, con
     return h_with_context(parser, label, &source);
 }
 
-#define H_CONTEXT(parser, label)                                                                   \
-    h_with_context_at((parser), (label), __FILE__, __func__, __LINE__, 0)
+#if defined(__has_builtin)
+#  if __has_builtin(__builtin_COLUMN)
+#    define H_CONTEXT_COLUMN() __builtin_COLUMN()
+#  endif
+#endif
+
+#ifndef H_CONTEXT_COLUMN
+#  define H_CONTEXT_COLUMN() 0
+#endif
+
+#define H_CONTEXT(parser, label)                                                   \
+    h_with_context_at((parser), (label), __FILE__, __func__, __LINE__,             \
+                      H_CONTEXT_COLUMN())
 
 /** @} */
 

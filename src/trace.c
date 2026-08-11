@@ -536,6 +536,29 @@ void h_trace_file_context(const uint8_t *input, size_t length, size_t start_high
         fprintf(stderr, "... %zu byte(s) omitted ...\n", length - window_end);
 }
 
+/* Helper for trace_render to print the source of each parser. */
+static void trace_print_source(FILE *stream, const HParser *parser){
+    if(!stream || !parser || !parser->diagnostic_source)
+        return;
+
+    const HSourceLocation *source = parser->diagnostic_source;
+
+    fputs(" [", stream);
+    if (source->file_name)
+            fprintf(stream, "%s", source->file_name);
+    else
+        fputs("<unknown source>", stream);
+    if (source->line)
+        fprintf(stream, ":%zu", source->line);
+    if (source->column)
+        fprintf(stream, ":%zu", source->column);
+    /*
+    if (source->function_name)
+        fprintf(stream, " in %s", source->function_name);
+    */
+    fputs("]", stream);
+}
+
 void h_trace_begin(const uint8_t *input, size_t input_len) {
     if (!display_trace)
         return;
@@ -559,6 +582,7 @@ void h_trace_enter(const HParser *parser, HParseState *state) {
         fprintf(stderr, "-> %-20s %-9s ", parser_name ? parser_name : "?(no parser)",
                 parser->vtable->higher ? "higher" : "primitive");
         trace_pos(state);
+        trace_print_source(stderr, parser);
         fputc('\n', stderr);
         free(parser_name);
     }
@@ -820,6 +844,7 @@ void dump_rvm_prog(HRVMProg *prog) {
                 printf(" parser=%s", parser_name);
                 free(parser_name);
             }
+            trace_print_source(stdout, display_parser);
             break;
         case RVM_GOTO:
         case RVM_FORK:
@@ -833,6 +858,7 @@ void dump_rvm_prog(HRVMProg *prog) {
                 printf(" parser=%s", parser_name);
                 free(parser_name);
             }
+            trace_print_source(stdout, display_parser);
             break;
         case RVM_MATCH: {
             uint8_t low, high;
@@ -883,6 +909,7 @@ void dump_svm_prog(HRVMProg *prog, HRVMTrace *trace) {
             printf(" parser=%s", parser_name);
             free(parser_name);
         }
+        trace_print_source(stdout, display_parser);
         printf("\n");
     }
 }
@@ -1311,6 +1338,8 @@ void h_cf_trace_parser_exit(const HParser *parser, size_t start, size_t end,
     }
     if (role)
         fprintf(stderr, "  [%s]", role);
+    
+    trace_print_source(stderr, parser);
     fputc('\n', stderr);
 }
 
