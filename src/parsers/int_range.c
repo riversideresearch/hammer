@@ -1,6 +1,6 @@
 /* Copyright (c) 2026 Riverside Research */
-#include "parser_internal.h"
 #include "../trace.h"
+#include "parser_internal.h"
 
 typedef struct {
     const HParser *p;
@@ -90,7 +90,8 @@ static bool h_svm_action_validate_int_range(HArena *arena, HSVMContext *ctx, voi
                 (uint64_t)r_env->upper >= head->token_data.uint;
         break;
     default:
-        return false;
+        valid = false;
+        break;
     }
 
     if (valid) {
@@ -112,7 +113,7 @@ static bool h_svm_action_validate_int_range(HArena *arena, HSVMContext *ctx, voi
         return false;
     }
 
-    ctx->failure.kind = SVM_FAILURE_RANGE;
+    ctx->failure.kind = SVM_FAILURE_INT_RANGE;
     ctx->failure.start = head->index;
     ctx->failure.end = ctx->input_pos;
     ctx->failure.actual_type = head->token_type;
@@ -121,7 +122,7 @@ static bool h_svm_action_validate_int_range(HArena *arena, HSVMContext *ctx, voi
     ctx->failure.parser = "h_int_range";
     if (head->token_type == TT_SINT)
         ctx->failure.actual.sint = head->token_data.sint;
-    else
+    else if (head->token_type == TT_UINT)
         ctx->failure.actual.uint = head->token_data.uint;
     return false;
 }

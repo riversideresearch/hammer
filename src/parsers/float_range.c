@@ -1,6 +1,6 @@
 /* Copyright (c) 2026 Riverside Research */
-#include "parser_internal.h"
 #include "../trace.h"
+#include "parser_internal.h"
 
 typedef struct {
     const HParser *p;
@@ -92,7 +92,8 @@ static bool h_svm_action_validate_float_range(HArena *arena, HSVMContext *ctx, v
                 r_env->upper >= (double)head->token_data.flt;
         break;
     default:
-        return false;
+        valid = false;
+        break;
     }
 
     if (valid) {
@@ -113,14 +114,16 @@ static bool h_svm_action_validate_float_range(HArena *arena, HSVMContext *ctx, v
         }
         return false;
     }
-    ctx->failure.kind = SVM_FAILURE_RANGE;
+    ctx->failure.kind = SVM_FAILURE_FLOAT_RANGE;
     ctx->failure.start = head->index;
     ctx->failure.end = ctx->input_pos;
     ctx->failure.actual_type = head->token_type;
     ctx->failure.float_lower = r_env->lower;
     ctx->failure.float_upper = r_env->upper;
-    ctx->failure.float_actual =
-        head->token_type == TT_FLOAT ? (double)head->token_data.flt : head->token_data.dbl;
+    if (head->token_type == TT_FLOAT)
+        ctx->failure.float_actual = (double)head->token_data.flt;
+    else if (head->token_type == TT_DOUBLE)
+        ctx->failure.float_actual = head->token_data.dbl;
     ctx->failure.parser = "h_float_range";
     return false;
 }

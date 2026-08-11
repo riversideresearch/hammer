@@ -1058,7 +1058,7 @@ void svm_failure_error(HSVMContext *ctx, HRVMProg *orig_prog, HRVMTrace *trace,
                           input, input_len);
     if (dump_trace)
         dump_svm_prog(orig_prog, trace);
-    if (ctx->failure.kind == SVM_FAILURE_RANGE) {
+    if (ctx->failure.kind == SVM_FAILURE_INT_RANGE) {
         HParsedToken actual = {.token_type = ctx->failure.actual_type};
         if (actual.token_type == TT_SINT) {
             actual.token_data.sint = ctx->failure.actual.sint;
@@ -1066,7 +1066,10 @@ void svm_failure_error(HSVMContext *ctx, HRVMProg *orig_prog, HRVMTrace *trace,
         } else if (actual.token_type == TT_UINT) {
             actual.token_data.uint = ctx->failure.actual.uint;
             h_trace_note_int_range(&actual, ctx->failure.lower, ctx->failure.upper);
-        } else if (actual.token_type == TT_FLOAT || actual.token_type == TT_DOUBLE) {
+        }
+    } else if (ctx->failure.kind == SVM_FAILURE_FLOAT_RANGE) {
+        HParsedToken actual = {.token_type = ctx->failure.actual_type};
+        if (actual.token_type == TT_FLOAT || actual.token_type == TT_DOUBLE) {
             actual.token_type = TT_DOUBLE;
             actual.token_data.dbl = ctx->failure.float_actual;
             h_trace_note_float_range(&actual, ctx->failure.float_lower, ctx->failure.float_upper);
@@ -1074,7 +1077,8 @@ void svm_failure_error(HSVMContext *ctx, HRVMProg *orig_prog, HRVMTrace *trace,
     }
     HParseErrorKind kind;
     switch (ctx->failure.kind) {
-    case SVM_FAILURE_RANGE:
+    case SVM_FAILURE_INT_RANGE:
+    case SVM_FAILURE_FLOAT_RANGE:
         kind = H_PARSE_ERROR_RANGE;
         break;
     case SVM_FAILURE_SEMANTIC_PREDICATE:
@@ -1170,7 +1174,7 @@ void h_backend_trace_failure(size_t start, size_t end, HParseErrorKind kind, con
     }
     if (kind == H_PARSE_ERROR_SEMANTIC_PREDICATE &&
         (h_is_float_range_parser(parser) || h_is_int_range_parser(parser))) {
-        kind = H_PARSE_ERROR_RANGE; 
+        kind = H_PARSE_ERROR_RANGE;
     }
 
     HParseError *error = &context->error;

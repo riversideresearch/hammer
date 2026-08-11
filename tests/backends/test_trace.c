@@ -120,6 +120,37 @@ static void test_trace_float_range_failure(gconstpointer backend) {
     h_parse_diagnostic_free(diagnostic);
 }
 
+static void test_trace_float_range_token_type_mismatch(gconstpointer backend) {
+    HParserBackend be = (HParserBackend)GPOINTER_TO_INT(backend);
+    HParser *p = h_float_range(h_ch('A'), 0.0, 1.0);
+    const uint8_t input[] = {'A'};
+    g_check_cmp_int(h_compile(p, be, NULL), ==, 0);
+
+    HParseDiagnostic *diagnostic = NULL;
+    HParseResult *res = h_parse_debug_ex(p, input, sizeof(input), &diagnostic, false, false);
+    g_check_cmp_ptr(res, ==, NULL);
+    g_check_cmp_ptr(diagnostic, !=, NULL);
+    if (!diagnostic)
+        return;
+    const HParseError *error = h_parse_diagnostic_error(diagnostic);
+    g_check_cmp_int(error->kind, ==, H_PARSE_ERROR_RANGE);
+    g_check_cmp_size(error->index, ==, 0);
+    g_check_cmp_size(error->end_index, ==, 1);
+
+    FILE *stream = tmpfile();
+    g_check_cmp_ptr(stream, !=, NULL);
+    if (stream) {
+        char rendered[256] = {0};
+        h_parse_diagnostic_fprint(stream, diagnostic);
+        rewind(stream);
+        size_t rendered_len = fread(rendered, 1, sizeof(rendered) - 1, stream);
+        rendered[rendered_len] = '\0';
+        g_check_cmp_ptr(strstr(rendered, "mismatched token type"), !=, NULL);
+        fclose(stream);
+    }
+    h_parse_diagnostic_free(diagnostic);
+}
+
 static void test_trace_glr_ambiguous_failure(void) {
     HParser *value = h_indirect();
     h_bind_indirect(value, h_choice(h_sequence(value, value, NULL), h_ch('a'), NULL));
@@ -291,8 +322,7 @@ static void test_trace_custom_failure(gconstpointer backend) {
     g_check_cmp_int(h_compile(p, be, NULL), ==, 0);
 
     HParseDiagnostic *diagnostic = NULL;
-    HParseResult *result =
-        h_parse_debug_ex(p, (const uint8_t *)"A", 1, &diagnostic, false, true);
+    HParseResult *result = h_parse_debug_ex(p, (const uint8_t *)"A", 1, &diagnostic, false, true);
     g_check_cmp_ptr(result, ==, NULL);
     g_check_cmp_ptr(diagnostic, !=, NULL);
     if (diagnostic) {
@@ -424,8 +454,7 @@ static void test_trace_relational_failure_starts(void) {
         HParseErrorKind kind;
     } cases[] = {
         {h_xor(h_token((const uint8_t *)"AB", 2), h_ch('A')), H_PARSE_ERROR_XOR},
-        {h_difference(h_ch('A'), h_token((const uint8_t *)"AB", 2)),
-         H_PARSE_ERROR_DIFFERENCE},
+        {h_difference(h_ch('A'), h_token((const uint8_t *)"AB", 2)), H_PARSE_ERROR_DIFFERENCE},
         {h_butnot(h_ch('A'), h_ch('A')), H_PARSE_ERROR_BUTNOT},
     };
 
@@ -653,7 +682,8 @@ static bool trace_nested_debug_failure_then_reject(HParseResult *p, void *user_d
     (void)p;
     (void)user_data;
     uint8_t nested[] = {7};
-    HParseResult *result = h_parse_debug(trace_nested_parser, nested, 0, &trace_nested_error, true, true);
+    HParseResult *result =
+        h_parse_debug(trace_nested_parser, nested, 0, &trace_nested_error, true, true);
     g_assert_null(result);
     return false;
 }
@@ -780,6 +810,8 @@ void register_trace_tests(void) {
                          test_trace_cf_range_failure);
     g_test_add_data_func("/core/parser/regex/trace_float_range_failure",
                          GINT_TO_POINTER(PB_REGULAR), test_trace_float_range_failure);
+    g_test_add_data_func("/core/parser/regex/trace_float_range_token_type_mismatch",
+                         GINT_TO_POINTER(PB_REGULAR), test_trace_float_range_token_type_mismatch);
     g_test_add_data_func("/core/parser/regex/trace_structured_expectations",
                          GINT_TO_POINTER(PB_REGULAR), test_trace_structured_expectations);
     g_test_add_func("/core/parser/regex/trace_structured_expected_eof",
@@ -807,6 +839,8 @@ void register_trace_tests(void) {
                          test_trace_cf_range_failure);
     g_test_add_data_func("/core/parser/packrat/trace_float_range_failure",
                          GINT_TO_POINTER(PB_PACKRAT), test_trace_float_range_failure);
+    g_test_add_data_func("/core/parser/packrat/trace_float_range_token_type_mismatch",
+                         GINT_TO_POINTER(PB_PACKRAT), test_trace_float_range_token_type_mismatch);
     g_test_add_data_func("/core/parser/packrat/trace_structured_expectations",
                          GINT_TO_POINTER(PB_PACKRAT), test_trace_structured_expectations);
     g_test_add_data_func("/core/parser/packrat/trace_nothing_failure", GINT_TO_POINTER(PB_PACKRAT),
@@ -832,6 +866,8 @@ void register_trace_tests(void) {
                          test_trace_cf_range_failure);
     g_test_add_data_func("/core/parser/ll/trace_float_range_failure", GINT_TO_POINTER(PB_LL),
                          test_trace_float_range_failure);
+    g_test_add_data_func("/core/parser/ll/trace_float_range_token_type_mismatch",
+                         GINT_TO_POINTER(PB_LL), test_trace_float_range_token_type_mismatch);
     g_test_add_data_func("/core/parser/ll/trace_attr_bool_nonzero_offset", GINT_TO_POINTER(PB_LL),
                          test_trace_attr_bool_nonzero_offset);
     g_test_add_data_func("/core/parser/ll/trace_nothing_failure", GINT_TO_POINTER(PB_LL),
@@ -857,6 +893,8 @@ void register_trace_tests(void) {
                          test_trace_cf_range_failure);
     g_test_add_data_func("/core/parser/lalr/trace_float_range_failure", GINT_TO_POINTER(PB_LALR),
                          test_trace_float_range_failure);
+    g_test_add_data_func("/core/parser/lalr/trace_float_range_token_type_mismatch",
+                         GINT_TO_POINTER(PB_LALR), test_trace_float_range_token_type_mismatch);
     g_test_add_data_func("/core/parser/lalr/trace_attr_bool_checksum", GINT_TO_POINTER(PB_LALR),
                          test_trace_attr_bool_checksum);
     g_test_add_data_func("/core/parser/lalr/trace_attr_bool_nonzero_offset",
@@ -884,6 +922,8 @@ void register_trace_tests(void) {
                          test_trace_cf_range_failure);
     g_test_add_data_func("/core/parser/glr/trace_float_range_failure", GINT_TO_POINTER(PB_GLR),
                          test_trace_float_range_failure);
+    g_test_add_data_func("/core/parser/glr/trace_float_range_token_type_mismatch",
+                         GINT_TO_POINTER(PB_GLR), test_trace_float_range_token_type_mismatch);
     g_test_add_data_func("/core/parser/glr/trace_attr_bool_checksum", GINT_TO_POINTER(PB_GLR),
                          test_trace_attr_bool_checksum);
     g_test_add_data_func("/core/parser/glr/trace_attr_bool_nonzero_offset", GINT_TO_POINTER(PB_GLR),
