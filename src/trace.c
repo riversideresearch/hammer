@@ -79,9 +79,7 @@ void h_trace_set_enabled(bool enabled, bool dumpExecutionTrace, bool dumpInputCo
                      ? trace_dump_stack[trace_enable_depth - 1]
                      : dumpExecutionTrace;
 
-    dump_input = display_trace && trace_enable_depth <= H_TRACE_MAX_NESTING
-                     ? trace_dump_stack[trace_enable_depth - 1]
-                     : dumpInputContext;
+    dump_input = display_trace && dumpInputContext;
 }
 
 bool h_trace_is_enabled(void) { return display_trace; }
