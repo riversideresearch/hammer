@@ -754,6 +754,10 @@ void h_parse_diagnostic_fprint(FILE *stream, const HParseDiagnostic *diagnostic)
         fputs("but-not rejected a right-hand match that was not shorter", stream);
     else if (error->kind == H_PARSE_ERROR_NO_VALUE)
         fputs("no value to retrieve from provided name", stream);
+    else if (error->kind == H_PARSE_ERROR_DISPATCH && diagnostic->dispatch_failure.has_opcode)
+        fprintf(stream, "no dispatch case for opcode %zu", diagnostic->dispatch_failure.opcode);
+    else if (error->kind == H_PARSE_ERROR_DISPATCH)
+        fputs("dispatch discriminator produced an invalid opcode", stream);
     else if (!error->has_actual)
         fprintf(stream, "unexpected end of input at index %zu", error->index);
     else {
@@ -770,7 +774,8 @@ void h_parse_diagnostic_fprint(FILE *stream, const HParseDiagnostic *diagnostic)
     if (!error->message &&
         (error->kind == H_PARSE_ERROR_RANGE || error->kind == H_PARSE_ERROR_SEMANTIC_PREDICATE ||
          error->kind == H_PARSE_ERROR_ACTION || error->kind == H_PARSE_ERROR_XOR ||
-         error->kind == H_PARSE_ERROR_DIFFERENCE || error->kind == H_PARSE_ERROR_BUTNOT)) {
+         error->kind == H_PARSE_ERROR_DIFFERENCE || error->kind == H_PARSE_ERROR_BUTNOT ||
+         error->kind == H_PARSE_ERROR_DISPATCH)) {
         if (error->index != last_index)
             fprintf(stream, " from index %zu to index %zu", error->index, last_index);
         else
@@ -787,6 +792,18 @@ void h_parse_diagnostic_fprint(FILE *stream, const HParseDiagnostic *diagnostic)
             fprintf(stream, "; expected value between %.17g and %.17g",
                     diagnostic->numeric_range.expected.floating.lower,
                     diagnostic->numeric_range.expected.floating.upper);
+    }
+
+    if (!error->message && error->kind == H_PARSE_ERROR_DISPATCH &&
+        diagnostic->dispatch_failure.expected_count > 0) {
+        fputs("; expected opcode ", stream);
+        for (size_t i = 0; i < diagnostic->dispatch_failure.expected_count; i++) {
+            if (i)
+                fputs(", ", stream);
+            fprintf(stream, "%" PRIu32, diagnostic->dispatch_failure.expected[i]);
+        }
+        if (diagnostic->dispatch_failure.expected_truncated)
+            fputs(", ...", stream);
     }
 
     size_t count = error->message ? 0 : h_parse_diagnostic_expected_count(diagnostic);

@@ -33,6 +33,17 @@ typedef struct HTraceNumericRange_ {
     } expected;
 } HTraceNumericRange;
 
+#define H_TRACE_MAX_DISPATCH_OPCODES 16
+
+typedef struct HTraceDispatchFailure_ {
+    bool present;
+    bool has_opcode;
+    size_t opcode;
+    uint32_t expected[H_TRACE_MAX_DISPATCH_OPCODES];
+    size_t expected_count;
+    bool expected_truncated;
+} HTraceDispatchFailure;
+
 #define H_PARSE_DIAGNOSTIC_MAX_INPUT_FRAMES 64
 
 typedef struct HTraceFrame_ {
@@ -50,6 +61,7 @@ struct HParseDiagnostic_ {
     bool expected_bytes[256];
     bool expected_eof;
     HTraceNumericRange numeric_range;
+    HTraceDispatchFailure dispatch_failure;
     HTraceFrame input_frames[H_PARSE_DIAGNOSTIC_MAX_INPUT_FRAMES];
     size_t input_frame_count;
 };
@@ -77,6 +89,8 @@ void h_trace_file_context(const uint8_t *input, size_t length, size_t start_inde
                           size_t end_index);
 void h_trace_note_int_range(const HParsedToken *token, int64_t lower, int64_t upper);
 void h_trace_note_float_range(const HParsedToken *token, double lower, double upper);
+void h_trace_note_dispatch(const HParsedToken *token, bool has_opcode, size_t opcode,
+                           const OpcodeMap *map, size_t count);
 
 // context-free backend trace functions
 void h_cf_trace_begin(HParserBackend backend, const HParser *parser, const uint8_t *input,

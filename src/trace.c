@@ -110,6 +110,8 @@ typedef struct HTraceContext_ {
     bool expected_eof;
     HTraceNumericRange numeric_range;
     HTraceNumericRange pending_numeric_range;
+    HTraceDispatchFailure dispatch_failure;
+    HTraceDispatchFailure pending_dispatch_failure;
     size_t next_branch_id;
     struct HTraceContext_ *parent;
 } HTraceContext;
@@ -125,6 +127,7 @@ static void trace_complete(const HTraceContext *context) {
            sizeof(trace_completed.expected_bytes));
     trace_completed.expected_eof = context->expected_eof;
     trace_completed.numeric_range = context->numeric_range;
+    trace_completed.dispatch_failure = context->dispatch_failure;
     trace_completed.input_frame_count = context->input_frame_count;
     memcpy(trace_completed.input_frames, context->input_frames,
            context->input_frame_count * sizeof(context->input_frames[0]));
@@ -183,6 +186,7 @@ void h_trace_get_diagnostic(HParseDiagnostic **out) {
     memcpy((*out)->expected_bytes, trace_completed.expected_bytes, sizeof((*out)->expected_bytes));
     (*out)->expected_eof = trace_completed.expected_eof;
     (*out)->numeric_range = trace_completed.numeric_range;
+    (*out)->dispatch_failure = trace_completed.dispatch_failure;
     (*out)->input_frame_count = trace_completed.input_frame_count;
     memcpy((*out)->input_frames, trace_completed.input_frames,
            trace_completed.input_frame_count * sizeof(trace_completed.input_frames[0]));
@@ -220,6 +224,35 @@ void h_trace_note_float_range(const HParsedToken *token, double lower, double up
     range->kind = H_TRACE_NUMERIC_RANGE_FLOAT;
     range->expected.floating.lower = lower;
     range->expected.floating.upper = upper;
+}
+
+void h_trace_note_dispatch(const HParsedToken *token, bool has_opcode, size_t opcode,
+                           const OpcodeMap *map, size_t count) {
+    if (!display_trace || !trace_context || !token)
+        return;
+
+    HTraceDispatchFailure *failure = &trace_context->pending_dispatch_failure;
+    memset(failure, 0, sizeof(*failure));
+    failure->present = true;
+    failure->has_opcode = has_opcode;
+    failure->opcode = opcode;
+
+    for (size_t i = 0; map && i < count; i++) {
+        bool duplicate = false;
+        for (size_t j = 0; j < failure->expected_count; j++) {
+            if (failure->expected[j] == map[i].opcode) {
+                duplicate = true;
+                break;
+            }
+        }
+        if (duplicate)
+            continue;
+        if (failure->expected_count < H_TRACE_MAX_DISPATCH_OPCODES) {
+            failure->expected[failure->expected_count++] = map[i].opcode;
+        } else {
+            failure->expected_truncated = true;
+        }
+    }
 }
 
 static const char *trace_tt_name(HTokenType t) {
@@ -664,6 +697,7 @@ static size_t trace_failure_progress(HParseErrorKind kind, size_t start, size_t 
     case H_PARSE_ERROR_DIFFERENCE:
     case H_PARSE_ERROR_BUTNOT:
     case H_PARSE_ERROR_NO_VALUE:
+    case H_PARSE_ERROR_DISPATCH:
         return end;
     default:
         return start;
@@ -848,9 +882,14 @@ static void trace_record_failure(const HParser *parser, HParseState *state,
     HParseErrorKind kind = trace_failure_kind(parser, frame->name, index, context->input_len);
     HTraceNumericRange numeric_range = context->pending_numeric_range;
     memset(&context->pending_numeric_range, 0, sizeof(context->pending_numeric_range));
+    HTraceDispatchFailure dispatch_failure = context->pending_dispatch_failure;
+    memset(&context->pending_dispatch_failure, 0, sizeof(context->pending_dispatch_failure));
+    if (dispatch_failure.present)
+        kind = H_PARSE_ERROR_DISPATCH;
     bool value_failure = kind == H_PARSE_ERROR_SEMANTIC_PREDICATE || kind == H_PARSE_ERROR_RANGE ||
                          kind == H_PARSE_ERROR_XOR || kind == H_PARSE_ERROR_DIFFERENCE ||
-                         kind == H_PARSE_ERROR_BUTNOT || kind == H_PARSE_ERROR_NO_VALUE;
+                         kind == H_PARSE_ERROR_BUTNOT || kind == H_PARSE_ERROR_NO_VALUE ||
+                         kind == H_PARSE_ERROR_DISPATCH;
 
     const HParser *label_parser = parser && parser->diagnostic_label ? parser : NULL;
     const HParser *message_parser = parser && parser->diagnostic_message ? parser : NULL;
@@ -904,8 +943,11 @@ static void trace_record_failure(const HParser *parser, HParseState *state,
         memset(context->expected_bytes, 0, sizeof(context->expected_bytes));
         context->expected_eof = false;
         memset(&context->numeric_range, 0, sizeof(context->numeric_range));
+        memset(&context->dispatch_failure, 0, sizeof(context->dispatch_failure));
         if (kind == H_PARSE_ERROR_RANGE)
             context->numeric_range = numeric_range;
+        if (kind == H_PARSE_ERROR_DISPATCH)
+            context->dispatch_failure = dispatch_failure;
         context->failure_parser = label_parser ? label_parser : parser;
         error->index = index;
         error->end_index = end;
@@ -1162,6 +1204,19 @@ static void trace_print_expectations(const bool expected[256], bool expected_eof
         fputs("a valid input byte", stderr);
 }
 
+static void trace_print_dispatch_expectations(const HTraceDispatchFailure *failure) {
+    if (!failure || failure->expected_count == 0)
+        return;
+    fputs("; expected opcode ", stderr);
+    for (size_t i = 0; i < failure->expected_count; i++) {
+        if (i)
+            fputs(", ", stderr);
+        fprintf(stderr, "%" PRIu32, failure->expected[i]);
+    }
+    if (failure->expected_truncated)
+        fputs(", ...", stderr);
+}
+
 /* One normalized summary formatter shared by every traced backend. */
 static void trace_render_diagnostic(HTraceContext *context) {
     HParseError *error = context ? &context->error : NULL;
@@ -1210,6 +1265,10 @@ static void trace_render_diagnostic(HTraceContext *context) {
         fputs("but-not rejected a right-hand match that was not shorter", stderr);
     } else if (error->kind == H_PARSE_ERROR_NO_VALUE) {
         fputs("no value to retrieve from provided name", stderr);
+    } else if (error->kind == H_PARSE_ERROR_DISPATCH && context->dispatch_failure.has_opcode) {
+        fprintf(stderr, "no dispatch case for opcode %zu", context->dispatch_failure.opcode);
+    } else if (error->kind == H_PARSE_ERROR_DISPATCH) {
+        fputs("dispatch discriminator produced an invalid opcode", stderr);
     } else if (!error->has_actual) {
         fprintf(stderr, "unexpected end of input at index %zu", error->index);
     } else {
@@ -1225,7 +1284,8 @@ static void trace_render_diagnostic(HTraceContext *context) {
     if (!error->message &&
         (error->kind == H_PARSE_ERROR_RANGE || error->kind == H_PARSE_ERROR_SEMANTIC_PREDICATE ||
          error->kind == H_PARSE_ERROR_ACTION || error->kind == H_PARSE_ERROR_BUTNOT ||
-         error->kind == H_PARSE_ERROR_DIFFERENCE || error->kind == H_PARSE_ERROR_XOR)) {
+         error->kind == H_PARSE_ERROR_DIFFERENCE || error->kind == H_PARSE_ERROR_XOR ||
+         error->kind == H_PARSE_ERROR_DISPATCH)) {
         if (error->index != last_index)
             fprintf(stderr, " from index %zu to index %zu", error->index, last_index);
         else
@@ -1245,6 +1305,8 @@ static void trace_render_diagnostic(HTraceContext *context) {
                     context->numeric_range.expected.floating.lower,
                     context->numeric_range.expected.floating.upper);
     }
+    if (!error->message && error->kind == H_PARSE_ERROR_DISPATCH)
+        trace_print_dispatch_expectations(&context->dispatch_failure);
     if (error->n_deepest > 0)
         trace_print_error_parsers(error);
     else
@@ -1350,6 +1412,7 @@ static const char *trace_backend_name(HParserBackend backend) {
 static unsigned int trace_error_priority(HParseErrorKind kind) {
     switch (kind) {
     case H_PARSE_ERROR_RANGE:
+    case H_PARSE_ERROR_DISPATCH:
         return 3;
     case H_PARSE_ERROR_SEMANTIC_PREDICATE:
         return 2;

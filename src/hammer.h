@@ -187,7 +187,9 @@ typedef enum HParseErrorKind_ {
     H_PARSE_ERROR_XOR,
     H_PARSE_ERROR_DIFFERENCE,
     H_PARSE_ERROR_BUTNOT,
-    H_PARSE_ERROR_NO_VALUE
+    H_PARSE_ERROR_NO_VALUE,
+    /** The dispatch discriminator produced no selectable parser body. */
+    H_PARSE_ERROR_DISPATCH
 } HParseErrorKind;
 
 typedef struct HSourceLocation_ {

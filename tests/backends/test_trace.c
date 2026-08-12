@@ -152,6 +152,92 @@ static void test_trace_float_range_token_type_mismatch(gconstpointer backend) {
     h_parse_diagnostic_free(diagnostic);
 }
 
+static void test_trace_dispatch_failure(void) {
+    OpcodeMap entries[] = {{1, h_ch('A')}, {2, h_ch('B')}};
+    HParser *parser = h_dispatch(h_uint8(), entries, NULL);
+    const uint8_t input[] = {3};
+    g_check_cmp_int(h_compile(parser, PB_PACKRAT, NULL), ==, 0);
+
+    HParseDiagnostic *diagnostic = NULL;
+    HParseResult *result =
+        h_parse_debug_ex(parser, input, sizeof(input), &diagnostic, false, false);
+    g_check_cmp_ptr(result, ==, NULL);
+    g_check_cmp_ptr(diagnostic, !=, NULL);
+    if (!diagnostic)
+        return;
+
+    const HParseError *error = h_parse_diagnostic_error(diagnostic);
+    g_check_cmp_int(error->kind, ==, H_PARSE_ERROR_DISPATCH);
+    g_check_cmp_size(error->index, ==, 0);
+    g_check_cmp_size(error->end_index, ==, 1);
+    g_check_string(error->parser, ==, "parse_dispatch");
+    g_check_cmp_int(diagnostic->dispatch_failure.has_opcode, ==, true);
+    g_check_cmp_size(diagnostic->dispatch_failure.opcode, ==, 3);
+    g_check_cmp_size(diagnostic->dispatch_failure.expected_count, ==, 2);
+
+    FILE *stream = tmpfile();
+    g_check_cmp_ptr(stream, !=, NULL);
+    if (stream) {
+        char rendered[256] = {0};
+        h_parse_diagnostic_fprint(stream, diagnostic);
+        rewind(stream);
+        size_t rendered_len = fread(rendered, 1, sizeof(rendered) - 1, stream);
+        rendered[rendered_len] = '\0';
+        g_check_cmp_ptr(strstr(rendered, "no dispatch case for opcode 3"), !=, NULL);
+        g_check_cmp_ptr(strstr(rendered, "expected opcode 1, 2"), !=, NULL);
+        fclose(stream);
+    }
+    h_parse_diagnostic_free(diagnostic);
+}
+
+static void test_trace_dispatch_invalid_opcode(void) {
+    OpcodeMap entries[] = {{1, h_ch('A')}};
+    HParser *discriminator = h_sequence(h_ch('A'), NULL);
+    HParser *parser = h_dispatch(discriminator, entries, NULL);
+    const uint8_t input[] = {'A'};
+    g_check_cmp_int(h_compile(parser, PB_PACKRAT, NULL), ==, 0);
+
+    HParseDiagnostic *diagnostic = NULL;
+    HParseResult *result =
+        h_parse_debug_ex(parser, input, sizeof(input), &diagnostic, false, false);
+    g_check_cmp_ptr(result, ==, NULL);
+    g_check_cmp_ptr(diagnostic, !=, NULL);
+    if (!diagnostic)
+        return;
+
+    const HParseError *error = h_parse_diagnostic_error(diagnostic);
+    g_check_cmp_int(error->kind, ==, H_PARSE_ERROR_DISPATCH);
+    g_check_cmp_int(diagnostic->dispatch_failure.has_opcode, ==, false);
+
+    FILE *stream = tmpfile();
+    g_check_cmp_ptr(stream, !=, NULL);
+    if (stream) {
+        char rendered[256] = {0};
+        h_parse_diagnostic_fprint(stream, diagnostic);
+        rewind(stream);
+        size_t rendered_len = fread(rendered, 1, sizeof(rendered) - 1, stream);
+        rendered[rendered_len] = '\0';
+        g_check_cmp_ptr(strstr(rendered, "dispatch discriminator produced an invalid opcode"), !=,
+                        NULL);
+        fclose(stream);
+    }
+    h_parse_diagnostic_free(diagnostic);
+}
+
+static void test_trace_dispatch_preserves_body_failure(void) {
+    OpcodeMap entries[] = {{1, h_ch('A')}};
+    HParser *parser = h_dispatch(h_uint8(), entries, NULL);
+    const uint8_t input[] = {1, 'X'};
+    g_check_cmp_int(h_compile(parser, PB_PACKRAT, NULL), ==, 0);
+
+    HParseError error;
+    HParseResult *result = h_parse_debug(parser, input, sizeof(input), &error, false, false);
+    g_check_cmp_ptr(result, ==, NULL);
+    g_check_cmp_int(error.kind, ==, H_PARSE_ERROR_PRIMITIVE_MISMATCH);
+    g_check_cmp_size(error.index, ==, 1);
+    h_parse_error_free(&error);
+}
+
 static void test_trace_glr_ambiguous_failure(void) {
     HParser *value = h_indirect();
     h_bind_indirect(value, h_choice(h_sequence(value, value, NULL), h_ch('a'), NULL));
@@ -989,6 +1075,11 @@ void register_trace_tests(void) {
                          GINT_TO_POINTER(PB_PACKRAT), test_trace_token_mismatch_position);
     g_test_add_func("/core/parser/packrat/trace_relational_failure_starts",
                     test_trace_relational_failure_starts);
+    g_test_add_func("/core/parser/packrat/trace_dispatch_failure", test_trace_dispatch_failure);
+    g_test_add_func("/core/parser/packrat/trace_dispatch_invalid_opcode",
+                    test_trace_dispatch_invalid_opcode);
+    g_test_add_func("/core/parser/packrat/trace_dispatch_preserves_body_failure",
+                    test_trace_dispatch_preserves_body_failure);
 
     g_test_add_data_func("/core/parser/ll/trace_debug_success", GINT_TO_POINTER(PB_LL),
                          test_trace_debug_success);
