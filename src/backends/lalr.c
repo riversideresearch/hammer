@@ -287,6 +287,9 @@ HCFChoice *h_desugar_augmented(HParser *parser) {
         if (!context)
             return NULL;
         context->parser = parser;
+        context->choice = NULL;
+        context->choice_alternative = 0;
+        context->choice_id = 0;
         context->next = NULL;
         augmented->diagnostic_context = context;
     }

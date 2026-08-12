@@ -21,12 +21,14 @@ typedef struct HRVMThread_ {
 typedef struct HRVMMatchFailure_ {
     bool present;
     size_t index;
-    bool expected[256];
-    bool expected_eof;
-    const HParser *parser;
-    const HDiagnosticContext *diagnostic_context;
+    HTraceFailureCandidate candidates[H_TRACE_MAX_FAILURE_CANDIDATES];
+    size_t candidate_count;
     HRVMTrace *trace;
 } HRVMMatchFailure;
+
+static bool rvm_failure_is_explicit(const HTraceFailureCandidate *candidate) {
+    return candidate->kind == H_PARSE_ERROR_EXPLICIT_FAILURE;
+}
 
 static void record_rvm_match_failure(HRVMMatchFailure *failure, size_t index, uint8_t lo,
                                      uint8_t hi, bool expected_eof, const HParser *parser,
@@ -37,33 +39,64 @@ static void record_rvm_match_failure(HRVMMatchFailure *failure, size_t index, ui
         memset(failure, 0, sizeof(*failure));
         failure->present = true;
         failure->index = index;
-        failure->parser = parser;
-        failure->diagnostic_context = diagnostic_context;
         failure->trace = trace;
     } else if (index < failure->index) {
         return;
-    } else if (h_is_nothing_parser(failure->parser) && !explicit_failure) {
-        memset(failure->expected, 0, sizeof(failure->expected));
-        failure->expected_eof = false;
-        failure->parser = parser;
-        failure->diagnostic_context = diagnostic_context;
-        failure->trace = trace;
-    } else if (!h_is_nothing_parser(failure->parser) && explicit_failure) {
+    }
+
+    bool has_non_explicit = false;
+    for (size_t i = 0; i < failure->candidate_count; i++)
+        has_non_explicit |= !rvm_failure_is_explicit(&failure->candidates[i]);
+    if (explicit_failure && has_non_explicit)
         return;
-    } else if (!failure->parser) {
-        failure->parser = parser;
-        failure->diagnostic_context = diagnostic_context;
+    if (!explicit_failure && failure->candidate_count > 0) {
+        size_t kept = 0;
+        for (size_t i = 0; i < failure->candidate_count; i++)
+            if (!rvm_failure_is_explicit(&failure->candidates[i]))
+                failure->candidates[kept++] = failure->candidates[i];
+        failure->candidate_count = kept;
         failure->trace = trace;
     }
 
-    if (explicit_failure)
-        return;
+    HTraceFailureCandidate *candidate = NULL;
+    for (size_t i = 0; i < failure->candidate_count; i++) {
+        HTraceFailureCandidate *item = &failure->candidates[i];
+        if (item->parser == parser && item->provenance == diagnostic_context) {
+            candidate = item;
+            break;
+        }
+    }
+    if (!candidate) {
+        if (failure->candidate_count >= H_TRACE_MAX_FAILURE_CANDIDATES)
+            return;
+        candidate = &failure->candidates[failure->candidate_count++];
+        memset(candidate, 0, sizeof(*candidate));
+        candidate->start = index;
+        candidate->end = index + 1;
+        candidate->kind = explicit_failure ? H_PARSE_ERROR_EXPLICIT_FAILURE
+                                           : H_PARSE_ERROR_PRIMITIVE_MISMATCH;
+        candidate->parser = parser;
+        candidate->provenance = diagnostic_context;
+        const HParser *origin = NULL;
+        for (const HDiagnosticContext *item = diagnostic_context; item; item = item->next) {
+            if (item->parser)
+                origin = item->parser;
+            if (item->choice &&
+                candidate->choice_depth < H_TRACE_MAX_CANDIDATE_CHOICE_DEPTH) {
+                HTraceCandidateChoice *path = &candidate->choices[candidate->choice_depth++];
+                path->choice = item->choice;
+                path->origin = origin ? origin : item->choice;
+                path->alternative = item->choice_alternative;
+                path->id = item->choice_id;
+            }
+        }
+    }
 
     if (expected_eof) {
-        failure->expected_eof = true;
+        candidate->expected_eof = true;
     } else {
         for (unsigned int c = lo; c <= hi; c++)
-            failure->expected[c] = true;
+            candidate->expected_bytes[c] = true;
     }
 }
 
@@ -233,9 +266,16 @@ finalize:
             h_backend_trace_end(true);
         }
     } else if (match_failure.present) {
-        rvm_match_error(prog, input, len, match_failure.index, match_failure.expected,
-                        match_failure.expected_eof, match_failure.parser,
-                        match_failure.diagnostic_context, match_failure.trace);
+        for (size_t i = 0; i < match_failure.candidate_count; i++) {
+            HTraceFailureCandidate *candidate = &match_failure.candidates[i];
+            candidate->end = match_failure.index < len ? match_failure.index + 1
+                                                       : match_failure.index;
+            if (candidate->kind != H_PARSE_ERROR_EXPLICIT_FAILURE)
+                candidate->kind = match_failure.index < len ? H_PARSE_ERROR_PRIMITIVE_MISMATCH
+                                                            : H_PARSE_ERROR_UNEXPECTED_EOF;
+        }
+        rvm_match_error(prog, input, len, match_failure.candidates,
+                        match_failure.candidate_count, match_failure.trace);
     }
 
 end:
@@ -569,6 +609,7 @@ static int h_regex_compile(HAllocator *mm__, HParser *parser, const void *params
     prog->actions = NULL;
     prog->current_parser = NULL;
     prog->current_context = NULL;
+    prog->next_choice_id = 0;
     prog->root_parser = parser;
     prog->allocator = mm__;
     prog->arena = NULL;

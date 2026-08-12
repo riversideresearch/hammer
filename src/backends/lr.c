@@ -290,8 +290,27 @@ void h_lrengine_trace_action_failure(const HLREngine *engine) {
         if (input.overrun) {
             bool expected[256], expected_eof;
             lr_expected_from_map(map, expected, &expected_eof);
-            CF_TRACE_FAILURE(index, index, H_PARSE_ERROR_UNEXPECTED_EOF, origin, provenance,
-                             expected, expected_eof);
+            HTraceFailureCandidate candidates[H_TRACE_MAX_FAILURE_CANDIDATES] = {{0}};
+            size_t count = 0;
+            if (engine->root_parser && engine->root_parser->desugared) {
+                HTraceFailureCandidate grammar_candidates[H_TRACE_MAX_FAILURE_CANDIDATES] = {{0}};
+                size_t grammar_count = 0;
+                grammar_count = h_cf_trace_choice_candidates(
+                    engine->root_parser->desugared, engine->input.input, engine->input.pos,
+                    engine->input.length, engine->input.pos, index,
+                    H_PARSE_ERROR_UNEXPECTED_EOF, origin,
+                    grammar_candidates);
+                if (h_trace_candidates_have_choice(grammar_candidates, grammar_count)) {
+                    memcpy(candidates, grammar_candidates,
+                           grammar_count * sizeof(grammar_candidates[0]));
+                    count = grammar_count;
+                }
+            }
+            if (h_trace_candidates_have_choice(candidates, count))
+                h_backend_trace_failures(candidates, count);
+            else
+                CF_TRACE_FAILURE(index, index, H_PARSE_ERROR_UNEXPECTED_EOF, origin, provenance,
+                                 expected, expected_eof);
             return;
         }
 
@@ -299,8 +318,27 @@ void h_lrengine_trace_action_failure(const HLREngine *engine) {
         if (!next) {
             bool expected[256], expected_eof;
             lr_expected_from_map(map, expected, &expected_eof);
-            CF_TRACE_FAILURE(index, index + 1, H_PARSE_ERROR_PRIMITIVE_MISMATCH, origin,
-                             provenance, expected, expected_eof);
+            HTraceFailureCandidate candidates[H_TRACE_MAX_FAILURE_CANDIDATES] = {{0}};
+            size_t count = 0;
+            if (engine->root_parser && engine->root_parser->desugared) {
+                HTraceFailureCandidate grammar_candidates[H_TRACE_MAX_FAILURE_CANDIDATES] = {{0}};
+                size_t grammar_count = 0;
+                grammar_count = h_cf_trace_choice_candidates(
+                    engine->root_parser->desugared, engine->input.input, engine->input.pos,
+                    engine->input.length, engine->input.pos, index,
+                    H_PARSE_ERROR_PRIMITIVE_MISMATCH, origin,
+                    grammar_candidates);
+                if (h_trace_candidates_have_choice(grammar_candidates, grammar_count)) {
+                    memcpy(candidates, grammar_candidates,
+                           grammar_count * sizeof(grammar_candidates[0]));
+                    count = grammar_count;
+                }
+            }
+            if (h_trace_candidates_have_choice(candidates, count))
+                h_backend_trace_failures(candidates, count);
+            else
+                CF_TRACE_FAILURE(index, index + 1, H_PARSE_ERROR_PRIMITIVE_MISMATCH, origin,
+                                 provenance, expected, expected_eof);
             return;
         }
         map = next;

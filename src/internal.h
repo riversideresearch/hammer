@@ -505,6 +505,9 @@ typedef HParsedToken *(*HCFPlanAction)(const HParseResult *result, void *user_da
  * list is ordered from the outermost context wrapper to the innermost one. */
 typedef struct HDiagnosticContext_ {
     const HParser *parser;
+    const HParser *choice;
+    size_t choice_alternative;
+    size_t choice_id;
     const struct HDiagnosticContext_ *next;
 } HDiagnosticContext;
 
@@ -743,6 +746,7 @@ const HTTEntry *h_get_token_type_entry(HTokenType token_type);
 bool h_false(void *);
 bool h_true(void *);
 bool h_not_regular(HRVMProg *, void *);
+bool h_is_choice_parser(const HParser *parser);
 // internal checks to verify parser type for error reporting
 bool h_is_nothing_parser(const HParser *parser);
 bool h_is_xor_parser(const HParser *parser);

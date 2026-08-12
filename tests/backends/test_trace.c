@@ -152,6 +152,157 @@ static void test_trace_float_range_token_type_mismatch(gconstpointer backend) {
     h_parse_diagnostic_free(diagnostic);
 }
 
+static void test_trace_choice_trie(gconstpointer backend) {
+    HParserBackend be = (HParserBackend)GPOINTER_TO_INT(backend);
+    HParser *left = H_CONTEXT(h_ch('A'), "left");
+    HParser *right = H_CONTEXT(h_ch('B'), "right");
+    HParser *parser = H_CONTEXT(h_choice(left, right, NULL), "letter");
+    const uint8_t input[] = {'X'};
+    g_check_cmp_int(h_compile(parser, be, NULL), ==, 0);
+
+    HParseDiagnostic *diagnostic = NULL;
+    HParseResult *result =
+        h_parse_debug_ex(parser, input, sizeof(input), &diagnostic, false, false);
+    g_check_cmp_ptr(result, ==, NULL);
+    g_check_cmp_ptr(diagnostic, !=, NULL);
+    if (!diagnostic)
+        return;
+
+    const HParseError *error = h_parse_diagnostic_error(diagnostic);
+    g_check_string(error->parser, ==, "letter");
+    g_check_cmp_size(error->index, ==, 0);
+    g_check_cmp_size(diagnostic->choice_node_count, ==, 1);
+    g_check_cmp_size(diagnostic->choice_alternative_count, ==, 2);
+    g_check_cmp_size(diagnostic->choice_root, ==, 0);
+    g_check_cmp_size(diagnostic->choice_nodes[0].alternative_count, ==, 2);
+    g_check_cmp_int(diagnostic->expected_bytes['A'], ==, true);
+    g_check_cmp_int(diagnostic->expected_bytes['B'], ==, true);
+
+    FILE *stream = tmpfile();
+    g_check_cmp_ptr(stream, !=, NULL);
+    if (stream) {
+        char rendered[1024] = {0};
+        h_parse_diagnostic_fprint(stream, diagnostic);
+        rewind(stream);
+        size_t rendered_len = fread(rendered, 1, sizeof(rendered) - 1, stream);
+        rendered[rendered_len] = '\0';
+        g_check_cmp_ptr(strstr(rendered, "no alternative matched at index 0"), !=, NULL);
+        g_check_cmp_ptr(strstr(rendered, "alternatives:"), !=, NULL);
+        g_check_cmp_ptr(strstr(rendered, "1. [left]"), !=, NULL);
+        g_check_cmp_ptr(strstr(rendered, "2. [right]"), !=, NULL);
+        fclose(stream);
+    }
+    h_parse_diagnostic_free(diagnostic);
+}
+
+static void test_trace_choice_trie_furthest_packrat(void) {
+    HParser *near = H_CONTEXT(h_sequence(h_ch('A'), h_ch('B'), h_ch('X'), NULL), "near");
+    HParser *shorter = H_CONTEXT(h_sequence(h_ch('A'), h_ch('Y'), NULL), "shorter");
+    HParser *parser = H_CONTEXT(h_choice(near, shorter, NULL), "branch");
+    const uint8_t input[] = {'A', 'B', '?'};
+
+    HParseDiagnostic *diagnostic = NULL;
+    HParseResult *result =
+        h_parse_debug_ex(parser, input, sizeof(input), &diagnostic, false, false);
+    g_check_cmp_ptr(result, ==, NULL);
+    g_check_cmp_ptr(diagnostic, !=, NULL);
+    if (!diagnostic)
+        return;
+
+    const HParseError *error = h_parse_diagnostic_error(diagnostic);
+    g_check_string(error->parser, ==, "branch");
+    g_check_cmp_size(error->index, ==, 2);
+    g_check_cmp_size(diagnostic->choice_alternative_count, ==, 2);
+    g_check_cmp_int(diagnostic->expected_bytes['X'], ==, true);
+    g_check_cmp_int(diagnostic->expected_bytes['Y'], ==, false);
+    h_parse_diagnostic_free(diagnostic);
+}
+
+static void test_trace_choice_trie_nested(gconstpointer backend) {
+    HParserBackend be = (HParserBackend)GPOINTER_TO_INT(backend);
+    HParser *inner =
+        H_CONTEXT(h_choice(H_CONTEXT(h_ch('A'), "A"), H_CONTEXT(h_ch('B'), "B"), NULL), "inner");
+    HParser *outer = H_CONTEXT(h_choice(inner, H_CONTEXT(h_ch('C'), "C"), NULL), "outer");
+    const uint8_t input[] = {'X'};
+    g_check_cmp_int(h_compile(outer, be, NULL), ==, 0);
+
+    HParseDiagnostic *diagnostic = NULL;
+    HParseResult *result = h_parse_debug_ex(outer, input, sizeof(input), &diagnostic, false, false);
+    g_check_cmp_ptr(result, ==, NULL);
+    g_check_cmp_ptr(diagnostic, !=, NULL);
+    if (!diagnostic)
+        return;
+
+    g_check_cmp_size(diagnostic->choice_node_count, ==, 2);
+    g_check_cmp_size(diagnostic->choice_root, ==, 1);
+    size_t first = diagnostic->choice_nodes[diagnostic->choice_root].first_alternative;
+    g_check_cmp_size(first, <, diagnostic->choice_alternative_count);
+    if (first < diagnostic->choice_alternative_count)
+        g_check_cmp_size(diagnostic->choice_alternatives[first].child_node, ==, 0);
+    h_parse_diagnostic_free(diagnostic);
+}
+
+static void test_trace_choice_trie_nonzero(gconstpointer backend) {
+    HParserBackend be = (HParserBackend)GPOINTER_TO_INT(backend);
+    HParser *choice = H_CONTEXT(
+        h_choice(H_CONTEXT(h_ch('A'), "left"), H_CONTEXT(h_ch('B'), "right"), NULL), "letter");
+    HParser *parser = h_sequence(h_ch('Z'), choice, NULL);
+    const uint8_t input[] = {'Z', 'X'};
+    g_check_cmp_int(h_compile(parser, be, NULL), ==, 0);
+
+    HParseDiagnostic *diagnostic = NULL;
+    HParseResult *result =
+        h_parse_debug_ex(parser, input, sizeof(input), &diagnostic, false, false);
+    g_check_cmp_ptr(result, ==, NULL);
+    g_check_cmp_ptr(diagnostic, !=, NULL);
+    if (!diagnostic)
+        return;
+
+    const HParseError *error = h_parse_diagnostic_error(diagnostic);
+    g_check_string(error->parser, ==, "letter");
+    g_check_cmp_size(error->index, ==, 1);
+    g_check_cmp_size(diagnostic->choice_node_count, ==, 1);
+    g_check_cmp_size(diagnostic->choice_alternative_count, ==, 2);
+    g_check_cmp_int(diagnostic->expected_bytes['A'], ==, true);
+    g_check_cmp_int(diagnostic->expected_bytes['B'], ==, true);
+    h_parse_diagnostic_free(diagnostic);
+}
+
+static void test_trace_choice_trie_reused_parser_packrat(void) {
+    HParser *shared = H_CONTEXT(h_ch('A'), "shared");
+    HParser *parser =
+        H_CONTEXT(h_choice(shared, h_sequence(h_ch('Z'), shared, NULL), NULL), "reuse");
+    const uint8_t input[] = {'Z', 'X'};
+
+    HParseDiagnostic *diagnostic = NULL;
+    HParseResult *result =
+        h_parse_debug_ex(parser, input, sizeof(input), &diagnostic, false, false);
+    g_check_cmp_ptr(result, ==, NULL);
+    g_check_cmp_ptr(diagnostic, !=, NULL);
+    if (!diagnostic)
+        return;
+
+    const HParseError *error = h_parse_diagnostic_error(diagnostic);
+    g_check_cmp_size(error->index, ==, 1);
+    size_t first = diagnostic->choice_nodes[diagnostic->choice_root].first_alternative;
+    size_t second = diagnostic->choice_alternatives[first].next;
+    g_check_cmp_size(second, <, diagnostic->choice_alternative_count);
+    if (second < diagnostic->choice_alternative_count)
+        g_check_cmp_size(diagnostic->choice_alternatives[second].error.index, ==, 1);
+    h_parse_diagnostic_free(diagnostic);
+}
+
+static void test_trace_choice_success_discards_failures_packrat(void) {
+    HParser *parser = h_choice(h_ch('A'), h_ch('B'), NULL);
+    const uint8_t input[] = {'B'};
+    HParseDiagnostic *diagnostic = NULL;
+    HParseResult *result =
+        h_parse_debug_ex(parser, input, sizeof(input), &diagnostic, false, false);
+    g_check_cmp_ptr(result, !=, NULL);
+    g_check_cmp_ptr(diagnostic, ==, NULL);
+    h_parse_result_free(result);
+}
+
 static void test_trace_dispatch_failure(void) {
     OpcodeMap entries[] = {{1, h_ch('A')}, {2, h_ch('B')}};
     HParser *parser = h_dispatch(h_uint8(), entries, NULL);
@@ -1036,6 +1187,12 @@ void register_trace_tests(void) {
                          GINT_TO_POINTER(PB_REGULAR), test_trace_float_range_token_type_mismatch);
     g_test_add_data_func("/core/parser/regex/trace_structured_expectations",
                          GINT_TO_POINTER(PB_REGULAR), test_trace_structured_expectations);
+    g_test_add_data_func("/core/parser/regex/trace_choice_trie", GINT_TO_POINTER(PB_REGULAR),
+                         test_trace_choice_trie);
+    g_test_add_data_func("/core/parser/regex/trace_choice_trie_nested",
+                         GINT_TO_POINTER(PB_REGULAR), test_trace_choice_trie_nested);
+    g_test_add_data_func("/core/parser/regex/trace_choice_trie_nonzero",
+                         GINT_TO_POINTER(PB_REGULAR), test_trace_choice_trie_nonzero);
     g_test_add_func("/core/parser/regex/trace_structured_expected_eof",
                     test_trace_structured_expected_eof);
     g_test_add_data_func("/core/parser/regex/trace_attr_bool_checksum", GINT_TO_POINTER(PB_REGULAR),
@@ -1075,6 +1232,18 @@ void register_trace_tests(void) {
                          GINT_TO_POINTER(PB_PACKRAT), test_trace_token_mismatch_position);
     g_test_add_func("/core/parser/packrat/trace_relational_failure_starts",
                     test_trace_relational_failure_starts);
+    g_test_add_data_func("/core/parser/packrat/trace_choice_trie", GINT_TO_POINTER(PB_PACKRAT),
+                         test_trace_choice_trie);
+    g_test_add_func("/core/parser/packrat/trace_choice_trie_furthest",
+                    test_trace_choice_trie_furthest_packrat);
+    g_test_add_data_func("/core/parser/packrat/trace_choice_trie_nested",
+                         GINT_TO_POINTER(PB_PACKRAT), test_trace_choice_trie_nested);
+    g_test_add_data_func("/core/parser/packrat/trace_choice_trie_nonzero",
+                         GINT_TO_POINTER(PB_PACKRAT), test_trace_choice_trie_nonzero);
+    g_test_add_func("/core/parser/packrat/trace_choice_trie_reused",
+                    test_trace_choice_trie_reused_parser_packrat);
+    g_test_add_func("/core/parser/packrat/trace_choice_trie_success",
+                    test_trace_choice_success_discards_failures_packrat);
     g_test_add_func("/core/parser/packrat/trace_dispatch_failure", test_trace_dispatch_failure);
     g_test_add_func("/core/parser/packrat/trace_dispatch_invalid_opcode",
                     test_trace_dispatch_invalid_opcode);
@@ -1169,10 +1338,28 @@ void register_trace_tests(void) {
 
     g_test_add_data_func("/core/parser/ll/trace_structured_expectations", GINT_TO_POINTER(PB_LL),
                          test_trace_structured_expectations);
+    g_test_add_data_func("/core/parser/ll/trace_choice_trie", GINT_TO_POINTER(PB_LL),
+                         test_trace_choice_trie);
+    g_test_add_data_func("/core/parser/ll/trace_choice_trie_nested", GINT_TO_POINTER(PB_LL),
+                         test_trace_choice_trie_nested);
+    g_test_add_data_func("/core/parser/ll/trace_choice_trie_nonzero", GINT_TO_POINTER(PB_LL),
+                         test_trace_choice_trie_nonzero);
     g_test_add_data_func("/core/parser/lalr/trace_structured_expectations",
                          GINT_TO_POINTER(PB_LALR), test_trace_structured_expectations);
+    g_test_add_data_func("/core/parser/lalr/trace_choice_trie", GINT_TO_POINTER(PB_LALR),
+                         test_trace_choice_trie);
+    g_test_add_data_func("/core/parser/lalr/trace_choice_trie_nested", GINT_TO_POINTER(PB_LALR),
+                         test_trace_choice_trie_nested);
+    g_test_add_data_func("/core/parser/lalr/trace_choice_trie_nonzero", GINT_TO_POINTER(PB_LALR),
+                         test_trace_choice_trie_nonzero);
     g_test_add_data_func("/core/parser/glr/trace_structured_expectations", GINT_TO_POINTER(PB_GLR),
                          test_trace_structured_expectations);
+    g_test_add_data_func("/core/parser/glr/trace_choice_trie", GINT_TO_POINTER(PB_GLR),
+                         test_trace_choice_trie);
+    g_test_add_data_func("/core/parser/glr/trace_choice_trie_nested", GINT_TO_POINTER(PB_GLR),
+                         test_trace_choice_trie_nested);
+    g_test_add_data_func("/core/parser/glr/trace_choice_trie_nonzero", GINT_TO_POINTER(PB_GLR),
+                         test_trace_choice_trie_nonzero);
 
     g_test_add_data_func("/core/parser/regex/trace_custom_label_and_message",
                          GINT_TO_POINTER(PB_REGULAR), test_trace_custom_label_and_message);
@@ -1205,8 +1392,8 @@ void register_trace_tests(void) {
     g_test_add_data_func("/core/parser/glr/trace_context_preserves_error_kind",
                          GINT_TO_POINTER(PB_GLR), test_trace_context_preserves_error_kind);
 
-    g_test_add_data_func("/core/parser/regex/trace_nested_input_trail",
-                         GINT_TO_POINTER(PB_REGULAR), test_trace_nested_input_trail);
+    g_test_add_data_func("/core/parser/regex/trace_nested_input_trail", GINT_TO_POINTER(PB_REGULAR),
+                         test_trace_nested_input_trail);
     g_test_add_data_func("/core/parser/packrat/trace_nested_input_trail",
                          GINT_TO_POINTER(PB_PACKRAT), test_trace_nested_input_trail);
     g_test_add_data_func("/core/parser/ll/trace_nested_input_trail", GINT_TO_POINTER(PB_LL),

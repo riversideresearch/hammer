@@ -334,9 +334,10 @@ static void llk_expected_from_map(const HStringMap *map, bool expected[256], boo
 }
 
 static void llk_trace_lookup_failure(const HStringMap *row, HInputStream stream,
-                                     const HParser *parser,
+                                     const HParser *parser, const HCFChoice *symbol,
                                      const HDiagnosticContext *provenance) {
     const HStringMap *map = row;
+    size_t failure_start = stream.pos + stream.index;
     if (!map) {
         size_t index = stream.pos + stream.index;
         CF_TRACE_FAILURE(index, index, H_PARSE_ERROR_HIGHER_ORDER, parser, provenance, NULL,
@@ -349,8 +350,25 @@ static void llk_trace_lookup_failure(const HStringMap *row, HInputStream stream,
         if (stream.overrun) {
             bool expected[256], expected_eof;
             llk_expected_from_map(map, expected, &expected_eof);
-            CF_TRACE_FAILURE(index, index, H_PARSE_ERROR_UNEXPECTED_EOF, parser, provenance,
-                             expected, expected_eof);
+            HTraceFailureCandidate candidates[H_TRACE_MAX_FAILURE_CANDIDATES] = {{0}};
+            size_t count = 0;
+            if (symbol) {
+                HTraceFailureCandidate grammar_candidates[H_TRACE_MAX_FAILURE_CANDIDATES] = {{0}};
+                size_t grammar_count = 0;
+                grammar_count = h_cf_trace_choice_candidates(
+                    symbol, stream.input, stream.pos, stream.length, failure_start, index,
+                    H_PARSE_ERROR_UNEXPECTED_EOF, parser, grammar_candidates);
+                if (h_trace_candidates_have_choice(grammar_candidates, grammar_count)) {
+                    memcpy(candidates, grammar_candidates,
+                           grammar_count * sizeof(grammar_candidates[0]));
+                    count = grammar_count;
+                }
+            }
+            if (h_trace_candidates_have_choice(candidates, count))
+                h_backend_trace_failures(candidates, count);
+            else
+                CF_TRACE_FAILURE(index, index, H_PARSE_ERROR_UNEXPECTED_EOF, parser, provenance,
+                                 expected, expected_eof);
             return;
         }
 
@@ -358,8 +376,25 @@ static void llk_trace_lookup_failure(const HStringMap *row, HInputStream stream,
         if (!next) {
             bool expected[256], expected_eof;
             llk_expected_from_map(map, expected, &expected_eof);
-            CF_TRACE_FAILURE(index, index + 1, H_PARSE_ERROR_PRIMITIVE_MISMATCH, parser,
-                             provenance, expected, expected_eof);
+            HTraceFailureCandidate candidates[H_TRACE_MAX_FAILURE_CANDIDATES] = {{0}};
+            size_t count = 0;
+            if (symbol) {
+                HTraceFailureCandidate grammar_candidates[H_TRACE_MAX_FAILURE_CANDIDATES] = {{0}};
+                size_t grammar_count = 0;
+                grammar_count = h_cf_trace_choice_candidates(
+                    symbol, stream.input, stream.pos, stream.length, failure_start, index,
+                    H_PARSE_ERROR_PRIMITIVE_MISMATCH, parser, grammar_candidates);
+                if (h_trace_candidates_have_choice(grammar_candidates, grammar_count)) {
+                    memcpy(candidates, grammar_candidates,
+                           grammar_count * sizeof(grammar_candidates[0]));
+                    count = grammar_count;
+                }
+            }
+            if (h_trace_candidates_have_choice(candidates, count))
+                h_backend_trace_failures(candidates, count);
+            else
+                CF_TRACE_FAILURE(index, index + 1, H_PARSE_ERROR_PRIMITIVE_MISMATCH, parser,
+                                 provenance, expected, expected_eof);
             return;
         }
         map = next;
@@ -569,7 +604,7 @@ static HCountedArray *llk_parse_chunk_(HLLkState *s, const HParser *parser, HInp
             const HCFSequence *p = h_llk_lookup(table, x, stream);
             if (p == NULL) {
                 if (trace_failures)
-                    llk_trace_lookup_failure(row, *stream, origin, x->diagnostic_context);
+                    llk_trace_lookup_failure(row, *stream, origin, x, x->diagnostic_context);
                 if (trace_failures)
                     CF_TRACE_PARSER_EXIT(origin, symbol_start, symbol_start, NULL, false,
                                          "predict");

@@ -727,8 +727,12 @@ void h_parse_diagnostic_fprint(FILE *stream, const HParseDiagnostic *diagnostic)
             fprintf(stream, " in %s", error->source->function_name);
         fputs(": ", stream);
     }
+    bool choice_failure = diagnostic->choice_root != H_TRACE_CHOICE_NONE &&
+                          diagnostic->choice_root < diagnostic->choice_node_count;
     if (error->message)
         fprintf(stream, "%s", error->message);
+    else if (choice_failure)
+        fprintf(stream, "no alternative matched at index %zu", error->index);
     else if (error->kind == H_PARSE_ERROR_RANGE &&
              diagnostic->numeric_range.kind == H_TRACE_NUMERIC_RANGE_SINT)
         fprintf(stream, "unexpected int %" PRId64, diagnostic->numeric_range.actual.sint);
@@ -844,12 +848,18 @@ void h_parse_diagnostic_fprint(FILE *stream, const HParseDiagnostic *diagnostic)
             fprintf(stream, " while running [%s]", error->parser);
     }
     fputc('\n', stream);
+    if (choice_failure)
+        h_trace_fprint_choice(stream, diagnostic->choice_nodes, diagnostic->choice_node_count,
+                              diagnostic->choice_alternatives,
+                              diagnostic->choice_alternative_count, diagnostic->choice_root);
 }
 
 void h_parse_diagnostic_free(HParseDiagnostic *diagnostic) {
     if (!diagnostic)
         return;
     h_parse_error_free(&diagnostic->error);
+    for (size_t i = 0; i < diagnostic->choice_alternative_count; i++)
+        h_parse_error_free(&diagnostic->choice_alternatives[i].error);
     free(diagnostic);
 }
 
@@ -1130,10 +1140,13 @@ static bool context_compile_to_rvm(HRVMProg *prog, void *env) {
     HDiagnosticContext *path = h_rvm_alloc(prog, (depth + 1) * sizeof(*path));
     size_t i = 0;
     for (const HDiagnosticContext *item = parent_context; item; item = item->next, i++) {
-        path[i].parser = item->parser;
+        path[i] = *item;
         path[i].next = &path[i + 1];
     }
     path[depth].parser = context->wrapper;
+    path[depth].choice = NULL;
+    path[depth].choice_alternative = 0;
+    path[depth].choice_id = 0;
     path[depth].next = NULL;
     prog->current_context = path;
     bool result = h_compile_regex(prog, context->child);
@@ -1156,6 +1169,9 @@ static HCFChoice *context_clone_cf_choice(HAllocator *mm__, const HCFChoice *sou
     if (!provenance)
         return NULL;
     provenance->parser = context;
+    provenance->choice = NULL;
+    provenance->choice_alternative = 0;
+    provenance->choice_id = 0;
     provenance->next = source->diagnostic_context;
     clone->diagnostic_context = provenance;
     entry->source = source;
@@ -1214,6 +1230,9 @@ static void desugar_context(HAllocator *mm__, HCFStack *stk__, void *env) {
         HDiagnosticContext *provenance = h_new(HDiagnosticContext, 1);
         if (provenance) {
             provenance->parser = context->wrapper;
+            provenance->choice = NULL;
+            provenance->choice_alternative = 0;
+            provenance->choice_id = 0;
             provenance->next = NULL;
             HCFS_THIS_CHOICE->diagnostic_context = provenance;
         }

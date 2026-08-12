@@ -124,6 +124,7 @@ struct HRVMProg_ {
     HSVMAction *actions;
     const HParser *current_parser;
     const HDiagnosticContext *current_context;
+    size_t next_choice_id;
     const HParser *root_parser;
     jmp_buf except;
 };

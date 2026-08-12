@@ -44,6 +44,48 @@ typedef struct HTraceDispatchFailure_ {
     bool expected_truncated;
 } HTraceDispatchFailure;
 
+#define H_TRACE_MAX_FAILURE_CANDIDATES 16
+#define H_TRACE_MAX_CANDIDATE_CHOICE_DEPTH 8
+
+typedef struct HTraceCandidateChoice_ {
+    const HParser *choice;
+    const HParser *origin;
+    size_t alternative;
+    size_t id;
+} HTraceCandidateChoice;
+
+typedef struct HTraceFailureCandidate_ {
+    size_t start;
+    size_t end;
+    HParseErrorKind kind;
+    const HParser *parser;
+    const HDiagnosticContext *provenance;
+    bool expected_bytes[256];
+    bool expected_eof;
+    HTraceCandidateChoice choices[H_TRACE_MAX_CANDIDATE_CHOICE_DEPTH];
+    size_t choice_depth;
+} HTraceFailureCandidate;
+
+#define H_TRACE_MAX_CHOICE_NODES 16
+#define H_TRACE_MAX_CHOICE_ALTERNATIVES 16
+#define H_TRACE_CHOICE_NONE SIZE_MAX
+
+typedef struct HTraceChoiceAlternative_ {
+    size_t alternative;
+    HParseError error;
+    bool expected_bytes[256];
+    bool expected_eof;
+    size_t child_node;
+    size_t next;
+} HTraceChoiceAlternative;
+
+typedef struct HTraceChoiceNode_ {
+    size_t first_alternative;
+    size_t alternative_count;
+    size_t furthest_progress;
+    bool truncated;
+} HTraceChoiceNode;
+
 #define H_PARSE_DIAGNOSTIC_MAX_INPUT_FRAMES 64
 
 typedef struct HTraceFrame_ {
@@ -62,6 +104,11 @@ struct HParseDiagnostic_ {
     bool expected_eof;
     HTraceNumericRange numeric_range;
     HTraceDispatchFailure dispatch_failure;
+    HTraceChoiceNode choice_nodes[H_TRACE_MAX_CHOICE_NODES];
+    size_t choice_node_count;
+    HTraceChoiceAlternative choice_alternatives[H_TRACE_MAX_CHOICE_ALTERNATIVES];
+    size_t choice_alternative_count;
+    size_t choice_root;
     HTraceFrame input_frames[H_PARSE_DIAGNOSTIC_MAX_INPUT_FRAMES];
     size_t input_frame_count;
 };
@@ -91,6 +138,10 @@ void h_trace_note_int_range(const HParsedToken *token, int64_t lower, int64_t up
 void h_trace_note_float_range(const HParsedToken *token, double lower, double upper);
 void h_trace_note_dispatch(const HParsedToken *token, bool has_opcode, size_t opcode,
                            const OpcodeMap *map, size_t count);
+size_t h_trace_choice_begin(void);
+void h_trace_choice_arm_begin(size_t scope, size_t alternative);
+void h_trace_choice_arm_end(size_t scope, bool success);
+void h_trace_choice_end(size_t scope, bool success);
 
 // context-free backend trace functions
 void h_cf_trace_begin(HParserBackend backend, const HParser *parser, const uint8_t *input,
@@ -120,6 +171,15 @@ void h_backend_trace_begin(HParserBackend backend, const HParser *parser, const 
 void h_backend_trace_failure(size_t start, size_t end, HParseErrorKind kind, const HParser *parser,
                              const HDiagnosticContext *provenance, const bool expected[256],
                              bool expected_eof);
+void h_backend_trace_failures(const HTraceFailureCandidate *candidates, size_t count);
+void h_trace_fprint_choice(FILE *stream, const HTraceChoiceNode *nodes, size_t node_count,
+                           const HTraceChoiceAlternative *alternatives,
+                           size_t alternative_count, size_t root);
+bool h_trace_candidates_have_choice(const HTraceFailureCandidate *candidates, size_t count);
+size_t h_cf_trace_choice_candidates(const HCFChoice *root, const uint8_t *input,
+                                    size_t input_pos, size_t input_len, size_t start, size_t index,
+                                    HParseErrorKind kind, const HParser *fallback,
+                                    HTraceFailureCandidate candidates[]);
 void h_backend_trace_end(bool success);
 
 // regex trace functions
@@ -127,9 +187,9 @@ char *getsym(HSVMActionFunc addr);
 char *h_trace_parser_name(const HParser *parser);
 void dump_rvm_prog(HRVMProg *prog);
 void dump_svm_prog(HRVMProg *prog, HRVMTrace *trace);
-void rvm_match_error(HRVMProg *prog, const uint8_t *input, size_t input_len, size_t off,
-                     const bool expected[256], bool expected_eof, const HParser *parser,
-                     const HDiagnosticContext *diagnostic_context, HRVMTrace *trace);
+void rvm_match_error(HRVMProg *prog, const uint8_t *input, size_t input_len,
+                     const HTraceFailureCandidate *candidates, size_t candidate_count,
+                     HRVMTrace *trace);
 void svm_action_error(HSVMContext *ctx, HRVMProg *orig_prog, HRVMTrace *trace, const uint8_t *input,
                       size_t input_len, const char *msg);
 void svm_failure_error(HSVMContext *ctx, HRVMProg *orig_prog, HRVMTrace *trace,
@@ -143,6 +203,10 @@ void svm_failure_error(HSVMContext *ctx, HRVMProg *orig_prog, HRVMTrace *trace,
 #define TRACE_ENTER(p, s) h_trace_enter((p), (s))
 #define TRACE_EXIT(p, s, res, note) h_trace_exit((p), (s), (res), (note))
 #define TRACE_END(res, state) h_trace_end((res), (state))
+#define TRACE_CHOICE_BEGIN() h_trace_choice_begin()
+#define TRACE_CHOICE_ARM_BEGIN(scope, alternative) h_trace_choice_arm_begin((scope), (alternative))
+#define TRACE_CHOICE_ARM_END(scope, success) h_trace_choice_arm_end((scope), (success))
+#define TRACE_CHOICE_END(scope, success) h_trace_choice_end((scope), (success))
 #define CF_TRACE_BEGIN(backend, parser, input, len)                                                \
     h_cf_trace_begin((backend), (parser), (input), (size_t)(len))
 #define CF_TRACE_FAILURE(start, end, kind, parser, provenance, expected, expected_eof)             \
@@ -153,9 +217,10 @@ void svm_failure_error(HSVMContext *ctx, HRVMProg *orig_prog, HRVMTrace *trace,
     h_cf_trace_parser_exit((parser), (start), (end), (token), (success), (role))
 #define CF_TRACE_LR_SHIFT(branch, from, to, index, parser, provenance, token)                      \
     h_cf_trace_lr_shift((branch), (from), (to), (index), (parser), (provenance), (token))
-#define CF_TRACE_LR_REDUCE(branch, from, to, length, start, end, parser, provenance, token, success) \
-    h_cf_trace_lr_reduce((branch), (from), (to), (length), (start), (end), (parser),               \
-                         (provenance), (token), (success))
+#define CF_TRACE_LR_REDUCE(branch, from, to, length, start, end, parser, provenance, token,        \
+                           success)                                                                \
+    h_cf_trace_lr_reduce((branch), (from), (to), (length), (start), (end), (parser), (provenance), \
+                         (token), (success))
 #define CF_TRACE_LR_ERROR(branch, state, index, parser, provenance)                                \
     h_cf_trace_lr_error((branch), (state), (index), (parser), (provenance))
 #define CF_TRACE_GLR_FORK(branch, state, index) h_cf_trace_glr_fork((branch), (state), (index))
@@ -173,12 +238,18 @@ void svm_failure_error(HSVMContext *ctx, HRVMProg *orig_prog, HRVMTrace *trace,
 #define TRACE_ENTER(p, s) ((void)0)
 #define TRACE_EXIT(p, s, res, note) ((void)0)
 #define TRACE_END(res, state) ((void)0)
+#define TRACE_CHOICE_BEGIN() H_TRACE_CHOICE_NONE
+#define TRACE_CHOICE_ARM_BEGIN(scope, alternative) ((void)0)
+#define TRACE_CHOICE_ARM_END(scope, success) ((void)0)
+#define TRACE_CHOICE_END(scope, success) ((void)0)
 #define CF_TRACE_BEGIN(backend, parser, input, len) ((void)0)
 #define CF_TRACE_FAILURE(start, end, kind, parser, provenance, expected, expected_eof) ((void)0)
 #define CF_TRACE_PARSER_ENTER(parser, index, role) ((void)0)
 #define CF_TRACE_PARSER_EXIT(parser, start, end, token, success, role) ((void)0)
 #define CF_TRACE_LR_SHIFT(branch, from, to, index, parser, provenance, token) ((void)0)
-#define CF_TRACE_LR_REDUCE(branch, from, to, length, start, end, parser, provenance, token, success) ((void)0)
+#define CF_TRACE_LR_REDUCE(branch, from, to, length, start, end, parser, provenance, token,        \
+                           success)                                                                \
+    ((void)0)
 #define CF_TRACE_LR_ERROR(branch, state, index, parser, provenance) ((void)0)
 #define CF_TRACE_GLR_FORK(branch, state, index) (branch)
 #define CF_TRACE_GLR_MERGE(survivor, merged, state, index) ((void)0)
