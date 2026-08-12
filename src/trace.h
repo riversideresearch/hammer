@@ -33,11 +33,25 @@ typedef struct HTraceNumericRange_ {
     } expected;
 } HTraceNumericRange;
 
+#define H_PARSE_DIAGNOSTIC_MAX_INPUT_FRAMES 64
+
+typedef struct HTraceFrame_ {
+    const HParser *parser;
+    const char *name;
+    size_t start;
+    uint8_t start_bit;
+    size_t reached;
+    uint8_t reached_bit;
+    unsigned long failure_serial;
+} HTraceFrame;
+
 struct HParseDiagnostic_ {
     HParseError error;
     bool expected_bytes[256];
     bool expected_eof;
     HTraceNumericRange numeric_range;
+    HTraceFrame input_frames[H_PARSE_DIAGNOSTIC_MAX_INPUT_FRAMES];
+    size_t input_frame_count;
 };
 
 /* Compile-time master switch for the AST tracer.
