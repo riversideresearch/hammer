@@ -82,16 +82,20 @@ void h_trace_note_float_range(const HParsedToken *token, double lower, double up
 void h_cf_trace_begin(HParserBackend backend, const HParser *parser, const uint8_t *input,
                       size_t input_len);
 void h_cf_trace_failure(size_t start, size_t end, HParseErrorKind kind, const HParser *parser,
-                        const bool expected[256], bool expected_eof);
+                        const HDiagnosticContext *provenance, const bool expected[256],
+                        bool expected_eof);
 void h_cf_trace_parser_enter(const HParser *parser, size_t index, const char *role);
 void h_cf_trace_parser_exit(const HParser *parser, size_t start, size_t end,
                             const HParsedToken *token, bool success, const char *role);
 void h_cf_trace_lr_shift(size_t branch, size_t from_state, size_t to_state, size_t index,
-                         const HParser *parser, const HParsedToken *token);
+                         const HParser *parser, const HDiagnosticContext *provenance,
+                         const HParsedToken *token);
 void h_cf_trace_lr_reduce(size_t branch, size_t from_state, size_t to_state, size_t length,
                           size_t start, size_t end, const HParser *parser,
-                          const HParsedToken *token, bool success);
-void h_cf_trace_lr_error(size_t branch, size_t state, size_t index, const HParser *parser);
+                          const HDiagnosticContext *provenance, const HParsedToken *token,
+                          bool success);
+void h_cf_trace_lr_error(size_t branch, size_t state, size_t index, const HParser *parser,
+                         const HDiagnosticContext *provenance);
 size_t h_cf_trace_glr_fork(size_t branch, size_t state, size_t index);
 void h_cf_trace_glr_merge(size_t survivor, size_t merged, size_t state, size_t index);
 void h_cf_trace_end(bool success);
@@ -100,7 +104,8 @@ void h_cf_trace_end(bool success);
 void h_backend_trace_begin(HParserBackend backend, const HParser *parser, const uint8_t *input,
                            size_t input_len);
 void h_backend_trace_failure(size_t start, size_t end, HParseErrorKind kind, const HParser *parser,
-                             const bool expected[256], bool expected_eof);
+                             const HDiagnosticContext *provenance, const bool expected[256],
+                             bool expected_eof);
 void h_backend_trace_end(bool success);
 
 // regex trace functions
@@ -110,7 +115,7 @@ void dump_rvm_prog(HRVMProg *prog);
 void dump_svm_prog(HRVMProg *prog, HRVMTrace *trace);
 void rvm_match_error(HRVMProg *prog, const uint8_t *input, size_t input_len, size_t off,
                      const bool expected[256], bool expected_eof, const HParser *parser,
-                     const HParser *diagnostic_context);
+                     const HDiagnosticContext *diagnostic_context, HRVMTrace *trace);
 void svm_action_error(HSVMContext *ctx, HRVMProg *orig_prog, HRVMTrace *trace, const uint8_t *input,
                       size_t input_len, const char *msg);
 void svm_failure_error(HSVMContext *ctx, HRVMProg *orig_prog, HRVMTrace *trace,
@@ -126,19 +131,19 @@ void svm_failure_error(HSVMContext *ctx, HRVMProg *orig_prog, HRVMTrace *trace,
 #define TRACE_END(res, state) h_trace_end((res), (state))
 #define CF_TRACE_BEGIN(backend, parser, input, len)                                                \
     h_cf_trace_begin((backend), (parser), (input), (size_t)(len))
-#define CF_TRACE_FAILURE(start, end, kind, parser, expected, expected_eof)                         \
-    h_cf_trace_failure((start), (end), (kind), (parser), (expected), (expected_eof))
+#define CF_TRACE_FAILURE(start, end, kind, parser, provenance, expected, expected_eof)             \
+    h_cf_trace_failure((start), (end), (kind), (parser), (provenance), (expected), (expected_eof))
 #define CF_TRACE_PARSER_ENTER(parser, index, role)                                                 \
     h_cf_trace_parser_enter((parser), (index), (role))
 #define CF_TRACE_PARSER_EXIT(parser, start, end, token, success, role)                             \
     h_cf_trace_parser_exit((parser), (start), (end), (token), (success), (role))
-#define CF_TRACE_LR_SHIFT(branch, from, to, index, parser, token)                                  \
-    h_cf_trace_lr_shift((branch), (from), (to), (index), (parser), (token))
-#define CF_TRACE_LR_REDUCE(branch, from, to, length, start, end, parser, token, success)           \
-    h_cf_trace_lr_reduce((branch), (from), (to), (length), (start), (end), (parser), (token),      \
-                         (success))
-#define CF_TRACE_LR_ERROR(branch, state, index, parser)                                            \
-    h_cf_trace_lr_error((branch), (state), (index), (parser))
+#define CF_TRACE_LR_SHIFT(branch, from, to, index, parser, provenance, token)                      \
+    h_cf_trace_lr_shift((branch), (from), (to), (index), (parser), (provenance), (token))
+#define CF_TRACE_LR_REDUCE(branch, from, to, length, start, end, parser, provenance, token, success) \
+    h_cf_trace_lr_reduce((branch), (from), (to), (length), (start), (end), (parser),               \
+                         (provenance), (token), (success))
+#define CF_TRACE_LR_ERROR(branch, state, index, parser, provenance)                                \
+    h_cf_trace_lr_error((branch), (state), (index), (parser), (provenance))
 #define CF_TRACE_GLR_FORK(branch, state, index) h_cf_trace_glr_fork((branch), (state), (index))
 #define CF_TRACE_GLR_MERGE(survivor, merged, state, index)                                         \
     h_cf_trace_glr_merge((survivor), (merged), (state), (index))
@@ -155,12 +160,12 @@ void svm_failure_error(HSVMContext *ctx, HRVMProg *orig_prog, HRVMTrace *trace,
 #define TRACE_EXIT(p, s, res, note) ((void)0)
 #define TRACE_END(res, state) ((void)0)
 #define CF_TRACE_BEGIN(backend, parser, input, len) ((void)0)
-#define CF_TRACE_FAILURE(start, end, kind, parser, expected, expected_eof) ((void)0)
+#define CF_TRACE_FAILURE(start, end, kind, parser, provenance, expected, expected_eof) ((void)0)
 #define CF_TRACE_PARSER_ENTER(parser, index, role) ((void)0)
 #define CF_TRACE_PARSER_EXIT(parser, start, end, token, success, role) ((void)0)
-#define CF_TRACE_LR_SHIFT(branch, from, to, index, parser, token) ((void)0)
-#define CF_TRACE_LR_REDUCE(branch, from, to, length, start, end, parser, token, success) ((void)0)
-#define CF_TRACE_LR_ERROR(branch, state, index, parser) ((void)0)
+#define CF_TRACE_LR_SHIFT(branch, from, to, index, parser, provenance, token) ((void)0)
+#define CF_TRACE_LR_REDUCE(branch, from, to, length, start, end, parser, provenance, token, success) ((void)0)
+#define CF_TRACE_LR_ERROR(branch, state, index, parser, provenance) ((void)0)
 #define CF_TRACE_GLR_FORK(branch, state, index) (branch)
 #define CF_TRACE_GLR_MERGE(survivor, merged, state, index) ((void)0)
 #define CF_TRACE_END(success) ((void)0)

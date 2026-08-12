@@ -24,12 +24,14 @@ typedef struct HRVMMatchFailure_ {
     bool expected[256];
     bool expected_eof;
     const HParser *parser;
-    const HParser *diagnostic_context;
+    const HDiagnosticContext *diagnostic_context;
+    HRVMTrace *trace;
 } HRVMMatchFailure;
 
 static void record_rvm_match_failure(HRVMMatchFailure *failure, size_t index, uint8_t lo,
                                      uint8_t hi, bool expected_eof, const HParser *parser,
-                                     const HParser *diagnostic_context) {
+                                     const HDiagnosticContext *diagnostic_context,
+                                     HRVMTrace *trace) {
     bool explicit_failure = h_is_nothing_parser(parser);
     if (!failure->present || index > failure->index) {
         memset(failure, 0, sizeof(*failure));
@@ -37,6 +39,7 @@ static void record_rvm_match_failure(HRVMMatchFailure *failure, size_t index, ui
         failure->index = index;
         failure->parser = parser;
         failure->diagnostic_context = diagnostic_context;
+        failure->trace = trace;
     } else if (index < failure->index) {
         return;
     } else if (h_is_nothing_parser(failure->parser) && !explicit_failure) {
@@ -44,11 +47,13 @@ static void record_rvm_match_failure(HRVMMatchFailure *failure, size_t index, ui
         failure->expected_eof = false;
         failure->parser = parser;
         failure->diagnostic_context = diagnostic_context;
+        failure->trace = trace;
     } else if (!h_is_nothing_parser(failure->parser) && explicit_failure) {
         return;
     } else if (!failure->parser) {
         failure->parser = parser;
         failure->diagnostic_context = diagnostic_context;
+        failure->trace = trace;
     }
 
     if (explicit_failure)
@@ -152,7 +157,7 @@ void *h_rvm_run__m(HAllocator *mm__, HRVMProg *prog, const uint8_t *input, size_
                 insn_seen[THREAD.ip] = 1;
                 arg = prog->insns[THREAD.ip].arg;
                 const HParser *insn_parser = prog->insn_parsers[THREAD.ip];
-                const HParser *insn_context = prog->insn_contexts[THREAD.ip];
+                const HDiagnosticContext *insn_context = prog->insn_contexts[THREAD.ip];
                 switch (prog->insns[THREAD.ip].op) {
                 case RVM_ACCEPT:
                     PUSH_SVM(SVM_ACCEPT, 0);
@@ -165,7 +170,7 @@ void *h_rvm_run__m(HAllocator *mm__, HRVMProg *prog, const uint8_t *input, size_
                     THREAD.ip++;
                     if (off == len || ch < lo || ch > hi) {
                         record_rvm_match_failure(&match_failure, off, lo, hi, false, insn_parser,
-                                                 insn_context);
+                                                 insn_context, THREAD.trace);
                         ipq_top--; // terminate thread
                     }
                     goto next_insn;
@@ -198,7 +203,7 @@ void *h_rvm_run__m(HAllocator *mm__, HRVMProg *prog, const uint8_t *input, size_
                     THREAD.ip++;
                     if (off != len) {
                         record_rvm_match_failure(&match_failure, off, 0, 0, true, insn_parser,
-                                                 insn_context);
+                                                 insn_context, THREAD.trace);
                         ipq_top--; // Terminate thread
                     }
                     goto next_insn;
@@ -230,7 +235,7 @@ finalize:
     } else if (match_failure.present) {
         rvm_match_error(prog, input, len, match_failure.index, match_failure.expected,
                         match_failure.expected_eof, match_failure.parser,
-                        match_failure.diagnostic_context);
+                        match_failure.diagnostic_context, match_failure.trace);
     }
 
 end:

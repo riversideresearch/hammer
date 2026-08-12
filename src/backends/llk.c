@@ -334,11 +334,13 @@ static void llk_expected_from_map(const HStringMap *map, bool expected[256], boo
 }
 
 static void llk_trace_lookup_failure(const HStringMap *row, HInputStream stream,
-                                     const HParser *parser) {
+                                     const HParser *parser,
+                                     const HDiagnosticContext *provenance) {
     const HStringMap *map = row;
     if (!map) {
         size_t index = stream.pos + stream.index;
-        CF_TRACE_FAILURE(index, index, H_PARSE_ERROR_HIGHER_ORDER, parser, NULL, false);
+        CF_TRACE_FAILURE(index, index, H_PARSE_ERROR_HIGHER_ORDER, parser, provenance, NULL,
+                         false);
         return;
     }
     while (map && !map->epsilon_branch) {
@@ -347,8 +349,8 @@ static void llk_trace_lookup_failure(const HStringMap *row, HInputStream stream,
         if (stream.overrun) {
             bool expected[256], expected_eof;
             llk_expected_from_map(map, expected, &expected_eof);
-            CF_TRACE_FAILURE(index, index, H_PARSE_ERROR_UNEXPECTED_EOF, parser, expected,
-                             expected_eof);
+            CF_TRACE_FAILURE(index, index, H_PARSE_ERROR_UNEXPECTED_EOF, parser, provenance,
+                             expected, expected_eof);
             return;
         }
 
@@ -356,8 +358,8 @@ static void llk_trace_lookup_failure(const HStringMap *row, HInputStream stream,
         if (!next) {
             bool expected[256], expected_eof;
             llk_expected_from_map(map, expected, &expected_eof);
-            CF_TRACE_FAILURE(index, index + 1, H_PARSE_ERROR_PRIMITIVE_MISMATCH, parser, expected,
-                             expected_eof);
+            CF_TRACE_FAILURE(index, index + 1, H_PARSE_ERROR_PRIMITIVE_MISMATCH, parser,
+                             provenance, expected, expected_eof);
             return;
         }
         map = next;
@@ -379,7 +381,8 @@ static void llk_trace_terminal_failure(const HCFChoice *symbol, size_t index, si
     CF_TRACE_FAILURE(index, end,
                      unexpected_eof ? H_PARSE_ERROR_UNEXPECTED_EOF
                                     : H_PARSE_ERROR_PRIMITIVE_MISMATCH,
-                     h_cfchoice_diagnostic_parser(symbol, root_parser), expected, expected_eof);
+                     h_cfchoice_diagnostic_parser(symbol, root_parser), symbol->diagnostic_context,
+                     expected, expected_eof);
 }
 
 // in order to construct the parse tree, we delimit the symbol stack into
@@ -566,7 +569,7 @@ static HCountedArray *llk_parse_chunk_(HLLkState *s, const HParser *parser, HInp
             const HCFSequence *p = h_llk_lookup(table, x, stream);
             if (p == NULL) {
                 if (trace_failures)
-                    llk_trace_lookup_failure(row, *stream, origin);
+                    llk_trace_lookup_failure(row, *stream, origin, x->diagnostic_context);
                 if (trace_failures)
                     CF_TRACE_PARSER_EXIT(origin, symbol_start, symbol_start, NULL, false,
                                          "predict");
@@ -740,7 +743,8 @@ static HCountedArray *llk_parse_chunk_(HLLkState *s, const HParser *parser, HInp
                 else if (h_is_float_range_parser(x->parser) || h_is_int_range_parser(x->parser))
                     kind = H_PARSE_ERROR_RANGE;
                 CF_TRACE_FAILURE(symbol_start, stream->pos + stream->index, kind,
-                                 h_cfchoice_diagnostic_parser(x, parser), NULL, false);
+                                 h_cfchoice_diagnostic_parser(x, parser), x->diagnostic_context,
+                                 NULL, false);
             }
             if (trace_failures)
                 CF_TRACE_PARSER_EXIT(h_cfchoice_diagnostic_parser(x, parser), symbol_start,

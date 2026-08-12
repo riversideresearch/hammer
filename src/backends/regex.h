@@ -15,6 +15,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
+typedef struct HDiagnosticContext_ HDiagnosticContext;
+
 // each insn is an 8-bit opcode and a 16-bit parameter
 // [a] are actions; they add an instruction to the stackvm that is being output.
 // [m] are match ops; they can either succeed or fail, depending on the current character
@@ -86,7 +88,7 @@ typedef struct HSVMContext_ {
     size_t stack_capacity;
     size_t input_pos;
     const HParser *parser;
-    const HParser *diagnostic_context;
+    const HDiagnosticContext *diagnostic_context;
     struct HActionPlan_ *action_plan;
     void *action_plan_frames;
     HSVMFailure failure;
@@ -106,7 +108,7 @@ typedef struct HRVMTrace_ {
                              // step that inverts all the pointers.
     size_t input_pos;
     const HParser *parser;
-    const HParser *diagnostic_context;
+    const HDiagnosticContext *diagnostic_context;
     uint16_t arg;
     uint8_t opcode;
 } HRVMTrace;
@@ -118,10 +120,10 @@ struct HRVMProg_ {
     size_t action_count;
     HRVMInsn *insns;
     const HParser **insn_parsers;
-    const HParser **insn_contexts;
+    const HDiagnosticContext **insn_contexts;
     HSVMAction *actions;
     const HParser *current_parser;
-    const HParser *current_context;
+    const HDiagnosticContext *current_context;
     const HParser *root_parser;
     jmp_buf except;
 };

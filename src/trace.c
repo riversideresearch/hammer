@@ -97,6 +97,11 @@ typedef struct HTraceContext_ {
     HTraceFrame frames[H_TRACE_MAX_FRAMES];
     HTraceFrame input_frames[H_PARSE_DIAGNOSTIC_MAX_INPUT_FRAMES];
     size_t input_frame_count;
+    HTraceFrame observed_frames[H_PARSE_DIAGNOSTIC_MAX_INPUT_FRAMES];
+    size_t observed_frame_count;
+    const HDiagnosticContext *observed_provenance;
+    size_t observed_index;
+    size_t observed_depth;
     HParseError error;
     HParserBackend backend;
     const HParser *root_parser;
@@ -679,6 +684,109 @@ static size_t trace_collect_expectations(const HParser *parser, const HTraceFram
                                               expected_eof);
 }
 
+static size_t trace_provenance_depth(const HDiagnosticContext *provenance) {
+    size_t depth = 0;
+    for (; provenance; provenance = provenance->next)
+        depth++;
+    return depth;
+}
+
+static bool trace_provenance_is_prefix(const HDiagnosticContext *prefix,
+                                       const HDiagnosticContext *path) {
+    for (; prefix; prefix = prefix->next, path = path ? path->next : NULL) {
+        if (!path || prefix->parser != path->parser)
+            return false;
+    }
+    return true;
+}
+
+/* Remember when each annotated occurrence on a compiled provenance path was
+ * first observed.  Regex supplies PUSH positions and LR supplies terminal
+ * shifts; both are runtime positions, so outer wrappers retain their true
+ * entry offset instead of inheriting the final failure offset. */
+static void trace_observe_provenance(HTraceContext *context,
+                                     const HDiagnosticContext *provenance, size_t index) {
+    if (!context || !provenance)
+        return;
+
+    size_t depth = trace_provenance_depth(provenance);
+    for (const HDiagnosticContext *item = provenance; item; item = item->next) {
+        const HParser *parser = item->parser;
+        if (!parser)
+            continue;
+        HTraceFrame *frame = NULL;
+        for (size_t i = 0; i < context->observed_frame_count; i++) {
+            if (context->observed_frames[i].parser == parser) {
+                frame = &context->observed_frames[i];
+                break;
+            }
+        }
+        if (!frame && context->observed_frame_count < H_PARSE_DIAGNOSTIC_MAX_INPUT_FRAMES) {
+            frame = &context->observed_frames[context->observed_frame_count++];
+            memset(frame, 0, sizeof(*frame));
+            frame->parser = parser;
+            frame->name = parser->vtable ? trace_vt_name(parser->vtable) : "?(no parser)";
+            frame->start = index;
+        } else if (frame && index < frame->start) {
+            frame->start = index;
+        }
+    }
+
+    if (!context->observed_provenance || index > context->observed_index ||
+        (index == context->observed_index && depth >= context->observed_depth)) {
+        context->observed_provenance = provenance;
+        context->observed_index = index;
+        context->observed_depth = depth;
+    }
+}
+
+static void trace_snapshot_provenance(HTraceContext *context,
+                                      const HDiagnosticContext *provenance, size_t fallback_start,
+                                      size_t reached, uint8_t reached_bit) {
+    if (!context)
+        return;
+
+    const HDiagnosticContext *path = provenance;
+    if (context->observed_provenance &&
+        (!path || trace_provenance_is_prefix(path, context->observed_provenance)))
+        path = context->observed_provenance;
+    if (!path)
+        return;
+
+    context->input_frame_count = 0;
+    const HParser *previous = NULL;
+    for (const HDiagnosticContext *item = path; item && context->input_frame_count <
+                                                          H_PARSE_DIAGNOSTIC_MAX_INPUT_FRAMES;
+         item = item->next) {
+        const HParser *parser = item->parser;
+        if (!parser || parser == previous)
+            continue;
+        previous = parser;
+
+        HTraceFrame *dst = &context->input_frames[context->input_frame_count++];
+        memset(dst, 0, sizeof(*dst));
+        dst->parser = parser;
+        dst->name = parser->vtable ? trace_vt_name(parser->vtable) : "?(no parser)";
+        dst->start = fallback_start;
+        for (size_t i = 0; i < context->observed_frame_count; i++) {
+            if (context->observed_frames[i].parser == parser) {
+                dst->start = context->observed_frames[i].start;
+                dst->start_bit = context->observed_frames[i].start_bit;
+                break;
+            }
+        }
+        dst->reached = reached;
+        dst->reached_bit = reached_bit;
+    }
+}
+
+static void trace_observe_svm_trace(HTraceContext *context, const HRVMTrace *trace) {
+    for (const HRVMTrace *item = trace; item; item = item->next) {
+        if (item->opcode == SVM_PUSH)
+            trace_observe_provenance(context, item->diagnostic_context, item->input_pos);
+    }
+}
+
 static void trace_snapshot_input_frames(HTraceContext *context,
                                         size_t reached, uint8_t reached_bit) {
     context->input_frame_count = 0;
@@ -697,6 +805,14 @@ static void trace_snapshot_input_frames(HTraceContext *context,
              !parser->diagnostic_label &&
              !h_is_context_parser(parser)))
             continue;
+
+        if (context->input_frame_count > 0) {
+            const HTraceFrame *previous =
+                &context->input_frames[context->input_frame_count - 1];
+            if (previous->parser == parser && previous->start == src->start &&
+                previous->start_bit == src->start_bit)
+                continue;
+        }
 
         HTraceFrame *dst = &context->input_frames[context->input_frame_count++];
         *dst = *src;
@@ -902,7 +1018,7 @@ void dump_rvm_prog(HRVMProg *prog) {
         HRVMInsn *insn = &prog->insns[i];
         fprintf(stderr, "%4d %-10s", i, rvm_op_names[insn->op]);
         const HParser *display_parser =
-            prog->insn_contexts[i] ? prog->insn_contexts[i] : prog->insn_parsers[i];
+            h_diagnostic_context_parser(prog->insn_contexts[i], prog->insn_parsers[i]);
         char *parser_name = h_trace_parser_name(display_parser);
         switch (insn->op) {
         case RVM_PUSH:
@@ -969,7 +1085,7 @@ void dump_svm_prog(HRVMProg *prog, HRVMTrace *trace) {
         }
 
         const HParser *display_parser =
-            trace->diagnostic_context ? trace->diagnostic_context : trace->parser;
+            h_diagnostic_context_parser(trace->diagnostic_context, trace->parser);
         char *parser_name = h_trace_parser_name(display_parser);
         if (parser_name) {
             fprintf(stderr, " parser=%s", parser_name);
@@ -1141,20 +1257,20 @@ static void trace_render_diagnostic(HTraceContext *context) {
 
 void rvm_match_error(HRVMProg *prog, const uint8_t *input, size_t input_len, size_t index,
                      const bool expected[256], bool expected_eof, const HParser *parser,
-                     const HParser *diagnostic_context) {
+                     const HDiagnosticContext *diagnostic_context, HRVMTrace *trace) {
     if (!display_trace)
         return;
     h_backend_trace_begin(PB_REGULAR, prog->root_parser ? prog->root_parser : parser, input,
                           input_len);
     if (dump_trace)
         dump_rvm_prog(prog);
+    trace_observe_svm_trace(trace_context, trace);
     HParseErrorKind kind =
         index < input_len ? H_PARSE_ERROR_PRIMITIVE_MISMATCH : H_PARSE_ERROR_UNEXPECTED_EOF;
     if (h_is_nothing_parser(parser))
         kind = H_PARSE_ERROR_EXPLICIT_FAILURE;
-    h_backend_trace_failure(index, index < input_len ? index + 1 : index, kind,
-                            diagnostic_context ? diagnostic_context : parser, expected,
-                            expected_eof);
+    h_backend_trace_failure(index, index < input_len ? index + 1 : index, kind, parser,
+                            diagnostic_context, expected, expected_eof);
     h_backend_trace_end(false);
 }
 void svm_action_error(HSVMContext *ctx, HRVMProg *orig_prog, HRVMTrace *trace, const uint8_t *input,
@@ -1166,9 +1282,9 @@ void svm_action_error(HSVMContext *ctx, HRVMProg *orig_prog, HRVMTrace *trace, c
                           input, input_len);
     if (dump_trace)
         dump_svm_prog(orig_prog, trace);
+    trace_observe_svm_trace(trace_context, trace);
     h_backend_trace_failure(ctx->input_pos, ctx->input_pos, H_PARSE_ERROR_ACTION,
-                            ctx->diagnostic_context ? ctx->diagnostic_context : ctx->parser, NULL,
-                            false);
+                            ctx->parser, ctx->diagnostic_context, NULL, false);
     h_backend_trace_end(false);
 }
 
@@ -1180,6 +1296,7 @@ void svm_failure_error(HSVMContext *ctx, HRVMProg *orig_prog, HRVMTrace *trace,
                           input, input_len);
     if (dump_trace)
         dump_svm_prog(orig_prog, trace);
+    trace_observe_svm_trace(trace_context, trace);
     if (ctx->failure.kind == SVM_FAILURE_INT_RANGE) {
         HParsedToken actual = {.token_type = ctx->failure.actual_type};
         if (actual.token_type == TT_SINT) {
@@ -1211,8 +1328,7 @@ void svm_failure_error(HSVMContext *ctx, HRVMProg *orig_prog, HRVMTrace *trace,
         break;
     }
     h_backend_trace_failure(ctx->failure.start, ctx->failure.end, kind,
-                            ctx->diagnostic_context ? ctx->diagnostic_context : ctx->parser, NULL,
-                            false);
+                            ctx->parser, ctx->diagnostic_context, NULL, false);
     h_backend_trace_end(false);
 }
 
@@ -1270,13 +1386,14 @@ void h_cf_trace_begin(HParserBackend backend, const HParser *parser, const uint8
 }
 
 void h_backend_trace_failure(size_t start, size_t end, HParseErrorKind kind, const HParser *parser,
-                             const bool expected[256], bool expected_eof) {
+                             const HDiagnosticContext *provenance, const bool expected[256],
+                             bool expected_eof) {
     if (!display_trace || !trace_context)
         return;
 
     HTraceContext *context = trace_context;
-    const HParser *origin = parser ? parser : context->root_parser;
-    const HParser *semantic_parser = origin;
+    const HParser *semantic_parser = parser ? parser : context->root_parser;
+    const HParser *origin = h_diagnostic_context_parser(provenance, semantic_parser);
     while (h_is_context_parser(semantic_parser))
         semantic_parser = h_context_parser_child(semantic_parser);
     const char *name = origin && origin->vtable ? trace_vt_name(origin->vtable) : "?(no parser)";
@@ -1338,8 +1455,12 @@ void h_backend_trace_failure(size_t start, size_t end, HParseErrorKind kind, con
                 error->context[error->n_context++] = root_name;
         }
 
-        trace_snapshot_input_frames(context, end, 0);
-        trace_snapshot_failure_occurrence(context, origin, start, end);
+        if (context->frame_count > 0)
+            trace_snapshot_input_frames(context, end, 0);
+        else
+            trace_snapshot_provenance(context, provenance, start, end, 0);
+        if (context->input_frame_count == 0)
+            trace_snapshot_failure_occurrence(context, origin, start, end);
     } else if (progress == previous_progress && kind == error->kind &&
                !!failure_message == !!error->message) {
         trace_error_add_parser(error, failure_name);
@@ -1355,8 +1476,9 @@ void h_backend_trace_failure(size_t start, size_t end, HParseErrorKind kind, con
 }
 
 void h_cf_trace_failure(size_t start, size_t end, HParseErrorKind kind, const HParser *parser,
-                        const bool expected[256], bool expected_eof) {
-    h_backend_trace_failure(start, end, kind, parser, expected, expected_eof);
+                        const HDiagnosticContext *provenance, const bool expected[256],
+                        bool expected_eof) {
+    h_backend_trace_failure(start, end, kind, parser, provenance, expected, expected_eof);
 }
 
 void h_cf_trace_parser_enter(const HParser *parser, size_t index, const char *role) {
@@ -1432,8 +1554,13 @@ static void trace_lr_parser(const HParser *parser) {
 }
 
 void h_cf_trace_lr_shift(size_t branch, size_t from_state, size_t to_state, size_t index,
-                         const HParser *parser, const HParsedToken *token) {
-    if (!display_trace || !dump_trace || !trace_context)
+                         const HParser *parser, const HDiagnosticContext *provenance,
+                         const HParsedToken *token) {
+    if (!display_trace || !trace_context)
+        return;
+
+    trace_observe_provenance(trace_context, provenance, index);
+    if (!dump_trace)
         return;
 
     fprintf(stderr, "@%04zu ", index);
@@ -1451,7 +1578,9 @@ void h_cf_trace_lr_shift(size_t branch, size_t from_state, size_t to_state, size
 
 void h_cf_trace_lr_reduce(size_t branch, size_t from_state, size_t to_state, size_t length,
                           size_t start, size_t end, const HParser *parser,
-                          const HParsedToken *token, bool success) {
+                          const HDiagnosticContext *provenance, const HParsedToken *token,
+                          bool success) {
+    (void)provenance;
     if (!display_trace || !dump_trace || !trace_context)
         return;
 
@@ -1474,7 +1603,9 @@ void h_cf_trace_lr_reduce(size_t branch, size_t from_state, size_t to_state, siz
     fputc('\n', stderr);
 }
 
-void h_cf_trace_lr_error(size_t branch, size_t state, size_t index, const HParser *parser) {
+void h_cf_trace_lr_error(size_t branch, size_t state, size_t index, const HParser *parser,
+                         const HDiagnosticContext *provenance) {
+    (void)provenance;
     if (!display_trace || !dump_trace || !trace_context)
         return;
 

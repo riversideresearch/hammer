@@ -501,6 +501,22 @@ typedef struct HCFSequence_ HCFSequence;
 typedef HParsedToken *(*HCFPlanAction)(const HParseResult *result, void *user_data,
                                        HActionPlan **plan);
 
+/* Grammar-occurrence provenance carried by compiled representations.  The
+ * list is ordered from the outermost context wrapper to the innermost one. */
+typedef struct HDiagnosticContext_ {
+    const HParser *parser;
+    const struct HDiagnosticContext_ *next;
+} HDiagnosticContext;
+
+static inline const HParser *h_diagnostic_context_parser(const HDiagnosticContext *context,
+                                                         const HParser *fallback) {
+    const HParser *parser = fallback;
+    for (; context; context = context->next)
+        if (context->parser)
+            parser = context->parser;
+    return parser;
+}
+
 struct HCFChoice_ {
     enum HCFChoiceType { HCF_END, HCF_CHOICE, HCF_CHARSET, HCF_CHAR } type;
     union {
@@ -514,7 +530,7 @@ struct HCFChoice_ {
     HCFPlanAction plan_action;
     HPredicate pred;
     HParser *parser; // if this is a parser, then this is the parser that produced it.
-    const HParser *diagnostic_context; // occurrence wrapper supplying label/source provenance
+    const HDiagnosticContext *diagnostic_context; // outer-to-inner occurrence provenance
     void *env;
     void *user_data;
     size_t dispatch_opcode;
@@ -529,7 +545,7 @@ static inline const HParser *h_cfchoice_diagnostic_parser(const HCFChoice *choic
     if (!choice)
         return fallback;
     if (choice->diagnostic_context)
-        return choice->diagnostic_context;
+        return h_diagnostic_context_parser(choice->diagnostic_context, fallback);
     return choice->parser ? choice->parser : fallback;
 }
 

@@ -282,9 +282,14 @@ HCFChoice *h_desugar_augmented(HParser *parser) {
     HCFS_END_CHOICE();
     h_cfstack_free(mm__, stk__);
     augmented->parser = parser;
-    augmented->diagnostic_context =
-        parser->diagnostic_label || parser->diagnostic_message || parser->diagnostic_source ? parser
-                                                                                            : NULL;
+    if (parser->diagnostic_label || parser->diagnostic_message || parser->diagnostic_source) {
+        HDiagnosticContext *context = h_new(HDiagnosticContext, 1);
+        if (!context)
+            return NULL;
+        context->parser = parser;
+        context->next = NULL;
+        augmented->diagnostic_context = context;
+    }
     parser->augmented = augmented;
     return augmented;
 }

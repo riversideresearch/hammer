@@ -177,7 +177,7 @@ HLRDFA *h_lr0_dfa(HCFGrammar *g) {
 
 static inline void put_shift(HLRTable *table, size_t state, const HCFChoice *symbol,
                              size_t nextstate) {
-    HLRAction *action = h_shift_action(table->arena, nextstate);
+    HLRAction *action = h_shift_action(table->arena, nextstate, symbol);
 
     switch (symbol->type) {
     case HCF_END:
@@ -211,11 +211,14 @@ HLRTable *h_lr0_table(HCFGrammar *g, const HLRDFA *dfa) {
     for (size_t i = 0; i < dfa->nstates; i++) {
         H_FOREACH_KEY(dfa->states[i], HLRItem * item)
         HCFChoice *symbol = item->rhs[item->mark];
-        if (symbol && (symbol->diagnostic_context || symbol->parser))
+        if (symbol && (symbol->diagnostic_context || symbol->parser)) {
             table->expected_parsers[i] = h_cfchoice_diagnostic_parser(symbol, NULL);
-        else if (!table->expected_parsers[i] &&
-                 (item->lhs->diagnostic_context || item->lhs->parser))
+            table->expected_contexts[i] = symbol->diagnostic_context;
+        } else if (!table->expected_parsers[i] &&
+                   (item->lhs->diagnostic_context || item->lhs->parser)) {
             table->expected_parsers[i] = h_cfchoice_diagnostic_parser(item->lhs, NULL);
+            table->expected_contexts[i] = item->lhs->diagnostic_context;
+        }
         H_END_FOREACH
     }
 

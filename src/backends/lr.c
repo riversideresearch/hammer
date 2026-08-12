@@ -119,6 +119,7 @@ HLRTable *h_lrtable_new(HAllocator *mm__, size_t nrows) {
     ret->tmap = h_arena_malloc(arena, nrows * sizeof(HStringMap *));
     ret->forall = h_arena_malloc(arena, nrows * sizeof(HLRAction *));
     ret->expected_parsers = h_arena_malloc(arena, nrows * sizeof(*ret->expected_parsers));
+    ret->expected_contexts = h_arena_malloc(arena, nrows * sizeof(*ret->expected_contexts));
     ret->inadeq = h_slist_new(arena);
     ret->arena = arena;
     ret->mm__ = mm__;
@@ -128,6 +129,7 @@ HLRTable *h_lrtable_new(HAllocator *mm__, size_t nrows) {
         ret->tmap[i] = h_stringmap_new(arena);
         ret->forall[i] = NULL;
         ret->expected_parsers[i] = NULL;
+        ret->expected_contexts[i] = NULL;
     }
 
     return ret;
@@ -139,9 +141,10 @@ void h_lrtable_free(HLRTable *table) {
     h_free(table);
 }
 
-HLRAction *h_shift_action(HArena *arena, size_t nextstate) {
+HLRAction *h_shift_action(HArena *arena, size_t nextstate, const HCFChoice *symbol) {
     HLRAction *action = h_arena_malloc(arena, sizeof(HLRAction));
     action->type = HLR_SHIFT;
+    action->shift_symbol = symbol;
     action->data.nextstate = nextstate;
     return action;
 }
@@ -149,6 +152,7 @@ HLRAction *h_shift_action(HArena *arena, size_t nextstate) {
 HLRAction *h_reduce_action(HArena *arena, const HLRItem *item) {
     HLRAction *action = h_arena_malloc(arena, sizeof(HLRAction));
     action->type = HLR_REDUCE;
+    action->shift_symbol = NULL;
     action->data.production.lhs = item->lhs;
     action->data.production.length = item->len;
 #ifndef NDEBUG
@@ -165,6 +169,7 @@ HLRAction *h_lr_conflict(HArena *arena, HLRAction *action, HLRAction *new) {
         HLRAction *old = action;
         action = h_arena_malloc(arena, sizeof(HLRAction));
         action->type = HLR_CONFLICT;
+        action->shift_symbol = NULL;
         action->data.branches = h_slist_new(arena);
         h_slist_push(action->data.branches, old);
         h_slist_push(action->data.branches, new);
@@ -268,13 +273,14 @@ void h_lrengine_trace_action_failure(const HLREngine *engine) {
     const HStringMap *map = engine->table->tmap[state];
     HInputStream input = engine->input;
     const HParser *origin = engine->table->expected_parsers[state];
+    const HDiagnosticContext *provenance = engine->table->expected_contexts[state];
     if (!origin)
         origin = engine->root_parser;
-    CF_TRACE_LR_ERROR(engine->trace_id, state, input.pos + input.index, origin);
+    CF_TRACE_LR_ERROR(engine->trace_id, state, input.pos + input.index, origin, provenance);
 
     if (!map) {
         size_t index = input.pos + input.index;
-        CF_TRACE_FAILURE(index, index, H_PARSE_ERROR_HIGHER_ORDER, origin, NULL, false);
+        CF_TRACE_FAILURE(index, index, H_PARSE_ERROR_HIGHER_ORDER, origin, provenance, NULL, false);
         return;
     }
 
@@ -284,8 +290,8 @@ void h_lrengine_trace_action_failure(const HLREngine *engine) {
         if (input.overrun) {
             bool expected[256], expected_eof;
             lr_expected_from_map(map, expected, &expected_eof);
-            CF_TRACE_FAILURE(index, index, H_PARSE_ERROR_UNEXPECTED_EOF, origin, expected,
-                             expected_eof);
+            CF_TRACE_FAILURE(index, index, H_PARSE_ERROR_UNEXPECTED_EOF, origin, provenance,
+                             expected, expected_eof);
             return;
         }
 
@@ -293,8 +299,8 @@ void h_lrengine_trace_action_failure(const HLREngine *engine) {
         if (!next) {
             bool expected[256], expected_eof;
             lr_expected_from_map(map, expected, &expected_eof);
-            CF_TRACE_FAILURE(index, index + 1, H_PARSE_ERROR_PRIMITIVE_MISMATCH, origin, expected,
-                             expected_eof);
+            CF_TRACE_FAILURE(index, index + 1, H_PARSE_ERROR_PRIMITIVE_MISMATCH, origin,
+                             provenance, expected, expected_eof);
             return;
         }
         map = next;
@@ -420,10 +426,10 @@ bool h_lrengine_step(HLREngine *engine, const HLRAction *action) {
                     kind = H_PARSE_ERROR_RANGE;
                 const HParser *origin = h_cfchoice_diagnostic_parser(symbol, engine->root_parser);
                 CF_TRACE_FAILURE(reduction_start, engine->input.pos + engine->input.index, kind,
-                                 origin, NULL, false);
+                                 origin, symbol->diagnostic_context, NULL, false);
                 CF_TRACE_LR_REDUCE(engine->trace_id, action_state, engine->state, len,
                                    reduction_start, engine->input.pos + engine->input.index, origin,
-                                   value, false);
+                                   symbol->diagnostic_context, value, false);
             }
             return false; // validation failed -> no parse; terminate
         }
@@ -452,8 +458,8 @@ bool h_lrengine_step(HLREngine *engine, const HLRAction *action) {
         if (engine->trace_failures)
             CF_TRACE_LR_REDUCE(engine->trace_id, action_state, engine->state, len, reduction_start,
                                engine->input.pos + engine->input.index,
-                               h_cfchoice_diagnostic_parser(symbol, engine->root_parser), value,
-                               true);
+                               h_cfchoice_diagnostic_parser(symbol, engine->root_parser),
+                               symbol->diagnostic_context, value, true);
 
         // check for success
         if (engine->state == HLR_SUCCESS) {
@@ -473,11 +479,16 @@ bool h_lrengine_step(HLREngine *engine, const HLRAction *action) {
         h_slist_push(stack, semantic);
         engine->state = action->data.nextstate;
         if (engine->trace_failures) {
-            const HParser *origin = action_state < engine->table->nrows
-                                        ? engine->table->expected_parsers[action_state]
-                                        : NULL;
+            const HCFChoice *shift_symbol = action->shift_symbol;
+            const HParser *origin = h_cfchoice_diagnostic_parser(shift_symbol, NULL);
+            const HDiagnosticContext *provenance =
+                shift_symbol ? shift_symbol->diagnostic_context : NULL;
+            if (!origin && action_state < engine->table->nrows)
+                origin = engine->table->expected_parsers[action_state];
+            if (!provenance && action_state < engine->table->nrows)
+                provenance = engine->table->expected_contexts[action_state];
             CF_TRACE_LR_SHIFT(engine->trace_id, action_state, engine->state, input_start,
-                              origin ? origin : engine->root_parser, value);
+                              origin ? origin : engine->root_parser, provenance, value);
         }
     }
 

@@ -28,6 +28,7 @@ typedef struct HLRItem_ {
 
 typedef struct HLRAction_ {
     enum { HLR_SHIFT, HLR_REDUCE, HLR_CONFLICT } type;
+    const HCFChoice *shift_symbol; // exact grammar occurrence for HLR_SHIFT
     union {
         // used with HLR_SHIFT
         size_t nextstate;
@@ -52,6 +53,7 @@ typedef struct HLRTable_ {
     HStringMap **tmap;                // map lookahead strings to HLRActions, per row
     HLRAction **forall;               // shortcut to set an action for an entire row
     const HParser **expected_parsers; // parser awaiting input in each state
+    const HDiagnosticContext **expected_contexts; // occurrence path awaiting input in each state
     HCFChoice *start;                 // start symbol
     HSlist *inadeq;                   // indices of any inadequate states
     HArena *arena;
@@ -120,7 +122,7 @@ void h_lrtable_free(HLRTable *table);
 HLREngine *h_lrengine_new(HArena *arena, HArena *tarena, const HLRTable *table,
                           const HInputStream *stream);
 HLRAction *h_reduce_action(HArena *arena, const HLRItem *item);
-HLRAction *h_shift_action(HArena *arena, size_t nextstate);
+HLRAction *h_shift_action(HArena *arena, size_t nextstate, const HCFChoice *symbol);
 HLRAction *h_lr_conflict(HArena *arena, HLRAction *action, HLRAction *new);
 bool h_lrtable_row_empty(const HLRTable *table, size_t i);
 

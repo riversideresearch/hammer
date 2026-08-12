@@ -1106,8 +1106,19 @@ static bool context_is_valid_cf(void *env) {
 
 static bool context_compile_to_rvm(HRVMProg *prog, void *env) {
     HContextEnv *context = env;
-    const HParser *parent_context = prog->current_context;
-    prog->current_context = context->wrapper;
+    const HDiagnosticContext *parent_context = prog->current_context;
+    size_t depth = 0;
+    for (const HDiagnosticContext *item = parent_context; item; item = item->next)
+        depth++;
+    HDiagnosticContext *path = h_rvm_alloc(prog, (depth + 1) * sizeof(*path));
+    size_t i = 0;
+    for (const HDiagnosticContext *item = parent_context; item; item = item->next, i++) {
+        path[i].parser = item->parser;
+        path[i].next = &path[i + 1];
+    }
+    path[depth].parser = context->wrapper;
+    path[depth].next = NULL;
+    prog->current_context = path;
     bool result = h_compile_regex(prog, context->child);
     prog->current_context = parent_context;
     return result;
@@ -1124,7 +1135,12 @@ static HCFChoice *context_clone_cf_choice(HAllocator *mm__, const HCFChoice *sou
     if (!clone || !entry)
         return NULL;
     *clone = *source;
-    clone->diagnostic_context = context;
+    HDiagnosticContext *provenance = h_new(HDiagnosticContext, 1);
+    if (!provenance)
+        return NULL;
+    provenance->parser = context;
+    provenance->next = source->diagnostic_context;
+    clone->diagnostic_context = provenance;
     entry->source = source;
     entry->clone = clone;
     entry->next = *seen;
@@ -1178,7 +1194,12 @@ static void desugar_context(HAllocator *mm__, HCFStack *stk__, void *env) {
         }
         HCFS_END_SEQ();
         HCFS_THIS_CHOICE->reshape = h_act_first;
-        HCFS_THIS_CHOICE->diagnostic_context = context->wrapper;
+        HDiagnosticContext *provenance = h_new(HDiagnosticContext, 1);
+        if (provenance) {
+            provenance->parser = context->wrapper;
+            provenance->next = NULL;
+            HCFS_THIS_CHOICE->diagnostic_context = provenance;
+        }
     }
     HCFS_END_CHOICE();
 }

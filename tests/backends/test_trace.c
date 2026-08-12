@@ -2,6 +2,7 @@
 #include "hammer.h"
 #include "internal.h"
 #include "test_suite.h"
+#include "trace.h"
 
 #include <glib.h>
 #include <stdio.h>
@@ -891,6 +892,46 @@ static void test_trace_nested_list(gconstpointer backend) {
     }
 }
 
+/* Nested H_CONTEXT occurrences must survive backend compilation as a path,
+ * not collapse into whichever wrapper happened to compile last. */
+static void test_trace_nested_input_trail(gconstpointer backend) {
+    HParserBackend be = (HParserBackend)GPOINTER_TO_INT(backend);
+    uint8_t input[] = {'A', 'B', 'C', 'D', 0};
+    HParser *a = H_CONTEXT(h_ch('A'), NULL);
+    HParser *b = H_CONTEXT(h_ch('B'), NULL);
+    HParser *c = H_CONTEXT(h_ch('C'), NULL);
+    HParser *d = H_CONTEXT(h_ch('D'), NULL);
+    HParser *e = H_CONTEXT(h_ch('E'), NULL);
+    HParser *sequence = H_CONTEXT(h_sequence(a, b, c, d, e, NULL), NULL);
+    HParser *parser = H_CONTEXT(h_attr_bool(sequence, trace_reject_value, NULL), NULL);
+
+    g_check_cmp_int(h_compile(parser, be, NULL), ==, 0);
+    HParseDiagnostic *diagnostic = NULL;
+    HParseResult *result =
+        h_parse_debug_ex(parser, input, sizeof(input), &diagnostic, false, false);
+    g_check_cmp_ptr(result, ==, NULL);
+    g_check_cmp_ptr(diagnostic, !=, NULL);
+    if (!diagnostic)
+        return;
+
+    g_check_cmp_size(diagnostic->input_frame_count, ==, 3);
+    if (diagnostic->input_frame_count == 3) {
+        const HTraceFrame *outer = &diagnostic->input_frames[0];
+        const HTraceFrame *middle = &diagnostic->input_frames[1];
+        const HTraceFrame *inner = &diagnostic->input_frames[2];
+        g_check_cmp_ptr(outer->parser, ==, parser);
+        g_check_cmp_size(outer->start, ==, 0);
+        g_check_cmp_size(outer->reached, ==, 5);
+        g_check_cmp_ptr(middle->parser, ==, sequence);
+        g_check_cmp_size(middle->start, ==, 0);
+        g_check_cmp_size(middle->reached, ==, 5);
+        g_check_cmp_ptr(inner->parser, ==, e);
+        g_check_cmp_size(inner->start, ==, 4);
+        g_check_cmp_size(inner->reached, ==, 5);
+    }
+    h_parse_diagnostic_free(diagnostic);
+}
+
 void register_trace_tests(void) {
     g_test_add_func("/core/parser/trace_with_context_owns_metadata",
                     test_with_context_owns_metadata);
@@ -1072,6 +1113,17 @@ void register_trace_tests(void) {
                          test_trace_occurrence_provenance);
     g_test_add_data_func("/core/parser/glr/trace_context_preserves_error_kind",
                          GINT_TO_POINTER(PB_GLR), test_trace_context_preserves_error_kind);
+
+    g_test_add_data_func("/core/parser/regex/trace_nested_input_trail",
+                         GINT_TO_POINTER(PB_REGULAR), test_trace_nested_input_trail);
+    g_test_add_data_func("/core/parser/packrat/trace_nested_input_trail",
+                         GINT_TO_POINTER(PB_PACKRAT), test_trace_nested_input_trail);
+    g_test_add_data_func("/core/parser/ll/trace_nested_input_trail", GINT_TO_POINTER(PB_LL),
+                         test_trace_nested_input_trail);
+    g_test_add_data_func("/core/parser/lalr/trace_nested_input_trail", GINT_TO_POINTER(PB_LALR),
+                         test_trace_nested_input_trail);
+    g_test_add_data_func("/core/parser/glr/trace_nested_input_trail", GINT_TO_POINTER(PB_GLR),
+                         test_trace_nested_input_trail);
 
     g_test_add_data_func("/core/parser/regex/trace_custom_failure", GINT_TO_POINTER(PB_REGULAR),
                          test_trace_custom_failure);
