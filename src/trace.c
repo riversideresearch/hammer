@@ -910,7 +910,7 @@ void dump_rvm_prog(HRVMProg *prog) {
                 fprintf(stderr, " parser=%s", parser_name);
                 free(parser_name);
             }
-            trace_print_source(stdout, display_parser);
+            trace_print_source(stderr, display_parser);
             break;
         case RVM_GOTO:
         case RVM_FORK:
@@ -924,7 +924,7 @@ void dump_rvm_prog(HRVMProg *prog) {
                 fprintf(stderr, " parser=%s", parser_name);
                 free(parser_name);
             }
-            trace_print_source(stdout, display_parser);
+            trace_print_source(stderr, display_parser);
             break;
         case RVM_MATCH: {
             uint8_t low, high;
@@ -975,7 +975,7 @@ void dump_svm_prog(HRVMProg *prog, HRVMTrace *trace) {
             fprintf(stderr, " parser=%s", parser_name);
             free(parser_name);
         }
-        trace_print_source(stdout, display_parser);
+        trace_print_source(stderr, display_parser);
         fprintf(stderr, "\n");
     }
 }
