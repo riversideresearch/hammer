@@ -85,6 +85,35 @@ static void test_trace_cf_unexpected_eof(gconstpointer backend) {
     h_parse_error_free(&err);
 }
 
+/* A zero-length input may use a NULL buffer. Diagnostics must classify the
+ * failure as EOF and must never attempt to fetch input[0]. */
+static void test_trace_empty_input_eof(gconstpointer backend) {
+    HParserBackend be = (HParserBackend)GPOINTER_TO_INT(backend);
+    HParser *p = h_ch('A');
+    g_check_cmp_int(h_compile(p, be, NULL), ==, 0);
+
+    HParseDiagnostic *diagnostic = NULL;
+    HParseResult *result = h_parse_debug_ex(p, NULL, 0, &diagnostic, false);
+    g_check_cmp_ptr(result, ==, NULL);
+    g_check_cmp_ptr(diagnostic, !=, NULL);
+    if (!diagnostic)
+        return;
+
+    const HParseError *error = h_parse_diagnostic_error(diagnostic);
+    g_check_cmp_int(error->kind, ==, H_PARSE_ERROR_UNEXPECTED_EOF);
+    g_check_cmp_size(error->index, ==, 0);
+    g_check_cmp_size(error->end_index, ==, 0);
+    g_check_cmp_int(error->has_actual, ==, false);
+
+    HParseExpectation expected;
+    g_check_cmp_size(h_parse_diagnostic_expected_count(diagnostic), ==, 1);
+    g_check_cmp_int(h_parse_diagnostic_expected(diagnostic, 0, &expected), ==, true);
+    g_check_cmp_int(expected.kind, ==, H_PARSE_EXPECT_BYTE_RANGE);
+    g_check_cmp_int(expected.lower, ==, 'A');
+    g_check_cmp_int(expected.upper, ==, 'A');
+    h_parse_diagnostic_free(diagnostic);
+}
+
 static void test_trace_cf_range_failure(gconstpointer backend) {
     HParserBackend be = (HParserBackend)GPOINTER_TO_INT(backend);
     HParser *p = h_int_range(h_ch('A'), 'B', 'Z');
@@ -1281,6 +1310,16 @@ static void test_trace_mixed_context_input_trail(gconstpointer backend) {
 void register_trace_tests(void) {
     g_test_add_func("/core/parser/trace_with_context_owns_metadata",
                     test_with_context_owns_metadata);
+
+#define ADD_EMPTY_INPUT_TEST(name, backend)                                                   \
+    g_test_add_data_func("/core/parser/" name "/trace_empty_input_eof",                     \
+                         GINT_TO_POINTER(backend), test_trace_empty_input_eof)
+    ADD_EMPTY_INPUT_TEST("regex", PB_REGULAR);
+    ADD_EMPTY_INPUT_TEST("packrat", PB_PACKRAT);
+    ADD_EMPTY_INPUT_TEST("ll", PB_LL);
+    ADD_EMPTY_INPUT_TEST("lalr", PB_LALR);
+    ADD_EMPTY_INPUT_TEST("glr", PB_GLR);
+#undef ADD_EMPTY_INPUT_TEST
 
     g_test_add_data_func("/core/parser/regex/trace_debug_success", GINT_TO_POINTER(PB_REGULAR),
                          test_trace_debug_success);

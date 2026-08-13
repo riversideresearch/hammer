@@ -56,6 +56,13 @@ static char *trace_strdup(const char *source) {
     return copy;
 }
 
+/* Diagnostic offsets should never wrap back into the input buffer. Saturate
+ * malformed or overflowing positions at SIZE_MAX so subsequent bounds checks
+ * consistently treat them as EOF/out of range. */
+static size_t trace_size_add(size_t left, size_t right) {
+    return right > SIZE_MAX - left ? SIZE_MAX : left + right;
+}
+
 /* Toggle the runtime trace. Exposed (see trace.h) so h_parse_debug() can enable
  * tracing for just its own call and switch it back off afterward. */
 void h_trace_set_enabled(bool enabled, bool dumpExecutionTrace) {
@@ -372,7 +379,7 @@ static void trace_error_add_parser(HParseError *error, const char *name) {
 
 static void trace_pos(HParseState *state) {
     HInputStream *in = &state->input_stream;
-    size_t abs = in->pos + in->index;
+    size_t abs = trace_size_add(in->pos, in->index);
     if (!dump_trace)
         return;
     fprintf(stderr, "@%zu", abs);
@@ -473,7 +480,7 @@ void h_trace_file_context(const uint8_t *input, size_t length, size_t start_high
     if (window_start > 0)
         fprintf(stderr, "... %zu byte(s) omitted ...\n", window_start);
 
-    for (size_t off = window_start; off < window_end; off += BYTES_PER_LINE) {
+    for (size_t off = window_start; off < window_end;) {
         size_t line_len = (window_end - off < BYTES_PER_LINE) ? (window_end - off) : BYTES_PER_LINE;
         fprintf(stderr, "%04zx:  ", off);
 
@@ -509,6 +516,7 @@ void h_trace_file_context(const uint8_t *input, size_t length, size_t start_high
                 fputs(color_reset, stderr);
         }
         fprintf(stderr, "\n");
+        off += line_len;
     }
 
     if (window_end < length)
@@ -597,7 +605,7 @@ void h_trace_enter(const HParser *parser, HParseState *state) {
         HTraceFrame *frame = &trace_context->frames[trace_context->frame_count];
         frame->parser = parser;
         frame->name = trace_vt_name(parser->vtable);
-        frame->start = state->input_stream.pos + state->input_stream.index;
+        frame->start = trace_size_add(state->input_stream.pos, state->input_stream.index);
         frame->start_bit = state->input_stream.bit_offset;
         frame->failure_serial = trace_context->failure_serial;
         trace_context->frame_count++;
@@ -1119,12 +1127,13 @@ static void trace_record_failure(const HParser *parser, HParseState *state,
                                  const HTraceFrame *frame) {
     HTraceContext *context = trace_context;
     HParseError *error = &context->error;
-    size_t end = state->input_stream.pos + state->input_stream.index;
+    size_t end = trace_size_add(state->input_stream.pos, state->input_stream.index);
     bool expected[256];
     bool expected_eof;
     size_t failure_offset = trace_collect_expectations(
         parser, frame, end, state->input_stream.overrun, expected, &expected_eof);
-    size_t index = parser->vtable->higher ? end : frame->start + failure_offset;
+    size_t index =
+        parser->vtable->higher ? end : trace_size_add(frame->start, failure_offset);
     HParseErrorKind kind = trace_failure_kind(parser, frame->name, index, context->input_len);
     HTraceNumericRange numeric_range = context->pending_numeric_range;
     memset(&context->pending_numeric_range, 0, sizeof(context->pending_numeric_range));
@@ -1205,7 +1214,8 @@ static void trace_record_failure(const HParser *parser, HParseState *state,
         error->parser = failure_name;
         error->message = failure_message;
         error->source = source_parser ? source_parser->diagnostic_source : NULL;
-        if (kind != H_PARSE_ERROR_EXPLICIT_FAILURE && index < context->input_len) {
+        if (kind != H_PARSE_ERROR_EXPLICIT_FAILURE && context->input &&
+            index < context->input_len) {
             error->actual = context->input[index];
             error->has_actual = true;
         }
@@ -1693,7 +1703,8 @@ void h_backend_trace_failure(size_t start, size_t end, HParseErrorKind kind, con
         error->parser = failure_name;
         error->message = failure_message;
         error->source = source_parser ? source_parser->diagnostic_source : NULL;
-        if (kind != H_PARSE_ERROR_EXPLICIT_FAILURE && index < context->input_len) {
+        if (kind != H_PARSE_ERROR_EXPLICIT_FAILURE && context->input &&
+            index < context->input_len) {
             error->actual = context->input[index];
             error->has_actual = true;
         }
@@ -1898,8 +1909,9 @@ static void trace_add_cf_candidate(HTraceCFWalk *walk, const HCFChoice *symbol,
         candidate = &walk->candidates[walk->count++];
         memset(candidate, 0, sizeof(*candidate));
         candidate->start = walk->target;
-        candidate->end = walk->kind == H_PARSE_ERROR_UNEXPECTED_EOF ? walk->target
-                                                                    : walk->target + 1;
+        candidate->end = walk->kind == H_PARSE_ERROR_UNEXPECTED_EOF
+                             ? walk->target
+                             : trace_size_add(walk->target, 1);
         candidate->kind = walk->kind;
         candidate->parser = parser;
         candidate->provenance = provenance;
@@ -1976,7 +1988,7 @@ static void trace_walk_cf_symbol(HTraceCFWalk *walk, const HCFChoice *symbol, si
     uint8_t actual = walk->input[position - walk->input_pos];
     bool matched = symbol->type == HCF_CHAR ? actual == symbol->data.chr
                                            : charset_isset(symbol->data.charset, actual);
-    if (matched)
+    if (matched && position != SIZE_MAX)
         trace_walk_cf_continuation(walk, position + 1, continuation, grammar_depth, path,
                                    parser_path);
 }
@@ -2000,7 +2012,7 @@ static void trace_walk_cf_items(HTraceCFWalk *walk, HCFChoice **items, size_t po
 size_t h_cf_trace_candidates(const HCFChoice *root, const uint8_t *input, size_t input_pos,
                              size_t input_len, size_t start, size_t index, HParseErrorKind kind,
                              const HParser *fallback, HTraceFailureCandidate candidates[]) {
-    if (!root || !input || !candidates || start < input_pos || index < start)
+    if (!root || (!input && input_len > 0) || !candidates || start < input_pos || index < start)
         return 0;
     HTraceCFWalk walk = {input, input_pos, input_len, index, kind, fallback, candidates, 0};
     HTraceCandidateChoice path[H_TRACE_MAX_CANDIDATE_CHOICE_DEPTH] = {{0}};
