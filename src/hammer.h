@@ -531,14 +531,13 @@ HParseResult *h_parse__m(HAllocator *mm__, const HParser *parser, const uint8_t 
  * @param error Out-parameter for structured failure info, or NULL
  * @param dumpExecutionTrace on true, print the backend's full execution trace
  * on false, print just a shortened trail of the parsers
- * @param dumpInputContext on true, print the input bytes (up to 256)
+ * @note only prints up to 256 bytes of the input context
  * @return Parse result, or NULL on failure
  */
 HParseResult *h_parse_debug(const HParser *parser, const uint8_t *input, size_t length,
-                            HParseError *error, bool dumpExecutionTrace, bool dumpInputContext);
+                            HParseError *error, bool dumpExecutionTrace);
 HParseResult *h_parse_debug__m(HAllocator *mm__, const HParser *parser, const uint8_t *input,
-                               size_t length, HParseError *error, bool dumpExecutionTrace,
-                               bool dumpInputContext);
+                               size_t length, HParseError *error, bool dumpExecutionTrace);
 
 /**
  * @brief Extensible form of h_parse_debug() with structured expectations.
@@ -549,8 +548,7 @@ HParseResult *h_parse_debug__m(HAllocator *mm__, const HParser *parser, const ui
  * accessors. The caller must release it with h_parse_diagnostic_free().
  */
 HParseResult *h_parse_debug_ex(const HParser *parser, const uint8_t *input, size_t length,
-                               HParseDiagnostic **diagnostic, bool dumpExecutionTrace,
-                               bool dumpInputContext);
+                               HParseDiagnostic **diagnostic, bool dumpExecutionTrace);
 
 const HParseError *h_parse_diagnostic_error(const HParseDiagnostic *diagnostic);
 size_t h_parse_diagnostic_expected_count(const HParseDiagnostic *diagnostic);

@@ -56,7 +56,6 @@
  * of a single parse. */
 H_TRACE_THREAD_LOCAL bool display_trace = false;
 H_TRACE_THREAD_LOCAL bool dump_trace = false;
-H_TRACE_THREAD_LOCAL bool dump_input = false;
 static H_TRACE_THREAD_LOCAL unsigned trace_enable_depth = 0;
 static H_TRACE_THREAD_LOCAL HParseDiagnostic trace_completed;
 #define H_TRACE_MAX_NESTING 256
@@ -64,7 +63,7 @@ static H_TRACE_THREAD_LOCAL bool trace_dump_stack[H_TRACE_MAX_NESTING];
 
 /* Toggle the runtime trace. Exposed (see trace.h) so h_parse_debug() can enable
  * tracing for just its own call and switch it back off afterward. */
-void h_trace_set_enabled(bool enabled, bool dumpExecutionTrace, bool dumpInputContext) {
+void h_trace_set_enabled(bool enabled, bool dumpExecutionTrace) {
     if (enabled) {
         if (trace_enable_depth == 0)
             memset(&trace_completed, 0, sizeof(trace_completed));
@@ -80,8 +79,6 @@ void h_trace_set_enabled(bool enabled, bool dumpExecutionTrace, bool dumpInputCo
     dump_trace = display_trace && trace_enable_depth <= H_TRACE_MAX_NESTING
                      ? trace_dump_stack[trace_enable_depth - 1]
                      : dumpExecutionTrace;
-
-    dump_input = display_trace && dumpInputContext;
 }
 
 bool h_trace_is_enabled(void) { return display_trace; }
@@ -1638,7 +1635,7 @@ static void trace_render_diagnostic(HTraceContext *context) {
 
     const HParseError *error = &trace_completed.error;
     size_t last_index = error->end_index > error->index ? error->end_index - 1 : error->end_index;
-    if (context->input && context->input_len > 0 && dump_input)
+    if (context->input && context->input_len > 0)
         h_trace_file_context(context->input, context->input_len, error->index, last_index);
 }
 

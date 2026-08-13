@@ -131,7 +131,7 @@ struct HParseDiagnostic_ {
 #if HAMMER_TRACE_AST
 
 // packrat trace functions
-void h_trace_set_enabled(bool enabled, bool dumpExecutionTrace, bool dumpInputContext);
+void h_trace_set_enabled(bool enabled, bool dumpExecutionTrace);
 bool h_trace_is_enabled(void);
 bool h_trace_is_dump_enabled(void);
 void h_trace_get_error(HParseError *out);
@@ -201,7 +201,7 @@ void svm_action_error(HSVMContext *ctx, HRVMProg *orig_prog, HRVMTrace *trace, c
 void svm_failure_error(HSVMContext *ctx, HRVMProg *orig_prog, HRVMTrace *trace,
                        const uint8_t *input, size_t input_len);
 
-#define TRACE_SET_ENABLED(a, b, c) h_trace_set_enabled(a, b, c)
+#define TRACE_SET_ENABLED(a, b) h_trace_set_enabled(a, b)
 #define TRACE_ENABLED() h_trace_is_enabled()
 #define TRACE_GET_ERROR(out) h_trace_get_error((out))
 #define TRACE_GET_DIAGNOSTIC(out) h_trace_get_diagnostic((out))
@@ -236,7 +236,7 @@ void svm_failure_error(HSVMContext *ctx, HRVMProg *orig_prog, HRVMTrace *trace,
 
 #else /* tracing compiled out */
 
-#define TRACE_SET_ENABLED(enabled, dump, input) ((void)0)
+#define TRACE_SET_ENABLED(enabled, dump) ((void)0)
 #define TRACE_ENABLED() false
 #define TRACE_GET_ERROR(out) ((void)0)
 #define TRACE_GET_DIAGNOSTIC(out) ((void)0)

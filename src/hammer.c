@@ -585,31 +585,28 @@ HParseResult *h_parse__m(HAllocator *mm__, const HParser *parser, const uint8_t 
 // scraping the textual trace. It is zeroed up front so the compiled-out case
 // (and a NULL trace) leaves well-defined, empty contents.
 HParseResult *h_parse_debug(const HParser *parser, const uint8_t *input, size_t length,
-                            HParseError *error, bool dumpExecutionTrace, bool dumpInputContext) {
-    return h_parse_debug__m(&system_allocator, parser, input, length, error, dumpExecutionTrace,
-                            dumpInputContext);
+                            HParseError *error, bool dumpExecutionTrace) {
+    return h_parse_debug__m(&system_allocator, parser, input, length, error, dumpExecutionTrace);
 }
 HParseResult *h_parse_debug__m(HAllocator *mm__, const HParser *parser, const uint8_t *input,
-                               size_t length, HParseError *error, bool dumpExecutionTrace,
-                               bool dumpInputContext) {
+                               size_t length, HParseError *error, bool dumpExecutionTrace) {
     if (error)
         memset(error, 0, sizeof(*error));
-    TRACE_SET_ENABLED(true, dumpExecutionTrace, dumpInputContext);
+    TRACE_SET_ENABLED(true, dumpExecutionTrace);
     HParseResult *res = h_parse__m(mm__, parser, input, length);
-    TRACE_SET_ENABLED(false, false, false);
+    TRACE_SET_ENABLED(false, false);
     if (!res)
         TRACE_GET_ERROR(error);
     return res;
 }
 
 HParseResult *h_parse_debug_ex(const HParser *parser, const uint8_t *input, size_t length,
-                               HParseDiagnostic **diagnostic, bool dumpExecutionTrace,
-                               bool dumpInputContext) {
+                               HParseDiagnostic **diagnostic, bool dumpExecutionTrace) {
     if (diagnostic)
         *diagnostic = NULL;
-    TRACE_SET_ENABLED(true, dumpExecutionTrace, dumpInputContext);
+    TRACE_SET_ENABLED(true, dumpExecutionTrace);
     HParseResult *res = h_parse__m(&system_allocator, parser, input, length);
-    TRACE_SET_ENABLED(false, false, false);
+    TRACE_SET_ENABLED(false, false);
     if (!res && diagnostic)
         TRACE_GET_DIAGNOSTIC(diagnostic);
     return res;
