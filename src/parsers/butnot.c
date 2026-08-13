@@ -41,6 +41,7 @@ static HParseResult *parse_butnot(void *env, HParseState *state) {
 }
 
 static const HParserVtable butnot_vt = {
+    .name = "h_butnot",
     .parse = parse_butnot,
     .isValidRegular = h_false,
     .isValidCF = h_false, // XXX should this be true if both p1 and p2 are CF?

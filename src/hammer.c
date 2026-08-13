@@ -1249,6 +1249,7 @@ static void desugar_context(HAllocator *mm__, HCFStack *stk__, void *env) {
 }
 
 static const HParserVtable context_vt = {
+    .name = "h_context",
     .parse = parse_context,
     .isValidRegular = context_is_valid_regular,
     .isValidCF = context_is_valid_cf,

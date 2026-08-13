@@ -132,6 +132,7 @@ static bool bits_isvalidRegular(void *env) {
 }
 
 static const HParserVtable bits_vt = {
+    .name = "h_bits",
     .parse = parse_bits,
     .isValidRegular = bits_isvalidRegular,
     .isValidCF = bits_isvalidCF,

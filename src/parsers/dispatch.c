@@ -212,6 +212,7 @@ static void desugar_dispatch(HAllocator *mm__, HCFStack *stk__, void *env) {
 }
 
 static const HParserVtable dispatch_vt = {
+    .name = "h_dispatch",
     .parse = parse_dispatch,
     .isValidRegular = dispatch_isValidRegular,
     .isValidCF = h_false,

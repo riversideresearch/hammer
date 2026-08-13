@@ -93,6 +93,7 @@ static bool sequence_ctrvm(HRVMProg *prog, void *env) {
 }
 
 static const HParserVtable sequence_vt = {
+    .name = "h_sequence",
     .parse = parse_sequence,
     .isValidRegular = sequence_isValidRegular,
     .isValidCF = sequence_isValidCF,

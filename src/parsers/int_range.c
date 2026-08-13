@@ -154,6 +154,7 @@ static bool int_isValidCF(void *env) {
 }
 
 static const HParserVtable int_range_vt = {
+    .name = "h_int_range",
     .parse = parse_int_range,
     .isValidRegular = int_isValidRegular,
     .isValidCF = int_isValidCF,

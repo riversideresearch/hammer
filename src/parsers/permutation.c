@@ -105,6 +105,7 @@ static HParseResult *parse_permutation(void *env, HParseState *state) {
 }
 
 static const HParserVtable permutation_vt = {
+    .name = "h_permutation",
     .parse = parse_permutation,
     .isValidRegular = h_false,
     .isValidCF = h_false,

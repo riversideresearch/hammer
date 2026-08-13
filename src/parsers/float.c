@@ -229,6 +229,7 @@ static bool float_ctrvm(HRVMProg *prog, void *env) {
 }
 
 static const HParserVtable float_vt = {
+    .name = "h_float",
     .parse = parse_float,
     .desugar = desugar_float,
     .isValidRegular = h_true,

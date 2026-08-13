@@ -36,6 +36,7 @@ static HParseResult *parse_xor(void *env, HParseState *state) {
 }
 
 static const HParserVtable xor_vt = {
+    .name = "h_xor",
     .parse = parse_xor,
     .isValidRegular = h_false,
     .isValidCF = h_false, // XXX should this be true if both p1 and p2 are CF?

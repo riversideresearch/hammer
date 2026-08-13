@@ -109,6 +109,7 @@ static bool ab_ctrvm(HRVMProg *prog, void *env) {
 }
 
 static const HParserVtable attr_bool_vt = {
+    .name = "h_attr_bool",
     .parse = parse_attr_bool,
     .isValidRegular = ab_isValidRegular,
     .isValidCF = ab_isValidCF,

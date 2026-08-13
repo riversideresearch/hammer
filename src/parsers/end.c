@@ -36,6 +36,7 @@ static size_t trace_expectations_end(void *env, size_t consumed, bool overrun, b
 }
 
 static const HParserVtable end_vt = {
+    .name = "h_end",
     .parse = parse_end,
     .isValidRegular = h_true,
     .isValidCF = h_true,

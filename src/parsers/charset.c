@@ -91,6 +91,7 @@ static size_t trace_expectations_charset(void *env, size_t consumed, bool overru
 }
 
 static const HParserVtable charset_vt = {
+    .name = "h_charset",
     .parse = parse_charset,
     .isValidRegular = h_true,
     .isValidCF = h_true,

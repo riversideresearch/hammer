@@ -55,6 +55,7 @@ static size_t trace_expectations_ch(void *env, size_t consumed, bool overrun, bo
 }
 
 static const HParserVtable ch_vt = {
+    .name = "h_ch",
     .parse = parse_ch,
     .isValidRegular = h_true,
     .isValidCF = h_true,

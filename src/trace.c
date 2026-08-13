@@ -1,11 +1,9 @@
 /* Copyright (c) 2026 Riverside Research */
-#ifndef _GNU_SOURCE
-#define _GNU_SOURCE /* dladdr(), strdup() used by the AST tracer below */
 #include "hammer.h"
-#endif
 
 #include "backends/regex.h"
 #include "internal.h"
+#include "platform.h"
 #include "trace.h"
 
 /* ------------------------------------------------------------------------- *
@@ -22,25 +20,12 @@
 #if HAMMER_TRACE_AST
 
 #include <ctype.h> // isprint()
-#include <dlfcn.h> // dladdr()
-#include <elf.h>   // Elf64_* for reading .symtab
-#include <fcntl.h>
 #include <inttypes.h> // PRIu64 etc.
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h> // memcmp(), memset(), strdup()
-#include <sys/mman.h>
-#include <sys/stat.h>
-#include <unistd.h>
-#if defined(_WIN32)
-#include <io.h>
-#define ISATTY(fd) _isatty(_fileno(fd))
-#else
-#include <unistd.h>
-#define ISATTY(fd) isatty(fileno(fd))
-#endif
+#include <string.h> // memcpy(), memset()
 
 #if defined(_MSC_VER)
 #define H_TRACE_THREAD_LOCAL __declspec(thread)
@@ -60,6 +45,16 @@ static H_TRACE_THREAD_LOCAL unsigned trace_enable_depth = 0;
 static H_TRACE_THREAD_LOCAL HParseDiagnostic trace_completed;
 #define H_TRACE_MAX_NESTING 256
 static H_TRACE_THREAD_LOCAL bool trace_dump_stack[H_TRACE_MAX_NESTING];
+
+static char *trace_strdup(const char *source) {
+    if (!source)
+        return NULL;
+    size_t length = strlen(source) + 1;
+    char *copy = malloc(length);
+    if (copy)
+        memcpy(copy, source, length);
+    return copy;
+}
 
 /* Toggle the runtime trace. Exposed (see trace.h) so h_parse_debug() can enable
  * tracing for just its own call and switch it back off afterward. */
@@ -189,13 +184,13 @@ static void trace_complete(const HTraceContext *context) {
 static void trace_copy_error(HParseError *out, const HParseError *source) {
     memcpy(out, source, sizeof(*out));
     if (out->parser)
-        out->parser = strdup(out->parser);
+        out->parser = trace_strdup(out->parser);
     if (out->message)
-        out->message = strdup(out->message);
+        out->message = trace_strdup(out->message);
     for (size_t i = 0; i < out->n_deepest; i++)
-        out->deepest_parsers[i] = strdup(out->deepest_parsers[i]);
+        out->deepest_parsers[i] = trace_strdup(out->deepest_parsers[i]);
     for (size_t i = 0; i < out->n_context; i++)
-        out->context[i] = strdup(out->context[i]);
+        out->context[i] = trace_strdup(out->context[i]);
     out->source = NULL;
     if (source->source) {
         HSourceLocation *source_copy = calloc(1, sizeof(*source_copy));
@@ -203,9 +198,9 @@ static void trace_copy_error(HParseError *out, const HParseError *source) {
             source_copy->line = source->source->line;
             source_copy->column = source->source->column;
             if (source->source->file_name)
-                source_copy->file_name = strdup(source->source->file_name);
+                source_copy->file_name = trace_strdup(source->source->file_name);
             if (source->source->function_name)
-                source_copy->function_name = strdup(source->source->function_name);
+                source_copy->function_name = trace_strdup(source->source->function_name);
             if ((!source->source->file_name || source_copy->file_name) &&
                 (!source->source->function_name || source_copy->function_name)) {
                 out->source = source_copy;
@@ -342,116 +337,8 @@ static void trace_indent(void) {
         fputs("  ", stderr);
 }
 
-/* --- function-pointer -> name via dladdr() + ELF .symtab -----------------
- * We want the name of each combinator's parse function (parse_choice, ...).
- * Those functions are `static`, so they are absent from the dynamic symbol
- * table and dladdr() cannot name them on its own. So we use dladdr() only to
- * find which shared object the address belongs to (dli_fname) and its load
- * base (dli_fbase), then read that object's on-disk .symtab -- which still
- * contains local/static symbols, unless the binary was stripped -- and locate
- * the STT_FUNC symbol whose [value, value+size) range covers the address.
- *
- * Results are cached per vtable, so we open/scan the ELF at most once per
- * distinct combinator. Linux/ELF64 only; the whole block is debug-gated.
- */
-static char *resolve_fn_name(void *addr) {
-    Dl_info info;
-    if (!dladdr(addr, &info) || !info.dli_fname)
-        return NULL;
-
-    int fd = open(info.dli_fname, O_RDONLY);
-    if (fd < 0)
-        return NULL;
-
-    struct stat stbuf;
-    if (fstat(fd, &stbuf) != 0 || (size_t)stbuf.st_size < sizeof(Elf64_Ehdr)) {
-        close(fd);
-        return NULL;
-    }
-
-    uint8_t *map = mmap(NULL, stbuf.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
-    close(fd);
-    if (map == MAP_FAILED)
-        return NULL;
-
-    char *result = NULL;
-    const Elf64_Ehdr *eh = (const Elf64_Ehdr *)map;
-    if (memcmp(eh->e_ident, ELFMAG, SELFMAG) == 0 && eh->e_ident[EI_CLASS] == ELFCLASS64) {
-        // ET_DYN (shared lib / PIE): symbol values are offsets from the load
-        // base. ET_EXEC: they are absolute addresses.
-        uintptr_t target = (uintptr_t)addr;
-        if (eh->e_type == ET_DYN)
-            target -= (uintptr_t)info.dli_fbase;
-
-        const Elf64_Shdr *sh = (const Elf64_Shdr *)(map + eh->e_shoff);
-        for (unsigned i = 0; i < eh->e_shnum && result == NULL; i++) {
-            if (sh[i].sh_type != SHT_SYMTAB)
-                continue; // .dynsym is SHT_DYNSYM; we want .symtab (has statics)
-            const Elf64_Sym *syms = (const Elf64_Sym *)(map + sh[i].sh_offset);
-            size_t nsyms = sh[i].sh_size / sizeof(Elf64_Sym);
-            const char *strtab = (const char *)(map + sh[sh[i].sh_link].sh_offset);
-            for (size_t j = 0; j < nsyms; j++) {
-                if (ELF64_ST_TYPE(syms[j].st_info) != STT_FUNC || syms[j].st_value == 0)
-                    continue;
-                uintptr_t lo = syms[j].st_value;
-                uintptr_t hi = lo + (syms[j].st_size ? syms[j].st_size : 1);
-                if (target >= lo && target < hi) {
-                    result = strdup(strtab + syms[j].st_name);
-                    break;
-                }
-            }
-        }
-    }
-
-    munmap(map, stbuf.st_size);
-    return result;
-}
-
-/* changes the name from parse_<name> to h_<name> */
-static char *fn_name_to_h(const char *name) {
-    if (!name) {
-        return NULL;
-    }
-
-    size_t len = strlen(name);
-    const char *remainder = (len > 5) ? name + 5 : "";
-
-    size_t rlen = strlen(remainder);
-
-    /* allocate: 2 chars + remainder + '\0' */
-    char *hname = malloc(rlen + 2);
-    if (!hname)
-        return NULL;
-
-    hname[0] = 'h';
-
-    memcpy(hname + 1, remainder, rlen + 1); /* copy including NUL */
-
-    return hname;
-}
-
-static H_TRACE_THREAD_LOCAL struct {
-    const HParserVtable *vt;
-    const char *name;
-} h_namecache[64];
-static H_TRACE_THREAD_LOCAL size_t h_namecache_len = 0;
-
 static const char *trace_vt_name(const HParserVtable *vt) {
-    for (size_t i = 0; i < h_namecache_len; i++)
-        if (h_namecache[i].vt == vt)
-            return h_namecache[i].name;
-
-    // read the function pointer's bits as a data pointer without a direct
-    // function->void* cast (which -pedantic rejects)
-    char *name = resolve_fn_name(*(void *const *)&vt->parse);
-
-    const char *stored = name ? name : "?(no symbol)";
-    if (h_namecache_len < sizeof(h_namecache) / sizeof(h_namecache[0])) {
-        h_namecache[h_namecache_len].vt = vt;
-        h_namecache[h_namecache_len].name = stored;
-        h_namecache_len++;
-    }
-    return stored;
+    return vt && vt->name ? vt->name : "?(unnamed parser)";
 }
 
 static const char *trace_parser_diagnostic_name(const HParser *parser) {
@@ -469,9 +356,7 @@ char *h_trace_parser_name(const HParser *parser) {
         return NULL;
 
     const char *name = trace_parser_diagnostic_name(parser);
-    if (strncmp(name, "parse_", 6) == 0)
-        return fn_name_to_h(name);
-    return strdup(name);
+    return trace_strdup(name);
 }
 
 /* Append a parser name to the deepest-position set, skipping duplicates and
@@ -528,7 +413,7 @@ void h_trace_file_context(const uint8_t *input, size_t length, size_t start_high
                           size_t end_highlight) {
     const char *color_red = "\x1b[31m";
     const char *color_reset = "\x1b[0m";
-    int use_color = ISATTY(stderr);
+    int use_color = h_platform_is_terminal(stderr);
 
     if (!display_trace)
         return;
@@ -1403,13 +1288,6 @@ void h_trace_end(HParseResult *res, HParseState *state) {
     free(context);
 }
 
-// regex tracing
-char *getsym(HSVMActionFunc addr) {
-    if (!display_trace)
-        return NULL;
-    return resolve_fn_name(*(void *const *)&addr);
-}
-
 const char *rvm_op_names[RVM_OPCOUNT] = {"ACCEPT",  "GOTO", "FORK",  "PUSH", "ACTION",
                                          "CAPTURE", "EOF",  "MATCH", "STEP"};
 
@@ -1418,7 +1296,6 @@ const char *svm_op_names[SVM_OPCOUNT] = {"PUSH", "NOP", "ACTION", "CAPTURE", "AC
 void dump_rvm_prog(HRVMProg *prog) {
     if (!display_trace)
         return;
-    char *symref;
     for (unsigned int i = 0; i < prog->length; i++) {
         HRVMInsn *insn = &prog->insns[i];
         fprintf(stderr, "%4d %-10s", i, rvm_op_names[insn->op]);
@@ -1438,9 +1315,6 @@ void dump_rvm_prog(HRVMProg *prog) {
             fprintf(stderr, "%hd", insn->arg);
             break;
         case RVM_ACTION:
-            symref = getsym(prog->actions[insn->arg].action);
-            fprintf(stderr, " action=%s in", symref ? symref : "<unknown>");
-            free(symref);
             if (parser_name) {
                 fprintf(stderr, " parser=%s", parser_name);
                 free(parser_name);
@@ -1476,18 +1350,9 @@ void dump_rvm_prog(HRVMProg *prog) {
 void dump_svm_prog(HRVMProg *prog, HRVMTrace *trace) {
     if (!display_trace)
         return;
-    char *symref;
+    (void)prog;
     for (; trace != NULL; trace = trace->next) {
         fprintf(stderr, "@%04zd %-10s", trace->input_pos, svm_op_names[trace->opcode]);
-        switch (trace->opcode) {
-        case SVM_ACTION:
-            symref = getsym(prog->actions[trace->arg].action);
-            fprintf(stderr, " action=%s in", symref ? symref : "<unknown>");
-            free(symref);
-            break;
-        default:
-            break;
-        }
 
         const HParser *display_parser =
             h_diagnostic_context_parser(trace->diagnostic_context, trace->parser);

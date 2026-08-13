@@ -34,6 +34,7 @@ static void desugar_indirect(HAllocator *mm__, HCFStack *stk__, void *env) {
 }
 
 static const HParserVtable indirect_vt = {
+    .name = "h_indirect",
     .parse = parse_indirect,
     .isValidRegular = h_false,
     .isValidCF = indirect_isValidCF,

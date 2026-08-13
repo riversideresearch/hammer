@@ -15,7 +15,10 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#ifndef HAMMER_DIAGNOSTIC_CONTEXT_DECLARED
+#define HAMMER_DIAGNOSTIC_CONTEXT_DECLARED
 typedef struct HDiagnosticContext_ HDiagnosticContext;
+#endif
 
 // each insn is an 8-bit opcode and a 16-bit parameter
 // [a] are actions; they add an instruction to the stackvm that is being output.

@@ -96,6 +96,7 @@ static size_t trace_expectations_token(void *env, size_t consumed, bool overrun,
 }
 
 const HParserVtable token_vt = {
+    .name = "h_token",
     .parse = parse_token,
     .isValidRegular = h_true,
     .isValidCF = h_true,

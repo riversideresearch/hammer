@@ -98,7 +98,7 @@ static void test_trace_cf_range_failure(gconstpointer backend) {
     g_check_cmp_int(err.actual, ==, 'A');
     g_check_cmp_int(err.has_actual, ==, true);
     g_check_cmp_int(err.kind, ==, H_PARSE_ERROR_RANGE);
-    g_check_string(err.parser, ==, "parse_int_range");
+    g_check_string(err.parser, ==, "h_int_range");
     h_parse_error_free(&err);
 }
 
@@ -321,7 +321,7 @@ static void test_trace_dispatch_failure(void) {
     g_check_cmp_int(error->kind, ==, H_PARSE_ERROR_DISPATCH);
     g_check_cmp_size(error->index, ==, 0);
     g_check_cmp_size(error->end_index, ==, 1);
-    g_check_string(error->parser, ==, "parse_dispatch");
+    g_check_string(error->parser, ==, "h_dispatch");
     g_check_cmp_int(diagnostic->dispatch_failure.has_opcode, ==, true);
     g_check_cmp_size(diagnostic->dispatch_failure.opcode, ==, 3);
     g_check_cmp_size(diagnostic->dispatch_failure.expected_count, ==, 2);
@@ -940,7 +940,7 @@ static void test_trace_int_range_reject(gconstpointer backend) {
         g_check_cmp_size(err.index, ==, 0);
         g_check_cmp_int(err.actual, ==, 0xFF);
         g_check_cmp_int(err.kind, ==, H_PARSE_ERROR_RANGE);
-        g_check_string(err.parser, ==, "parse_int_range");
+        g_check_string(err.parser, ==, "h_int_range");
     }
     h_parse_error_free(&err);
 }
@@ -965,7 +965,7 @@ static void test_trace_attr_bool_checksum(gconstpointer backend) {
         g_check_cmp_int(err.actual, ==, 0x55);
         g_check_cmp_int(err.has_actual, ==, true);
         g_check_cmp_int(err.kind, ==, H_PARSE_ERROR_SEMANTIC_PREDICATE);
-        g_check_string(err.parser, ==, "parse_attr_bool");
+        g_check_string(err.parser, ==, "h_attr_bool");
     }
     h_parse_error_free(&err);
 }
@@ -1036,7 +1036,7 @@ static void test_trace_nested_parse_isolation(gconstpointer backend) {
     g_check_cmp_int(err.kind, ==, H_PARSE_ERROR_SEMANTIC_PREDICATE);
     g_check_cmp_size(err.index, ==, 0);
     g_check_cmp_size(err.end_index, ==, 2);
-    g_check_string(err.parser, ==, "parse_attr_bool");
+    g_check_string(err.parser, ==, "h_attr_bool");
     h_parse_error_free(&err);
 }
 

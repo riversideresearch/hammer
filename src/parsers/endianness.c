@@ -39,6 +39,7 @@ static HParseResult *parse_endianness(void *env, HParseState *state) {
 }
 
 static const HParserVtable endianness_vt = {
+    .name = "h_endianness",
     .parse = parse_endianness,
     .isValidRegular = h_false,
     .isValidCF = h_false,

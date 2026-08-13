@@ -155,6 +155,7 @@ static bool float_range_isValidCF(void *env) {
 }
 
 static const HParserVtable float_range_vt = {
+    .name = "h_float_range",
     .parse = parse_float_range,
     .isValidRegular = float_range_isValidRegular,
     .isValidCF = float_range_isValidCF,

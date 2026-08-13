@@ -51,6 +51,7 @@ static HParseResult *parse_bind(void *be_, HParseState *state) {
 }
 
 static const HParserVtable bind_vt = {
+    .name = "h_bind",
     .parse = parse_bind,
     .isValidRegular = h_false,
     .isValidCF = h_false,

@@ -125,6 +125,7 @@ static bool is_ctrvm(HRVMProg *prog, void *env) {
 }
 
 static const HParserVtable ignoreseq_vt = {
+    .name = "h_ignoreseq",
     .parse = parse_ignoreseq,
     .isValidRegular = is_isValidRegular,
     .isValidCF = is_isValidCF,

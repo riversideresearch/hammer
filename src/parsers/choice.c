@@ -100,6 +100,7 @@ static bool choice_ctrvm(HRVMProg *prog, void *env) {
 }
 
 static const HParserVtable choice_vt = {
+    .name = "h_choice",
     .parse = parse_choice,
     .isValidRegular = choice_isValidRegular,
     .isValidCF = choice_isValidCF,

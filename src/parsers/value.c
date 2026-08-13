@@ -27,6 +27,7 @@ static HParseResult *parse_put_value(void *env, HParseState *state) {
 }
 
 static const HParserVtable put_vt = {
+    .name = "h_put_value",
     .parse = parse_put_value,
     .isValidRegular = h_false,
     .isValidCF = h_false,
@@ -56,6 +57,7 @@ static HParseResult *parse_get_value(void *env, HParseState *state) {
 }
 
 static const HParserVtable get_vt = {
+    .name = "h_get_value",
     .parse = parse_get_value,
     .isValidRegular = h_false,
     .isValidCF = h_false,
@@ -88,6 +90,7 @@ static HParseResult *parse_free_value(void *env, HParseState *state) {
 }
 
 static const HParserVtable free_vt = {
+    .name = "h_free_value",
     .parse = parse_free_value,
     .isValidRegular = h_false,
     .isValidCF = h_false,

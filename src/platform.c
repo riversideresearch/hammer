@@ -6,6 +6,12 @@
 #include <stdlib.h>
 #include <time.h>
 
+#if defined(_WIN32)
+#include <io.h>
+#elif defined(__unix__) || defined(__APPLE__)
+#include <unistd.h>
+#endif
+
 int h_platform_asprintf(char **strp, const char *fmt, ...) {
     va_list ap;
     va_start(ap, fmt);
@@ -16,6 +22,18 @@ int h_platform_asprintf(char **strp, const char *fmt, ...) {
 
 int h_platform_vasprintf(char **strp, const char *fmt, va_list arg) {
     return vasprintf(strp, fmt, arg);
+}
+
+int h_platform_is_terminal(FILE *stream) {
+    if (!stream)
+        return 0;
+#if defined(_WIN32)
+    return _isatty(_fileno(stream));
+#elif defined(__unix__) || defined(__APPLE__)
+    return isatty(fileno(stream));
+#else
+    return 0;
+#endif
 }
 
 void h_platform_errx(int err, const char *format, ...) {

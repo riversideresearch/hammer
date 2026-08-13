@@ -1,7 +1,4 @@
 /* Copyright (c) 2026 Riverside Research */
-#ifndef _GNU_SOURCE
-#define _GNU_SOURCE /* dladdr(), strdup() used by the AST tracer below */
-#endif
 #include "../internal.h"
 #include "../parsers/parser_internal.h"
 #include "../trace.h"

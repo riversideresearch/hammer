@@ -189,7 +189,6 @@ size_t h_cf_trace_candidates(const HCFChoice *root, const uint8_t *input, size_t
 void h_backend_trace_end(bool success);
 
 // regex trace functions
-char *getsym(HSVMActionFunc addr);
 char *h_trace_parser_name(const HParser *parser);
 void dump_rvm_prog(HRVMProg *prog);
 void dump_svm_prog(HRVMProg *prog, HRVMTrace *trace);

@@ -503,13 +503,17 @@ typedef HParsedToken *(*HCFPlanAction)(const HParseResult *result, void *user_da
 
 /* Immutable grammar-occurrence provenance. Each node describes the current
  * occurrence and points to its enclosing parent. */
-typedef struct HDiagnosticContext_ {
+#ifndef HAMMER_DIAGNOSTIC_CONTEXT_DECLARED
+#define HAMMER_DIAGNOSTIC_CONTEXT_DECLARED
+typedef struct HDiagnosticContext_ HDiagnosticContext;
+#endif
+struct HDiagnosticContext_ {
     const HParser *parser;
     const HParser *choice;
     size_t choice_alternative;
     size_t choice_id;
     const struct HDiagnosticContext_ *next;
-} HDiagnosticContext;
+};
 
 bool h_is_context_parser(const HParser *parser);
 const HParser *h_context_parser_child(const HParser *parser);
@@ -729,6 +733,7 @@ static inline void h_cfstack_end_choice(HAllocator *mm__, HCFStack *stk__) {
 #define HCFS_SET_DISPATCH_OPCODE(op) (HCFS_THIS_CHOICE->dispatch_opcode = (op))
 
 struct HParserVtable_ {
+    const char *name; /* Stable internal diagnostic name. */
     HParseResult *(*parse)(void *env, HParseState *state);
     bool (*isValidRegular)(void *env);
     bool (*isValidCF)(void *env);

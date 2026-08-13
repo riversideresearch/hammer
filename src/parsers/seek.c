@@ -69,6 +69,7 @@ static HParseResult *parse_tell(void *env, HParseState *state) {
 }
 
 static const HParserVtable skip_vt = {
+    .name = "h_skip",
     .parse = parse_skip,
     .isValidRegular = h_false,
     .isValidCF = h_false,
@@ -76,6 +77,7 @@ static const HParserVtable skip_vt = {
 };
 
 static const HParserVtable seek_vt = {
+    .name = "h_seek",
     .parse = parse_seek,
     .isValidRegular = h_false,
     .isValidCF = h_false,
@@ -83,6 +85,7 @@ static const HParserVtable seek_vt = {
 };
 
 static const HParserVtable tell_vt = {
+    .name = "h_tell",
     .parse = parse_tell,
     .isValidRegular = h_false,
     .isValidCF = h_false,

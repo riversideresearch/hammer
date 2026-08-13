@@ -196,6 +196,7 @@ static bool many_ctrvm(HRVMProg *prog, void *env) {
 }
 
 static const HParserVtable many_vt = {
+    .name = "h_many",
     .parse = parse_many,
     .isValidRegular = many_isValidRegular,
     .isValidCF = many_isValidCF,
@@ -279,6 +280,7 @@ static HParseResult *parse_length_value(void *env, HParseState *state) {
 }
 
 static const HParserVtable length_value_vt = {
+    .name = "h_length_value",
     .parse = parse_length_value,
     .isValidRegular = h_false,
     .isValidCF = h_false,
@@ -428,6 +430,7 @@ static void desugar_cap(HAllocator *mm__, HCFStack *stk__, void *env) {
 }
 
 static const HParserVtable cap_vt = {
+    .name = "h_cap",
     .parse = parse_cap,
     .isValidRegular = many_isValidRegular,
     .isValidCF = many_isValidCF,

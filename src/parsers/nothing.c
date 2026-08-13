@@ -30,6 +30,7 @@ static bool nothing_ctrvm(HRVMProg *prog, void *env) {
 }
 
 static const HParserVtable nothing_vt = {
+    .name = "h_nothing",
     .parse = parse_nothing,
     .isValidRegular = h_true,
     .isValidCF = h_true,
