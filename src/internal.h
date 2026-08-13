@@ -753,6 +753,7 @@ bool h_is_xor_parser(const HParser *parser);
 bool h_is_difference_parser(const HParser *parser);
 bool h_is_butnot_parser(const HParser *parser);
 bool h_is_get_value_parser(const HParser *parser); // either h_get_value or h_free_value parser
+bool h_is_put_value_parser(const HParser *parser);
 bool h_is_int_range_parser(const HParser *parser);
 bool h_is_float_range_parser(const HParser *parser);
 bool h_is_context_parser(const HParser *parser);

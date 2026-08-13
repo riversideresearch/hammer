@@ -106,3 +106,7 @@ HParser *h_free_value__m(HAllocator *mm__, const char *name) {
 bool h_is_get_value_parser(const HParser *parser){
     return parser && (parser->vtable == &free_vt || parser->vtable == &get_vt);
 }
+
+bool h_is_put_value_parser(const HParser *parser){
+    return parser && (parser->vtable == &put_vt);
+}

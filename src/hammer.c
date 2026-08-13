@@ -758,6 +758,8 @@ void h_parse_diagnostic_fprint(FILE *stream, const HParseDiagnostic *diagnostic)
         fputs("but-not rejected a right-hand match that was not shorter", stream);
     else if (error->kind == H_PARSE_ERROR_NO_VALUE)
         fputs("no value to retrieve from provided name", stream);
+    else if (error->kind == H_PARSE_ERROR_REUSED_NAME)
+        fputs("provided name already exists, can't put again", stream);
     else if (error->kind == H_PARSE_ERROR_DISPATCH && diagnostic->dispatch_failure.has_opcode)
         fprintf(stream, "no dispatch case for opcode %zu", diagnostic->dispatch_failure.opcode);
     else if (error->kind == H_PARSE_ERROR_DISPATCH)

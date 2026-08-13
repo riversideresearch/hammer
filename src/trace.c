@@ -727,6 +727,8 @@ static HParseErrorKind trace_failure_kind(const HParser *parser, const char *nam
         return H_PARSE_ERROR_EXPLICIT_FAILURE;
     if (h_is_get_value_parser(parser))
         return H_PARSE_ERROR_NO_VALUE;
+    if (h_is_put_value_parser(parser))
+        return H_PARSE_ERROR_REUSED_NAME;
     if (h_is_xor_parser(parser))
         return H_PARSE_ERROR_XOR;
     if (h_is_difference_parser(parser))
@@ -755,6 +757,7 @@ static size_t trace_failure_progress(HParseErrorKind kind, size_t start, size_t 
     case H_PARSE_ERROR_DIFFERENCE:
     case H_PARSE_ERROR_BUTNOT:
     case H_PARSE_ERROR_NO_VALUE:
+    case H_PARSE_ERROR_REUSED_NAME:
     case H_PARSE_ERROR_DISPATCH:
         return end;
     default:
@@ -1174,7 +1177,7 @@ static void trace_record_failure(const HParser *parser, HParseState *state,
     bool value_failure = kind == H_PARSE_ERROR_SEMANTIC_PREDICATE || kind == H_PARSE_ERROR_RANGE ||
                          kind == H_PARSE_ERROR_XOR || kind == H_PARSE_ERROR_DIFFERENCE ||
                          kind == H_PARSE_ERROR_BUTNOT || kind == H_PARSE_ERROR_NO_VALUE ||
-                         kind == H_PARSE_ERROR_DISPATCH;
+                         kind == H_PARSE_ERROR_DISPATCH || kind == H_PARSE_ERROR_REUSED_NAME;
 
     const HParser *label_parser = parser && parser->diagnostic_label ? parser : NULL;
     const HParser *message_parser = parser && parser->diagnostic_message ? parser : NULL;
