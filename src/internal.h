@@ -78,6 +78,7 @@ static inline void h_generic_free(HAllocator *allocator, void *ptr) {
 
 extern HAllocator system_allocator;
 typedef struct HCFStack_ HCFStack;
+typedef struct HTraceState_ HTraceState;
 
 #define DEFAULT_ENDIANNESS (BIT_BIG_ENDIAN | BYTE_BIG_ENDIAN)
 
@@ -93,6 +94,8 @@ typedef struct HInputStream_ {
     char endianness;
     bool overrun;
     bool last_chunk;
+    /* Internal, parse-scoped diagnostic collector. NULL for ordinary parses. */
+    HTraceState *trace;
 } HInputStream;
 
 typedef struct HSlistNode_ {
@@ -772,6 +775,10 @@ bool h_is_get_value_parser(const HParser *parser); // either h_get_value or h_fr
 bool h_is_put_value_parser(const HParser *parser);
 bool h_is_int_range_parser(const HParser *parser);
 bool h_is_float_range_parser(const HParser *parser);
+void h_int_range_trace_failure(HTraceState *trace, const HParser *parser,
+                               const HParsedToken *token);
+void h_float_range_trace_failure(HTraceState *trace, const HParser *parser,
+                                 const HParsedToken *token);
 bool h_is_attr_bool_parser(const HParser *parser);
 
 #if 0

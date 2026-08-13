@@ -114,6 +114,92 @@ static void test_trace_empty_input_eof(gconstpointer backend) {
     h_parse_diagnostic_free(diagnostic);
 }
 
+typedef struct TraceThreadCase_ {
+    const HParser *parser;
+    uint8_t input[2];
+    uint8_t actual;
+    bool passed;
+} TraceThreadCase;
+
+static gpointer trace_concurrent_worker(gpointer user_data) {
+    TraceThreadCase *test = user_data;
+    test->passed = true;
+    for (size_t i = 0; i < 200; i++) {
+        HParseError error;
+        HParseResult *result = h_parse_debug(test->parser, test->input, sizeof(test->input),
+                                             &error, false);
+        if (result || error.kind != H_PARSE_ERROR_PRIMITIVE_MISMATCH || error.index != 1 ||
+            !error.has_actual || error.actual != test->actual || !error.parser ||
+            strcmp(error.parser, "h_ch") != 0) {
+            test->passed = false;
+        }
+        if (result)
+            h_parse_result_free(result);
+        h_parse_error_free(&error);
+        if (!test->passed)
+            break;
+    }
+    return NULL;
+}
+
+static void test_trace_concurrent_parse_isolation(void) {
+    HParser *left = h_sequence(h_ch('A'), h_ch('B'), NULL);
+    HParser *right = h_sequence(h_ch('X'), h_ch('Y'), NULL);
+    g_check_cmp_int(h_compile(left, PB_PACKRAT, NULL), ==, 0);
+    g_check_cmp_int(h_compile(right, PB_PACKRAT, NULL), ==, 0);
+
+    TraceThreadCase left_case = {left, {'A', '!'}, '!', false};
+    TraceThreadCase right_case = {right, {'X', '?'}, '?', false};
+    GThread *left_thread = g_thread_new("trace-left", trace_concurrent_worker, &left_case);
+    GThread *right_thread = g_thread_new("trace-right", trace_concurrent_worker, &right_case);
+    g_thread_join(left_thread);
+    g_thread_join(right_thread);
+
+    g_check_cmp_int(left_case.passed, ==, true);
+    g_check_cmp_int(right_case.passed, ==, true);
+}
+
+static void test_trace_formatter_with_input(void) {
+    HParser *parser = h_sequence(h_ch('A'), h_ch('B'), h_ch('C'), NULL);
+    const uint8_t input[] = {'A', 'B', 'X'};
+    g_check_cmp_int(h_compile(parser, PB_PACKRAT, NULL), ==, 0);
+
+    HParseDiagnostic *diagnostic = NULL;
+    HParseResult *result =
+        h_parse_debug_ex(parser, input, sizeof(input), &diagnostic, false);
+    g_check_cmp_ptr(result, ==, NULL);
+    g_check_cmp_ptr(diagnostic, !=, NULL);
+    if (!diagnostic)
+        return;
+
+    size_t execution_length = 0;
+    const char *execution_trace =
+        h_parse_diagnostic_execution_trace(diagnostic, &execution_length);
+    g_check_cmp_ptr(execution_trace, !=, NULL);
+    g_check_cmp_size(execution_length, >, 0);
+    if (execution_trace) {
+        g_check_cmp_ptr(strstr(execution_trace, "h_packrat_parse: begin"), !=, NULL);
+        g_check_cmp_ptr(strstr(execution_trace, "-> h_sequence"), !=, NULL);
+        g_check_cmp_ptr(strstr(execution_trace, "h_packrat_parse: end (FAILURE)"), !=, NULL);
+    }
+
+    FILE *stream = tmpfile();
+    g_check_cmp_ptr(stream, !=, NULL);
+    if (stream) {
+        char rendered[2048] = {0};
+        h_parse_diagnostic_fprint_with_input(stream, diagnostic, input, sizeof(input));
+        rewind(stream);
+        size_t length = fread(rendered, 1, sizeof(rendered) - 1, stream);
+        rendered[length] = '\0';
+        g_check_cmp_ptr(strstr(rendered, "unexpected byte 'X'"), !=, NULL);
+        g_check_cmp_ptr(strstr(rendered, "input trail:"), !=, NULL);
+        g_check_cmp_ptr(strstr(rendered, "input context (3 bytes)"), !=, NULL);
+        g_check_cmp_ptr(strstr(rendered, "41 42 58"), !=, NULL);
+        fclose(stream);
+    }
+    h_parse_diagnostic_free(diagnostic);
+}
+
 static void test_trace_cf_range_failure(gconstpointer backend) {
     HParserBackend be = (HParserBackend)GPOINTER_TO_INT(backend);
     HParser *p = h_int_range(h_ch('A'), 'B', 'Z');
@@ -1310,6 +1396,9 @@ static void test_trace_mixed_context_input_trail(gconstpointer backend) {
 void register_trace_tests(void) {
     g_test_add_func("/core/parser/trace_with_context_owns_metadata",
                     test_with_context_owns_metadata);
+    g_test_add_func("/core/parser/trace_concurrent_parse_isolation",
+                    test_trace_concurrent_parse_isolation);
+    g_test_add_func("/core/parser/trace_formatter_with_input", test_trace_formatter_with_input);
 
 #define ADD_EMPTY_INPUT_TEST(name, backend)                                                   \
     g_test_add_data_func("/core/parser/" name "/trace_empty_input_eof",                     \

@@ -151,7 +151,8 @@ static HParseResult *parse_dispatch(void *env, HParseState *state) {
         body = extract_parser(buckets, bucket_count, h, mask, opcode, d->default_parser);
     }
     if (!body) {
-        h_trace_note_dispatch(disc_result->ast, has_opcode, opcode, d->map, d->size);
+        h_trace_note_dispatch(state->input_stream.trace, disc_result->ast, has_opcode, opcode,
+                              d->map, d->size);
         return NULL;
     }
 

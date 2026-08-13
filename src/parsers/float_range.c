@@ -8,7 +8,16 @@ typedef struct {
     double upper;
 } HFloatRange;
 
-static bool float_range_match(const HParsedToken *token, const HFloatRange *range) {
+void h_float_range_trace_failure(HTraceState *trace, const HParser *parser,
+                                 const HParsedToken *token) {
+    if (!parser || !h_is_float_range_parser(parser))
+        return;
+    const HFloatRange *range = parser->env;
+    h_trace_note_float_range(trace, token, range->lower, range->upper);
+}
+
+static bool float_range_match(const HParsedToken *token, const HFloatRange *range,
+                              HTraceState *trace) {
     double value;
 
     if (!token)
@@ -31,7 +40,7 @@ static bool float_range_match(const HParsedToken *token, const HFloatRange *rang
      */
     bool valid = range->lower <= value && value <= range->upper;
     if (!valid)
-        h_trace_note_float_range(token, range->lower, range->upper);
+        h_trace_note_float_range(trace, token, range->lower, range->upper);
     return valid;
 }
 
@@ -42,12 +51,12 @@ static HParseResult *parse_float_range(void *env, HParseState *state) {
     if (!ret || !ret->ast)
         return NULL;
 
-    return float_range_match(ret->ast, r_env) ? ret : NULL;
+    return float_range_match(ret->ast, r_env, state->input_stream.trace) ? ret : NULL;
 }
 
 static bool float_range_predicate(HParseResult *p, void *user_data) {
     HFloatRange *range = (HFloatRange *)user_data;
-    return p && float_range_match(p->ast, range);
+    return p && float_range_match(p->ast, range, NULL);
 }
 
 static void desugar_float_range(HAllocator *mm__, HCFStack *stk__, void *env) {

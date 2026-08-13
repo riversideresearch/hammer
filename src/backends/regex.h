@@ -9,7 +9,7 @@
 #define HAMMER_BACKEND_REGEX__H
 
 #include "../hammer.h"
-
+#include "../trace.h"
 #include <setjmp.h>
 #include <stdbool.h>
 #include <stddef.h>
@@ -95,6 +95,7 @@ typedef struct HSVMContext_ {
     struct HActionPlan_ *action_plan;
     void *action_plan_frames;
     HSVMFailure failure;
+    HTraceState *trace_state;
 } HSVMContext;
 
 // These actions all assume that the items on the stack are not

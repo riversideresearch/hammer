@@ -8,7 +8,15 @@ typedef struct {
     int64_t upper;
 } HRange;
 
-static bool int_range_match(const HParsedToken *token, const HRange *range) {
+void h_int_range_trace_failure(HTraceState *trace, const HParser *parser,
+                               const HParsedToken *token) {
+    if (!parser || !h_is_int_range_parser(parser))
+        return;
+    const HRange *range = parser->env;
+    h_trace_note_int_range(trace, token, range->lower, range->upper);
+}
+
+static bool int_range_match(const HParsedToken *token, const HRange *range, HTraceState *trace) {
     bool valid;
     if (!token)
         return false;
@@ -24,7 +32,7 @@ static bool int_range_match(const HParsedToken *token, const HRange *range) {
         return false;
     }
     if (!valid)
-        h_trace_note_int_range(token, range->lower, range->upper);
+        h_trace_note_int_range(trace, token, range->lower, range->upper);
     return valid;
 }
 
@@ -33,7 +41,7 @@ static HParseResult *parse_int_range(void *env, HParseState *state) {
     HParseResult *ret = h_do_parse(r_env->p, state);
     if (!ret || !ret->ast)
         return NULL;
-    return int_range_match(ret->ast, r_env) ? ret : NULL;
+    return int_range_match(ret->ast, r_env, state->input_stream.trace) ? ret : NULL;
 }
 
 static bool int_range_predicate(HParseResult *result, void *user_data) {
@@ -42,7 +50,7 @@ static bool int_range_predicate(HParseResult *result, void *user_data) {
     if (!result || !result->ast)
         return false;
 
-    return int_range_match(result->ast, range);
+    return int_range_match(result->ast, range, NULL);
 }
 
 struct bits_env {

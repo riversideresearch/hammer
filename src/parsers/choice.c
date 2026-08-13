@@ -19,24 +19,25 @@
 static HParseResult *parse_choice(void *env, HParseState *state) {
     HSequence *s = (HSequence *)env;
     HInputStream backup = state->input_stream;
-    size_t trace_scope = TRACE_CHOICE_BEGIN();
+    HTraceState *trace = state->input_stream.trace;
+    size_t trace_scope = TRACE_CHOICE_BEGIN(trace);
     for (size_t i = 0; i < s->len; ++i) {
         if (i != 0)
             state->input_stream = backup;
-        TRACE_CHOICE_ARM_BEGIN(trace_scope, i);
+        TRACE_CHOICE_ARM_BEGIN(trace, trace_scope, i);
         HParseResult *tmp = h_do_parse(s->p_array[i], state);
-        TRACE_CHOICE_ARM_END(trace_scope, tmp != NULL);
+        TRACE_CHOICE_ARM_END(trace, trace_scope, tmp != NULL);
         if (NULL != tmp) {
-            TRACE_CHOICE_END(trace_scope, true);
+            TRACE_CHOICE_END(trace, trace_scope, true);
             return tmp;
         }
         if (want_suspend(state)) {
-            TRACE_CHOICE_END(trace_scope, true);
+            TRACE_CHOICE_END(trace, trace_scope, true);
             return NULL; // bail out early, leaving overrun flag
         }
     }
     // nothing succeeded, so fail
-    TRACE_CHOICE_END(trace_scope, false);
+    TRACE_CHOICE_END(trace, trace_scope, false);
     return NULL;
 }
 

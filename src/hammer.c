@@ -556,11 +556,9 @@ HParserBackendWithParams *h_get_backend_with_params_by_name(const char *name_wit
     return result;
 }
 
-HParseResult *h_parse(const HParser *parser, const uint8_t *input, size_t length) {
-    return h_parse__m(&system_allocator, parser, input, length);
-}
-HParseResult *h_parse__m(HAllocator *mm__, const HParser *parser, const uint8_t *input,
-                         size_t length) {
+static HParseResult *h_parse_with_trace(HAllocator *mm__, const HParser *parser,
+                                        const uint8_t *input, size_t length,
+                                        HTraceState *trace) {
     // Set up a parse state...
     HInputStream input_stream = {.pos = 0,
                                  .index = 0,
@@ -569,16 +567,23 @@ HParseResult *h_parse__m(HAllocator *mm__, const HParser *parser, const uint8_t 
                                  .endianness = DEFAULT_ENDIANNESS,
                                  .length = length,
                                  .input = input,
-                                 .last_chunk = true};
+                                 .last_chunk = true,
+                                 .trace = trace};
 
     return parser->backend_vtable->parse(mm__, parser, &input_stream);
 }
 
-// Twin of h_parse() that turns on backend tracing for the duration
-// of this one parse, then switches it back off. Identical parsing behavior and
-// return value; the only difference is the trace/diagnostics emitted to
-// stderr/stdout. When the library is built without tracing (HAMMER_TRACE_AST
-// off) TRACE_SET_ENABLED is a no-op and this behaves exactly like h_parse().
+HParseResult *h_parse(const HParser *parser, const uint8_t *input, size_t length) {
+    return h_parse__m(&system_allocator, parser, input, length);
+}
+HParseResult *h_parse__m(HAllocator *mm__, const HParser *parser, const uint8_t *input,
+                         size_t length) {
+    return h_parse_with_trace(mm__, parser, input, length, NULL);
+}
+
+// Twin of h_parse() that attaches an independent diagnostic collector to this
+// one parse. A requested execution trace is still written to stderr, but the
+// normalized error is returned to the caller and is never printed implicitly.
 //
 // If `error` is non-NULL it also receives the furthest-failure record in
 // structured form (see HParseError), so callers can react to failures without
@@ -592,11 +597,20 @@ HParseResult *h_parse_debug__m(HAllocator *mm__, const HParser *parser, const ui
                                size_t length, HParseError *error, bool dumpExecutionTrace) {
     if (error)
         memset(error, 0, sizeof(*error));
-    TRACE_SET_ENABLED(true, dumpExecutionTrace);
-    HParseResult *res = h_parse__m(mm__, parser, input, length);
-    TRACE_SET_ENABLED(false, false);
-    if (!res)
-        TRACE_GET_ERROR(error);
+    HTraceState *trace = h_trace_state_new(dumpExecutionTrace);
+    HParseResult *res = h_parse_with_trace(mm__, parser, input, length, trace);
+    if (!res) {
+        TRACE_GET_ERROR(trace, error);
+        if (dumpExecutionTrace) {
+            HParseDiagnostic *diagnostic = NULL;
+            TRACE_GET_DIAGNOSTIC(trace, &diagnostic);
+            if (diagnostic) {
+                h_parse_diagnostic_fprint_with_input(stderr, diagnostic, input, length);
+                h_parse_diagnostic_free(diagnostic);
+            }
+        }
+    }
+    h_trace_state_free(trace);
     return res;
 }
 
@@ -604,11 +618,20 @@ HParseResult *h_parse_debug_ex(const HParser *parser, const uint8_t *input, size
                                HParseDiagnostic **diagnostic, bool dumpExecutionTrace) {
     if (diagnostic)
         *diagnostic = NULL;
-    TRACE_SET_ENABLED(true, dumpExecutionTrace);
-    HParseResult *res = h_parse__m(&system_allocator, parser, input, length);
-    TRACE_SET_ENABLED(false, false);
-    if (!res && diagnostic)
-        TRACE_GET_DIAGNOSTIC(diagnostic);
+    HTraceState *trace = h_trace_state_new(dumpExecutionTrace);
+    HParseResult *res = h_parse_with_trace(&system_allocator, parser, input, length, trace);
+    if (!res) {
+        HParseDiagnostic *collected = NULL;
+        if (diagnostic || dumpExecutionTrace)
+            TRACE_GET_DIAGNOSTIC(trace, &collected);
+        if (diagnostic)
+            *diagnostic = collected;
+        if (dumpExecutionTrace && collected)
+            h_parse_diagnostic_fprint_with_input(stderr, collected, input, length);
+        if (!diagnostic)
+            h_parse_diagnostic_free(collected);
+    }
+    h_trace_state_free(trace);
     return res;
 }
 
@@ -694,6 +717,13 @@ bool h_parse_diagnostic_expected(const HParseDiagnostic *diagnostic, size_t inde
         return true;
     }
     return false;
+}
+
+const char *h_parse_diagnostic_execution_trace(const HParseDiagnostic *diagnostic,
+                                               size_t *length) {
+    if (length)
+        *length = diagnostic ? diagnostic->execution_trace_length : 0;
+    return diagnostic ? diagnostic->execution_trace : NULL;
 }
 
 static void diagnostic_print_byte(FILE *stream, uint8_t byte) {
@@ -851,6 +881,28 @@ void h_parse_diagnostic_fprint(FILE *stream, const HParseDiagnostic *diagnostic)
         h_trace_fprint_choice(stream, diagnostic->choice_nodes, diagnostic->choice_node_count,
                               diagnostic->choice_alternatives,
                               diagnostic->choice_alternative_count, diagnostic->choice_root);
+    h_trace_fprint_input_trail(stream, diagnostic->input_frames, diagnostic->input_frame_count);
+}
+
+void h_parse_error_fprint(FILE *stream, const HParseError *error) {
+    if (!stream || !error)
+        return;
+    HParseDiagnostic diagnostic = {0};
+    diagnostic.error = *error;
+    diagnostic.choice_root = H_TRACE_CHOICE_NONE;
+    h_parse_diagnostic_fprint(stream, &diagnostic);
+}
+
+void h_parse_diagnostic_fprint_with_input(FILE *stream, const HParseDiagnostic *diagnostic,
+                                          const uint8_t *input, size_t length) {
+    if (!stream || !diagnostic)
+        return;
+    h_parse_diagnostic_fprint(stream, diagnostic);
+    const HParseError *error = &diagnostic->error;
+    if (error->kind == H_PARSE_ERROR_NONE)
+        return;
+    size_t last_index = error->end_index > error->index ? error->end_index - 1 : error->end_index;
+    h_trace_fprint_input_context(stream, input, length, error->index, last_index);
 }
 
 void h_parse_diagnostic_free(HParseDiagnostic *diagnostic) {
@@ -859,6 +911,7 @@ void h_parse_diagnostic_free(HParseDiagnostic *diagnostic) {
     h_parse_error_free(&diagnostic->error);
     for (size_t i = 0; i < diagnostic->choice_alternative_count; i++)
         h_parse_error_free(&diagnostic->choice_alternatives[i].error);
+    free(diagnostic->execution_trace);
     free(diagnostic);
 }
 

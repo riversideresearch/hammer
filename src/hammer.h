@@ -513,14 +513,13 @@ HParseResult *h_parse__m(HAllocator *mm__, const HParser *parser, const uint8_t 
                          size_t length);
 
 /**
- * @brief Like h_parse(), but traces the selected backend to stderr and, on
- * failure, prints a furthest-position diagnostic. Parsing behavior and return
- * value are identical to h_parse(); only the emitted debug output differs.
+ * @brief Like h_parse(), but collects a parse-scoped furthest-position
+ * diagnostic. Parsing behavior and return value are identical to h_parse().
  *
  * If @p error is non-NULL, the furthest-failure information is also written
  * there in structured form (see ::HParseError), so callers can react to a
- * failed parse programmatically without scraping the textual trace. Pass NULL
- * if you only want the stderr/stdout trace. The struct is zero-initialized
+ * failed parse programmatically. Pass NULL if only the optional execution trace
+ * is wanted. The struct is zero-initialized
  * before use, and its parser-name list is only populated when the library is
  * built with AST tracing (-DHAMMER_TRACE_AST=1); otherwise this behaves exactly
  * like h_parse() and @p error is left zeroed.
@@ -529,9 +528,13 @@ HParseResult *h_parse__m(HAllocator *mm__, const HParser *parser, const uint8_t 
  * @param input Input data
  * @param length Length of input data
  * @param error Out-parameter for structured failure info, or NULL
- * @param dumpExecutionTrace on true, print the backend's full execution trace
- * on false, print just a shortened trail of the parsers
- * @note only prints up to 256 bytes of the input context
+ * @param dumpExecutionTrace on true, print the normalized error, condensed
+ * input trail, and bounded input context to stderr; on false, emit no text.
+ * The historical parameter name is retained for source compatibility.
+ * @note Use h_parse_error_fprint() to render @p error to a caller-selected
+ * stream. h_parse_debug_ex() additionally retains the complete execution trace
+ * regardless of this flag; retrieve it with
+ * h_parse_diagnostic_execution_trace().
  * @return Parse result, or NULL on failure
  */
 HParseResult *h_parse_debug(const HParser *parser, const uint8_t *input, size_t length,
@@ -545,16 +548,29 @@ HParseResult *h_parse_debug__m(HAllocator *mm__, const HParser *parser, const ui
  * On failure, @p diagnostic receives an owned diagnostic object. The legacy
  * failure fields are available through h_parse_diagnostic_error(), while
  * expected byte ranges and end-of-input are exposed by the expectation
- * accessors. The caller must release it with h_parse_diagnostic_free().
+ * accessors. The complete backend execution trace is also retained regardless
+ * of @p dumpExecutionTrace. The caller must release the object with
+ * h_parse_diagnostic_free().
  */
 HParseResult *h_parse_debug_ex(const HParser *parser, const uint8_t *input, size_t length,
                                HParseDiagnostic **diagnostic, bool dumpExecutionTrace);
 
+/** Write an HParseError to a caller-selected stream. */
+void h_parse_error_fprint(FILE *stream, const HParseError *error);
 const HParseError *h_parse_diagnostic_error(const HParseDiagnostic *diagnostic);
 size_t h_parse_diagnostic_expected_count(const HParseDiagnostic *diagnostic);
 bool h_parse_diagnostic_expected(const HParseDiagnostic *diagnostic, size_t index,
                                  HParseExpectation *expectation);
+/** Borrow the complete execution trace captured for this diagnostic. */
+const char *h_parse_diagnostic_execution_trace(const HParseDiagnostic *diagnostic,
+                                               size_t *length);
 void h_parse_diagnostic_fprint(FILE *stream, const HParseDiagnostic *diagnostic);
+/**
+ * Write a normalized diagnostic, its condensed input trail, and a bounded hex/
+ * ASCII view of the original input. The input is borrowed only for this call.
+ */
+void h_parse_diagnostic_fprint_with_input(FILE *stream, const HParseDiagnostic *diagnostic,
+                                          const uint8_t *input, size_t length);
 void h_parse_diagnostic_free(HParseDiagnostic *diagnostic);
 
 /**

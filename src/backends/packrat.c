@@ -362,7 +362,7 @@ static bool pos_equal(const void *key1, const void *key2) {
 }
 
 HParseResult *h_packrat_parse(HAllocator *mm__, const HParser *parser, HInputStream *input_stream) {
-    TRACE_BEGIN(input_stream->input, input_stream->length);
+    TRACE_BEGIN(input_stream->trace, input_stream->input, input_stream->length);
     HArena *arena = h_new_arena(mm__, 0);
 
     // out-of-memory handling

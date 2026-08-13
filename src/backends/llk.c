@@ -336,11 +336,12 @@ static void llk_expected_from_map(const HStringMap *map, bool expected[256], boo
 static void llk_trace_lookup_failure(const HStringMap *row, HInputStream stream,
                                      const HParser *parser, const HCFChoice *symbol,
                                      const HDiagnosticContext *provenance) {
+    HTraceState *trace = stream.trace;
     const HStringMap *map = row;
     size_t failure_start = stream.pos + stream.index;
     if (!map) {
         size_t index = stream.pos + stream.index;
-        CF_TRACE_FAILURE(index, index, H_PARSE_ERROR_HIGHER_ORDER, parser, provenance, NULL,
+        CF_TRACE_FAILURE(trace, index, index, H_PARSE_ERROR_HIGHER_ORDER, parser, provenance, NULL,
                          false);
         return;
     }
@@ -365,9 +366,10 @@ static void llk_trace_lookup_failure(const HStringMap *row, HInputStream stream,
                 }
             }
             if (count > 0)
-                h_backend_trace_failures(candidates, count);
+                h_backend_trace_failures(trace, candidates, count);
             else
-                CF_TRACE_FAILURE(index, index, H_PARSE_ERROR_UNEXPECTED_EOF, parser, provenance,
+                CF_TRACE_FAILURE(trace, index, index, H_PARSE_ERROR_UNEXPECTED_EOF, parser,
+                                 provenance,
                                  expected, expected_eof);
             return;
         }
@@ -391,9 +393,9 @@ static void llk_trace_lookup_failure(const HStringMap *row, HInputStream stream,
                 }
             }
             if (count > 0)
-                h_backend_trace_failures(candidates, count);
+                h_backend_trace_failures(trace, candidates, count);
             else
-                CF_TRACE_FAILURE(index, index + 1, H_PARSE_ERROR_PRIMITIVE_MISMATCH, parser,
+                CF_TRACE_FAILURE(trace, index, index + 1, H_PARSE_ERROR_PRIMITIVE_MISMATCH, parser,
                                  provenance, expected, expected_eof);
             return;
         }
@@ -401,8 +403,9 @@ static void llk_trace_lookup_failure(const HStringMap *row, HInputStream stream,
     }
 }
 
-static void llk_trace_terminal_failure(const HCFChoice *symbol, size_t index, size_t end,
-                                       bool unexpected_eof, const HParser *root_parser) {
+static void llk_trace_terminal_failure(HTraceState *trace, const HCFChoice *symbol, size_t index,
+                                       size_t end, bool unexpected_eof,
+                                       const HParser *root_parser) {
     bool expected[256] = {false};
     bool expected_eof = false;
     if (symbol->type == HCF_END)
@@ -413,7 +416,7 @@ static void llk_trace_terminal_failure(const HCFChoice *symbol, size_t index, si
         for (size_t i = 0; i < 256; i++)
             expected[i] = charset_isset(symbol->data.charset, (uint8_t)i);
 
-    CF_TRACE_FAILURE(index, end,
+    CF_TRACE_FAILURE(trace, index, end,
                      unexpected_eof ? H_PARSE_ERROR_UNEXPECTED_EOF
                                     : H_PARSE_ERROR_PRIMITIVE_MISMATCH,
                      h_cfchoice_diagnostic_parser(symbol, root_parser), symbol->diagnostic_context,
@@ -539,6 +542,7 @@ static bool save_win(size_t kmax, HLLkState *s, HInputStream *stream) {
 // returns partial result or NULL (no parse)
 static HCountedArray *llk_parse_chunk_(HLLkState *s, const HParser *parser, HInputStream *chunk,
                                        bool trace_failures) {
+    HTraceState *trace = chunk->trace;
     HParsedToken *tok = NULL; // will hold result token
     HActionPlan *tok_plan = NULL;
     HCFChoice *x = NULL; // current symbol (from top of stack)
@@ -597,7 +601,7 @@ static HCountedArray *llk_parse_chunk_(HLLkState *s, const HParser *parser, HInp
             // x is a nonterminal; apply the appropriate production and continue
             const HParser *origin = x->parser ? x->parser : parser;
             if (trace_failures)
-                CF_TRACE_PARSER_ENTER(origin, symbol_start, "predict");
+                CF_TRACE_PARSER_ENTER(trace, origin, symbol_start, "predict");
 
             // look up applicable production in parse table
             const HStringMap *row = h_hashtable_get(table->rows, x);
@@ -606,7 +610,7 @@ static HCountedArray *llk_parse_chunk_(HLLkState *s, const HParser *parser, HInp
                 if (trace_failures)
                     llk_trace_lookup_failure(row, *stream, origin, x, x->diagnostic_context);
                 if (trace_failures)
-                    CF_TRACE_PARSER_EXIT(origin, symbol_start, symbol_start, NULL, false,
+                    CF_TRACE_PARSER_EXIT(trace, origin, symbol_start, symbol_start, NULL, false,
                                          "predict");
                 goto no_parse;
             }
@@ -617,7 +621,7 @@ static HCountedArray *llk_parse_chunk_(HLLkState *s, const HParser *parser, HInp
             // an infinite loop case that shouldn't happen
             if (p->items[0] == x) {
                 if (trace_failures)
-                    CF_TRACE_PARSER_EXIT(origin, symbol_start, symbol_start, NULL, false,
+                    CF_TRACE_PARSER_EXIT(trace, origin, symbol_start, symbol_start, NULL, false,
                                          "left recursion");
                 goto no_parse;
             }
@@ -679,7 +683,7 @@ static HCountedArray *llk_parse_chunk_(HLLkState *s, const HParser *parser, HInp
             tok->bit_offset = stream->bit_offset;
             const HParser *origin = x->parser ? x->parser : parser;
             if (trace_failures)
-                CF_TRACE_PARSER_ENTER(origin, tok->index, "terminal");
+                CF_TRACE_PARSER_ENTER(trace, origin, tok->index, "terminal");
 
             // consume the input token
             uint8_t input = h_read_bits(stream, 8, false);
@@ -694,9 +698,10 @@ static HCountedArray *llk_parse_chunk_(HLLkState *s, const HParser *parser, HInp
             case HCF_END:
                 if (!stream->overrun) {
                     if (trace_failures)
-                        llk_trace_terminal_failure(x, tok->index, tok->index + 1, false, parser);
+                        llk_trace_terminal_failure(trace, x, tok->index, tok->index + 1, false,
+                                                   parser);
                     if (trace_failures)
-                        CF_TRACE_PARSER_EXIT(origin, tok->index, tok->index + 1, NULL, false,
+                        CF_TRACE_PARSER_EXIT(trace, origin, tok->index, tok->index + 1, NULL, false,
                                              "terminal");
                     goto no_parse;
                 }
@@ -708,17 +713,18 @@ static HCountedArray *llk_parse_chunk_(HLLkState *s, const HParser *parser, HInp
             case HCF_CHAR:
                 if (stream->overrun) {
                     if (stream->last_chunk && trace_failures)
-                        llk_trace_terminal_failure(x, tok->index, tok->index, true, parser);
+                        llk_trace_terminal_failure(trace, x, tok->index, tok->index, true, parser);
                     if (stream->last_chunk && trace_failures)
-                        CF_TRACE_PARSER_EXIT(origin, tok->index, tok->index, NULL, false,
+                        CF_TRACE_PARSER_EXIT(trace, origin, tok->index, tok->index, NULL, false,
                                              "terminal");
                     goto need_input;
                 }
                 if (input != x->data.chr) {
                     if (trace_failures)
-                        llk_trace_terminal_failure(x, tok->index, tok->index + 1, false, parser);
+                        llk_trace_terminal_failure(trace, x, tok->index, tok->index + 1, false,
+                                                   parser);
                     if (trace_failures)
-                        CF_TRACE_PARSER_EXIT(origin, tok->index, tok->index + 1, NULL, false,
+                        CF_TRACE_PARSER_EXIT(trace, origin, tok->index, tok->index + 1, NULL, false,
                                              "terminal");
                     goto no_parse;
                 }
@@ -729,17 +735,18 @@ static HCountedArray *llk_parse_chunk_(HLLkState *s, const HParser *parser, HInp
             case HCF_CHARSET:
                 if (stream->overrun) {
                     if (stream->last_chunk && trace_failures)
-                        llk_trace_terminal_failure(x, tok->index, tok->index, true, parser);
+                        llk_trace_terminal_failure(trace, x, tok->index, tok->index, true, parser);
                     if (stream->last_chunk && trace_failures)
-                        CF_TRACE_PARSER_EXIT(origin, tok->index, tok->index, NULL, false,
+                        CF_TRACE_PARSER_EXIT(trace, origin, tok->index, tok->index, NULL, false,
                                              "terminal");
                     goto need_input;
                 }
                 if (!charset_isset(x->data.charset, input)) {
                     if (trace_failures)
-                        llk_trace_terminal_failure(x, tok->index, tok->index + 1, false, parser);
+                        llk_trace_terminal_failure(trace, x, tok->index, tok->index + 1, false,
+                                                   parser);
                     if (trace_failures)
-                        CF_TRACE_PARSER_EXIT(origin, tok->index, tok->index + 1, NULL, false,
+                        CF_TRACE_PARSER_EXIT(trace, origin, tok->index, tok->index + 1, NULL, false,
                                              "terminal");
                     goto no_parse;
                 }
@@ -750,7 +757,8 @@ static HCountedArray *llk_parse_chunk_(HLLkState *s, const HParser *parser, HInp
             default: // should not be reached
                 assert_message(0, "unknown HCFChoice type");
                 if (trace_failures)
-                    CF_TRACE_PARSER_EXIT(origin, tok->index, tok->index, NULL, false, "terminal");
+                    CF_TRACE_PARSER_EXIT(trace, origin, tok->index, tok->index, NULL, false,
+                                         "terminal");
                 goto no_parse;
             }
         }
@@ -775,14 +783,17 @@ static HCountedArray *llk_parse_chunk_(HLLkState *s, const HParser *parser, HInp
                 HParseErrorKind kind = H_PARSE_ERROR_SEMANTIC_PREDICATE;
                 if (h_is_nothing_parser(x->parser))
                     kind = H_PARSE_ERROR_EXPLICIT_FAILURE;
-                else if (h_is_float_range_parser(x->parser) || h_is_int_range_parser(x->parser))
+                else if (h_is_float_range_parser(x->parser) || h_is_int_range_parser(x->parser)) {
                     kind = H_PARSE_ERROR_RANGE;
-                CF_TRACE_FAILURE(symbol_start, stream->pos + stream->index, kind,
+                    h_float_range_trace_failure(trace, x->parser, tok);
+                    h_int_range_trace_failure(trace, x->parser, tok);
+                }
+                CF_TRACE_FAILURE(trace, symbol_start, stream->pos + stream->index, kind,
                                  x->parser ? x->parser : parser, x->diagnostic_context, NULL,
                                  false);
             }
             if (trace_failures)
-                CF_TRACE_PARSER_EXIT(x->parser ? x->parser : parser, symbol_start,
+                CF_TRACE_PARSER_EXIT(trace, x->parser ? x->parser : parser, symbol_start,
                                      stream->pos + stream->index, tok, false,
                                      completed_nonterminal ? "predicate" : "terminal predicate");
             goto no_parse; // validation failed -> no parse
@@ -793,7 +804,7 @@ static HCountedArray *llk_parse_chunk_(HLLkState *s, const HParser *parser, HInp
             tok = (HParsedToken *)x->action(make_result(arena, tok), x->user_data);
 
         if (trace_failures)
-            CF_TRACE_PARSER_EXIT(x->parser ? x->parser : parser, symbol_start,
+            CF_TRACE_PARSER_EXIT(trace, x->parser ? x->parser : parser, symbol_start,
                                  stream->pos + stream->index, tok, true,
                                  completed_nonterminal ? "reduce" : "terminal");
 
@@ -855,26 +866,26 @@ static HParseResult *llk_parse_finish_(HAllocator *mm__, HLLkState *s) {
 }
 
 HParseResult *h_llk_parse(HAllocator *mm__, const HParser *parser, HInputStream *stream) {
-    CF_TRACE_BEGIN(PB_LL, parser, stream->input, stream->length);
+    CF_TRACE_BEGIN(stream->trace, PB_LL, parser, stream->input, stream->length);
     HLLkState *s = llk_parse_start_(mm__, parser);
     if (!s) {
-        CF_TRACE_END(false);
+        CF_TRACE_END(stream->trace, false);
         return NULL;
     }
 
     assert(stream->last_chunk);
     if (!stream->last_chunk) {
         llk_parse_finish_(mm__, s);
-        CF_TRACE_END(false);
+        CF_TRACE_END(stream->trace, false);
         return NULL;
     }
-    s->seq = llk_parse_chunk_(s, parser, stream, TRACE_ENABLED());
+    s->seq = llk_parse_chunk_(s, parser, stream, TRACE_ENABLED(stream->trace));
 
     HParseResult *res = llk_parse_finish_(mm__, s);
     if (res)
         res->bit_length = stream->index * 8 + stream->bit_offset;
 
-    CF_TRACE_END(res != NULL);
+    CF_TRACE_END(stream->trace, res != NULL);
 
     return res;
 }

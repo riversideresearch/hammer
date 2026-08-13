@@ -42,7 +42,7 @@ static HLREngine *lrengine_merge(HLREngine *old, HLREngine *new) {
     ret->merged[0] = old;
     ret->merged[1] = new;
     if (old->trace_failures)
-        CF_TRACE_GLR_MERGE(old->trace_id, new->trace_id, old->state,
+        CF_TRACE_GLR_MERGE(old->input.trace, old->trace_id, new->trace_id, old->state,
                            old->input.pos + old->input.index);
 
     return ret;
@@ -130,7 +130,7 @@ HLREngine *fork_engine(const HLREngine *engine) {
     eng2->trace_failures = engine->trace_failures;
     eng2->root_parser = engine->root_parser;
     eng2->trace_id = engine->trace_failures
-                         ? CF_TRACE_GLR_FORK(engine->trace_id, engine->state,
+                         ? CF_TRACE_GLR_FORK(engine->input.trace, engine->trace_id, engine->state,
                                              engine->input.pos + engine->input.index)
                          : engine->trace_id;
     return eng2;
@@ -207,10 +207,10 @@ static bool glr_step(HLREngine **winner, HSlist *engines, HLREngine *engine,
 }
 
 HParseResult *h_glr_parse(HAllocator *mm__, const HParser *parser, HInputStream *stream) {
-    CF_TRACE_BEGIN(PB_GLR, parser, stream->input, stream->length);
+    CF_TRACE_BEGIN(stream->trace, PB_GLR, parser, stream->input, stream->length);
     HLRTable *table = parser->backend_data;
     if (!table) {
-        CF_TRACE_END(false);
+        CF_TRACE_END(stream->trace, false);
         return NULL;
     }
 
@@ -224,7 +224,7 @@ HParseResult *h_glr_parse(HAllocator *mm__, const HParser *parser, HInputStream 
     if (setjmp(except)) {
         h_delete_arena(arena);
         h_delete_arena(tarena);
-        CF_TRACE_END(false);
+        CF_TRACE_END(stream->trace, false);
         return NULL;
     }
 
@@ -235,7 +235,7 @@ HParseResult *h_glr_parse(HAllocator *mm__, const HParser *parser, HInputStream 
 
     // create initial engine
     HLREngine *initial = h_lrengine_new(arena, tarena, table, stream);
-    initial->trace_failures = TRACE_ENABLED();
+    initial->trace_failures = TRACE_ENABLED(stream->trace);
     initial->root_parser = parser;
     h_slist_push(engines, initial);
 
@@ -273,7 +273,7 @@ HParseResult *h_glr_parse(HAllocator *mm__, const HParser *parser, HInputStream 
     if (!result)
         h_delete_arena(arena);
     h_delete_arena(tarena);
-    CF_TRACE_END(result != NULL);
+    CF_TRACE_END(stream->trace, result != NULL);
     return result;
 }
 

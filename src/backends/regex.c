@@ -111,7 +111,7 @@ static void record_rvm_match_failure(HRVMMatchFailure *failure, size_t index, ui
 }
 
 HParseResult *run_trace(HAllocator *mm__, HRVMProg *orig_prog, HRVMTrace *trace,
-                        const uint8_t *input, int len);
+                        const uint8_t *input, int len, HTraceState *trace_state);
 
 HRVMTrace *invert_trace(HRVMTrace *trace) {
     HRVMTrace *last = NULL;
@@ -130,7 +130,8 @@ HRVMTrace *invert_trace(HRVMTrace *trace) {
     return last;
 }
 
-void *h_rvm_run__m(HAllocator *mm__, HRVMProg *prog, const uint8_t *input, size_t len) {
+static void *h_rvm_run__m(HAllocator *mm__, HRVMProg *prog, const uint8_t *input, size_t len,
+                           HTraceState *trace_state) {
     HArena *arena = h_new_arena(mm__, 0);
     HSArray *heads_a = h_sarray_new(mm__, prog->length), // Both of these contain HRVMTrace*'s
         *heads_b = h_sarray_new(mm__, prog->length);
@@ -266,14 +267,14 @@ finalize:
     if (ret_trace) {
         // Invert the direction of the trace linked list.
         ret_trace = invert_trace(ret_trace);
-        ret = run_trace(mm__, prog, ret_trace, input, len);
+        ret = run_trace(mm__, prog, ret_trace, input, len, trace_state);
         // NB: ret is in its own arena
         // Dump execution trace on successful parse if tracing is enabled
-        if (ret && h_trace_is_dump_enabled()) {
-            h_backend_trace_begin(PB_REGULAR, prog->root_parser, input, len);
-            dump_rvm_prog(prog);
-            dump_svm_prog(prog, ret_trace);
-            h_backend_trace_end(true);
+        if (ret && h_trace_is_dump_enabled(trace_state)) {
+            h_backend_trace_begin(trace_state, PB_REGULAR, prog->root_parser, input, len);
+            dump_rvm_prog(trace_state, prog);
+            dump_svm_prog(trace_state, prog, ret_trace);
+            h_backend_trace_end(trace_state, true);
         }
     } else if (match_failure.present) {
         for (size_t i = 0; i < match_failure.candidate_count; i++) {
@@ -284,7 +285,7 @@ finalize:
                 candidate->kind = match_failure.index < len ? H_PARSE_ERROR_PRIMITIVE_MISMATCH
                                                             : H_PARSE_ERROR_UNEXPECTED_EOF;
         }
-        rvm_match_error(prog, input, len, match_failure.candidates,
+        rvm_match_error(trace_state, prog, input, len, match_failure.candidates,
                         match_failure.candidate_count, match_failure.trace);
     }
 
@@ -335,7 +336,7 @@ bool svm_stack_ensure_cap(HAllocator *mm__, HSVMContext *ctx, size_t addl) {
 #pragma GCC diagnostic ignored "-Wclobbered"
 #endif
 HParseResult *run_trace(HAllocator *mm__, HRVMProg *orig_prog, HRVMTrace *trace,
-                        const uint8_t *input, int len) {
+                        const uint8_t *input, int len, HTraceState *trace_state) {
     // orig_prog is only used for the action table
     HSVMContext *ctx = NULL;
     HArena *arena = h_new_arena(mm__, 0);
@@ -346,6 +347,7 @@ HParseResult *run_trace(HAllocator *mm__, HRVMProg *orig_prog, HRVMTrace *trace,
     if (!ctx)
         goto fail;
     memset(ctx, 0, sizeof(*ctx));
+    ctx->trace_state = trace_state;
     ctx->stack_count = 0;
     ctx->stack_capacity = 16;
     ctx->stack = h_new(HParsedToken *, ctx->stack_capacity);
@@ -652,7 +654,7 @@ static int h_regex_compile(HAllocator *mm__, HParser *parser, const void *params
 static HParseResult *h_regex_parse(HAllocator *mm__, const HParser *parser,
                                    HInputStream *input_stream) {
     return h_rvm_run__m(mm__, (HRVMProg *)parser->backend_data, input_stream->input,
-                        input_stream->length);
+                        input_stream->length, input_stream->trace);
 }
 
 HParserBackendVTable h__regex_backend_vtable = {
