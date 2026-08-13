@@ -11,6 +11,7 @@ Import("env testruns binding_results binding_test_stamps")
 
 dist_headers = [
     "hammer.h",
+    "hammer_auto_source.h",
     "allocator.h",
     "compiler_specifics.h",
     "glue.h",

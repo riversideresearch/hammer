@@ -1308,3 +1308,18 @@ HParser *h_with_context(HParser *parser, const char *label, const HSourceLocatio
     wrapper->diagnostic_source = copy;
     return wrapper;
 }
+
+HParser *h_parser_auto_source_at(HParser *parser, const char *file, const char *function,
+                                 size_t line, size_t column) {
+    if (!parser || !parser->owner_mm__ || parser->diagnostic_source)
+        return parser;
+
+    HSourceLocation source = {file, function, line, column};
+
+    HSourceLocation *copy = h_parser_copy_source_location(parser->owner_mm__, &source);
+
+    if (copy)
+        parser->diagnostic_source = copy;
+
+    return parser;
+}

@@ -295,6 +295,7 @@ def uninstall_action(target, source, env):
         os.path.join(env["incpath"], h)
         for h in [
             "hammer.h",
+            "hammer_auto_source.h",
             "allocator.h",
             "compiler_specifics.h",
             "glue.h",
