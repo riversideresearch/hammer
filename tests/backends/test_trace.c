@@ -200,6 +200,29 @@ static void test_trace_formatter_with_input(void) {
     h_parse_diagnostic_free(diagnostic);
 }
 
+static void test_trace_flag_prints_condensed_report(void) {
+    if (g_test_subprocess()) {
+        HParser *parser = h_sequence(h_ch('A'), h_ch('B'), h_ch('C'), NULL);
+        const uint8_t input[] = {'A', 'B', 'X'};
+        g_assert_cmpint(h_compile(parser, PB_PACKRAT, NULL), ==, 0);
+
+        HParseDiagnostic *diagnostic = NULL;
+        HParseResult *result =
+            h_parse_debug_ex(parser, input, sizeof(input), &diagnostic, true);
+        g_assert_null(result);
+        g_assert_nonnull(diagnostic);
+        size_t trace_length = 0;
+        g_assert_nonnull(h_parse_diagnostic_execution_trace(diagnostic, &trace_length));
+        g_assert_cmpuint(trace_length, >, 0);
+        h_parse_diagnostic_free(diagnostic);
+        return;
+    }
+
+    g_test_trap_subprocess(NULL, 0, G_TEST_SUBPROCESS_DEFAULT);
+    g_test_trap_assert_passed();
+    g_test_trap_assert_stderr("*error: unexpected byte 'X'*input trail:*input context (3 bytes)*");
+}
+
 static void test_trace_cf_range_failure(gconstpointer backend) {
     HParserBackend be = (HParserBackend)GPOINTER_TO_INT(backend);
     HParser *p = h_int_range(h_ch('A'), 'B', 'Z');
@@ -414,7 +437,16 @@ static void test_trace_choice_success_discards_failures_packrat(void) {
     HParseResult *result =
         h_parse_debug_ex(parser, input, sizeof(input), &diagnostic, false);
     g_check_cmp_ptr(result, !=, NULL);
-    g_check_cmp_ptr(diagnostic, ==, NULL);
+    g_check_cmp_ptr(diagnostic, !=, NULL);
+    if (diagnostic) {
+        const HParseError *error = h_parse_diagnostic_error(diagnostic);
+        g_check_cmp_int(error->kind, ==, H_PARSE_ERROR_NONE);
+        g_check_cmp_size(diagnostic->choice_node_count, ==, 0);
+        size_t trace_length = 0;
+        g_check_cmp_ptr(h_parse_diagnostic_execution_trace(diagnostic, &trace_length), !=, NULL);
+        g_check_cmp_size(trace_length, >, 0);
+        h_parse_diagnostic_free(diagnostic);
+    }
     h_parse_result_free(result);
 }
 
@@ -523,21 +555,28 @@ static void test_trace_glr_ambiguous_failure(void) {
 
 static void test_trace_cf_verbose_dump(gconstpointer backend) {
     HParserBackend be = (HParserBackend)GPOINTER_TO_INT(backend);
-    if (g_test_subprocess()) {
-        HParser *p = h_sequence(h_ch('a'), h_ch('b'), NULL);
-        g_assert_cmpint(h_compile(p, be, NULL), ==, 0);
-        HParseResult *res = h_parse_debug(p, (const uint8_t *)"ab", 2, NULL, true);
-        g_assert_nonnull(res);
-        h_parse_result_free(res);
-        return;
+    HParser *p = h_sequence(h_ch('a'), h_ch('b'), NULL);
+    g_assert_cmpint(h_compile(p, be, NULL), ==, 0);
+    HParseDiagnostic *diagnostic = NULL;
+    HParseResult *res =
+        h_parse_debug_ex(p, (const uint8_t *)"ab", 2, &diagnostic, false);
+    g_assert_nonnull(res);
+    g_assert_nonnull(diagnostic);
+    size_t trace_length = 0;
+    const char *execution_trace =
+        h_parse_diagnostic_execution_trace(diagnostic, &trace_length);
+    g_assert_nonnull(execution_trace);
+    g_assert_cmpuint(trace_length, >, 0);
+    if (be == PB_LL) {
+        g_assert_nonnull(strstr(execution_trace, "predict"));
+        g_assert_nonnull(strstr(execution_trace, "terminal"));
+        g_assert_nonnull(strstr(execution_trace, "reduce"));
+    } else {
+        g_assert_nonnull(strstr(execution_trace, "SHIFT"));
+        g_assert_nonnull(strstr(execution_trace, "REDUCE"));
     }
-
-    g_test_trap_subprocess(NULL, 0, G_TEST_SUBPROCESS_DEFAULT);
-    g_test_trap_assert_passed();
-    if (be == PB_LL)
-        g_test_trap_assert_stderr("*predict*terminal*reduce*");
-    else
-        g_test_trap_assert_stderr("*SHIFT*REDUCE*");
+    h_parse_diagnostic_free(diagnostic);
+    h_parse_result_free(res);
 }
 
 static void test_trace_structured_expectations(gconstpointer backend) {
@@ -1399,6 +1438,8 @@ void register_trace_tests(void) {
     g_test_add_func("/core/parser/trace_concurrent_parse_isolation",
                     test_trace_concurrent_parse_isolation);
     g_test_add_func("/core/parser/trace_formatter_with_input", test_trace_formatter_with_input);
+    g_test_add_func("/core/parser/trace_flag_prints_condensed_report",
+                    test_trace_flag_prints_condensed_report);
 
 #define ADD_EMPTY_INPUT_TEST(name, backend)                                                   \
     g_test_add_data_func("/core/parser/" name "/trace_empty_input_eof",                     \

@@ -545,7 +545,8 @@ HParseResult *h_parse_debug__m(HAllocator *mm__, const HParser *parser, const ui
 /**
  * @brief Extensible form of h_parse_debug() with structured expectations.
  *
- * On failure, @p diagnostic receives an owned diagnostic object. The legacy
+ * On completion, @p diagnostic receives an owned diagnostic object, including
+ * the execution trace for successful and failed parses. On failure, the legacy
  * failure fields are available through h_parse_diagnostic_error(), while
  * expected byte ranges and end-of-input are exposed by the expectation
  * accessors. The complete backend execution trace is also retained regardless

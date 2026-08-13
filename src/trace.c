@@ -152,6 +152,9 @@ bool h_trace_is_enabled(const HTraceState *trace) { return trace != NULL; }
 bool h_trace_is_dump_enabled(const HTraceState *trace) {
     return trace && trace->execution_stream;
 }
+bool h_trace_should_print_summary(const HTraceState *trace) {
+    return trace && trace->print_summary;
+}
 
 static void trace_snapshot_execution(HTraceState *trace) {
     if (!trace || !trace->execution_stream)
@@ -183,23 +186,24 @@ static void trace_complete(HTraceState *trace, const HTraceContext *context) {
     memset(completed, 0, sizeof(*completed));
     completed->execution_trace = execution_trace;
     completed->execution_trace_length = execution_trace_length;
-    if (!context)
-        return;
-    completed->error = context->error;
-    memcpy(completed->expected_bytes, context->expected_bytes, sizeof(completed->expected_bytes));
-    completed->expected_eof = context->expected_eof;
-    completed->numeric_range = context->numeric_range;
-    completed->dispatch_failure = context->dispatch_failure;
-    memcpy(completed->choice_nodes, context->choice_nodes,
-           context->choice_node_count * sizeof(context->choice_nodes[0]));
-    completed->choice_node_count = context->choice_node_count;
-    memcpy(completed->choice_alternatives, context->choice_alternatives,
-           context->choice_alternative_count * sizeof(context->choice_alternatives[0]));
-    completed->choice_alternative_count = context->choice_alternative_count;
-    completed->choice_root = context->choice_root;
-    completed->input_frame_count = context->input_frame_count;
-    memcpy(completed->input_frames, context->input_frames,
-           context->input_frame_count * sizeof(context->input_frames[0]));
+    if (context) {
+        completed->error = context->error;
+        memcpy(completed->expected_bytes, context->expected_bytes,
+               sizeof(completed->expected_bytes));
+        completed->expected_eof = context->expected_eof;
+        completed->numeric_range = context->numeric_range;
+        completed->dispatch_failure = context->dispatch_failure;
+        memcpy(completed->choice_nodes, context->choice_nodes,
+               context->choice_node_count * sizeof(context->choice_nodes[0]));
+        completed->choice_node_count = context->choice_node_count;
+        memcpy(completed->choice_alternatives, context->choice_alternatives,
+               context->choice_alternative_count * sizeof(context->choice_alternatives[0]));
+        completed->choice_alternative_count = context->choice_alternative_count;
+        completed->choice_root = context->choice_root;
+        completed->input_frame_count = context->input_frame_count;
+        memcpy(completed->input_frames, context->input_frames,
+               context->input_frame_count * sizeof(context->input_frames[0]));
+    }
     trace_snapshot_execution(trace);
 }
 

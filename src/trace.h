@@ -142,6 +142,7 @@ HTraceState *h_trace_state_new(bool print_summary);
 void h_trace_state_free(HTraceState *trace);
 bool h_trace_is_enabled(const HTraceState *trace);
 bool h_trace_is_dump_enabled(const HTraceState *trace);
+bool h_trace_should_print_summary(const HTraceState *trace);
 void h_trace_get_error(const HTraceState *trace, HParseError *out);
 void h_trace_get_diagnostic(const HTraceState *trace, HParseDiagnostic **out);
 void h_trace_begin(HTraceState *trace, const uint8_t *input, size_t input_len);
@@ -271,6 +272,7 @@ void svm_failure_error(HSVMContext *ctx, HRVMProg *orig_prog, HRVMTrace *trace,
 #define h_trace_fprint_input_trail(stream, frames, frame_count) ((void)0)
 #define h_trace_fprint_input_context(stream, input, length, start, end) ((void)0)
 #define h_trace_is_dump_enabled(trace) false
+#define h_trace_should_print_summary(trace) false
 #define h_backend_trace_begin(trace, backend, parser, input, len) ((void)0)
 #define h_backend_trace_failures(trace, candidates, count)                                        \
     ((void)(trace), (void)(candidates), (void)(count))

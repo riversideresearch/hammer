@@ -582,8 +582,9 @@ HParseResult *h_parse__m(HAllocator *mm__, const HParser *parser, const uint8_t 
 }
 
 // Twin of h_parse() that attaches an independent diagnostic collector to this
-// one parse. A requested execution trace is still written to stderr, but the
-// normalized error is returned to the caller and is never printed implicitly.
+// one parse. The complete execution trace is captured by the extensible
+// diagnostic API. The runtime option controls only whether a concise failure
+// report is also written to stderr.
 //
 // If `error` is non-NULL it also receives the furthest-failure record in
 // structured form (see HParseError), so callers can react to failures without
@@ -601,7 +602,7 @@ HParseResult *h_parse_debug__m(HAllocator *mm__, const HParser *parser, const ui
     HParseResult *res = h_parse_with_trace(mm__, parser, input, length, trace);
     if (!res) {
         TRACE_GET_ERROR(trace, error);
-        if (dumpExecutionTrace) {
+        if (h_trace_should_print_summary(trace)) {
             HParseDiagnostic *diagnostic = NULL;
             TRACE_GET_DIAGNOSTIC(trace, &diagnostic);
             if (diagnostic) {
@@ -620,17 +621,15 @@ HParseResult *h_parse_debug_ex(const HParser *parser, const uint8_t *input, size
         *diagnostic = NULL;
     HTraceState *trace = h_trace_state_new(dumpExecutionTrace);
     HParseResult *res = h_parse_with_trace(&system_allocator, parser, input, length, trace);
-    if (!res) {
-        HParseDiagnostic *collected = NULL;
-        if (diagnostic || dumpExecutionTrace)
-            TRACE_GET_DIAGNOSTIC(trace, &collected);
-        if (diagnostic)
-            *diagnostic = collected;
-        if (dumpExecutionTrace && collected)
-            h_parse_diagnostic_fprint_with_input(stderr, collected, input, length);
-        if (!diagnostic)
-            h_parse_diagnostic_free(collected);
-    }
+    HParseDiagnostic *collected = NULL;
+    if (diagnostic || (!res && h_trace_should_print_summary(trace)))
+        TRACE_GET_DIAGNOSTIC(trace, &collected);
+    if (diagnostic)
+        *diagnostic = collected;
+    if (!res && h_trace_should_print_summary(trace) && collected)
+        h_parse_diagnostic_fprint_with_input(stderr, collected, input, length);
+    if (!diagnostic)
+        h_parse_diagnostic_free(collected);
     h_trace_state_free(trace);
     return res;
 }
