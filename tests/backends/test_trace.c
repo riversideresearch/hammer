@@ -1169,6 +1169,115 @@ static void test_trace_nested_input_trail(gconstpointer backend) {
     h_parse_diagnostic_free(diagnostic);
 }
 
+static size_t trace_find_frame_after(const HParseDiagnostic *diagnostic, const HParser *parser,
+                                     size_t start, size_t after) {
+    for (size_t i = after; i < diagnostic->input_frame_count; i++)
+        if (diagnostic->input_frames[i].parser == parser &&
+            diagnostic->input_frames[i].start == start)
+            return i;
+    return SIZE_MAX;
+}
+
+/* An unannotated grammar still exposes the causal parser nesting. */
+static void test_trace_automatic_input_trail(gconstpointer backend) {
+    HParserBackend be = (HParserBackend)GPOINTER_TO_INT(backend);
+    HParser *a = h_ch('A');
+    HParser *b = h_ch('B');
+    HParser *c = h_ch('C');
+    HParser *d = h_ch('D');
+    HParser *head = h_sequence(a, b, NULL);
+    HParser *tail = h_sequence(c, d, NULL);
+    HParser *parser = h_sequence(head, tail, NULL);
+    uint8_t input[] = {'A', 'B', 'C', 'X'};
+
+    g_check_cmp_int(h_compile(parser, be, NULL), ==, 0);
+    HParseDiagnostic *diagnostic = NULL;
+    HParseResult *result =
+        h_parse_debug_ex(parser, input, sizeof(input), &diagnostic, false, false);
+    g_check_cmp_ptr(result, ==, NULL);
+    g_check_cmp_ptr(diagnostic, !=, NULL);
+    if (!diagnostic)
+        return;
+
+    size_t root_frame = trace_find_frame_after(diagnostic, parser, 0, 0);
+    size_t tail_frame = root_frame == SIZE_MAX
+                            ? SIZE_MAX
+                            : trace_find_frame_after(diagnostic, tail, 2, root_frame + 1);
+    size_t leaf_frame = tail_frame == SIZE_MAX
+                            ? SIZE_MAX
+                            : trace_find_frame_after(diagnostic, d, 3, tail_frame + 1);
+    g_check_cmp_size(root_frame, !=, SIZE_MAX);
+    g_check_cmp_size(tail_frame, !=, SIZE_MAX);
+    g_check_cmp_size(leaf_frame, !=, SIZE_MAX);
+    h_parse_diagnostic_free(diagnostic);
+}
+
+/* Reusing a parser must select the occurrence on the failing path, not its
+ * first appearance in the grammar or input. */
+static void test_trace_automatic_reused_input_trail(gconstpointer backend) {
+    HParserBackend be = (HParserBackend)GPOINTER_TO_INT(backend);
+    HParser *c = h_ch('C');
+    HParser *d = h_ch('D');
+    HParser *shared = h_sequence(c, d, NULL);
+    HParser *parser = h_sequence(shared, shared, NULL);
+    uint8_t input[] = {'C', 'D', 'C', 'X'};
+
+    g_check_cmp_int(h_compile(parser, be, NULL), ==, 0);
+    HParseDiagnostic *diagnostic = NULL;
+    HParseResult *result =
+        h_parse_debug_ex(parser, input, sizeof(input), &diagnostic, false, false);
+    g_check_cmp_ptr(result, ==, NULL);
+    g_check_cmp_ptr(diagnostic, !=, NULL);
+    if (!diagnostic)
+        return;
+
+    size_t root_frame = trace_find_frame_after(diagnostic, parser, 0, 0);
+    size_t shared_frame = root_frame == SIZE_MAX
+                              ? SIZE_MAX
+                              : trace_find_frame_after(diagnostic, shared, 2, root_frame + 1);
+    size_t leaf_frame = shared_frame == SIZE_MAX
+                            ? SIZE_MAX
+                            : trace_find_frame_after(diagnostic, d, 3, shared_frame + 1);
+    g_check_cmp_size(root_frame, !=, SIZE_MAX);
+    g_check_cmp_size(shared_frame, !=, SIZE_MAX);
+    g_check_cmp_size(leaf_frame, !=, SIZE_MAX);
+    h_parse_diagnostic_free(diagnostic);
+}
+
+/* A context wrapper replaces only its direct child occurrence; unwrapped
+ * ancestors and descendants remain in the automatic trail. */
+static void test_trace_mixed_context_input_trail(gconstpointer backend) {
+    HParserBackend be = (HParserBackend)GPOINTER_TO_INT(backend);
+    HParser *a = h_ch('A');
+    HParser *b = h_ch('B');
+    HParser *c = h_ch('C');
+    HParser *tail_child = h_sequence(b, c, NULL);
+    HParser *tail = H_CONTEXT(tail_child, "wrapped_tail");
+    HParser *parser = h_sequence(a, tail, NULL);
+    uint8_t input[] = {'A', 'B', 'X'};
+
+    g_check_cmp_int(h_compile(parser, be, NULL), ==, 0);
+    HParseDiagnostic *diagnostic = NULL;
+    HParseResult *result =
+        h_parse_debug_ex(parser, input, sizeof(input), &diagnostic, false, false);
+    g_check_cmp_ptr(result, ==, NULL);
+    g_check_cmp_ptr(diagnostic, !=, NULL);
+    if (!diagnostic)
+        return;
+
+    size_t root_frame = trace_find_frame_after(diagnostic, parser, 0, 0);
+    size_t wrapper_frame = root_frame == SIZE_MAX
+                               ? SIZE_MAX
+                               : trace_find_frame_after(diagnostic, tail, 1, root_frame + 1);
+    size_t leaf_frame = wrapper_frame == SIZE_MAX
+                            ? SIZE_MAX
+                            : trace_find_frame_after(diagnostic, c, 2, wrapper_frame + 1);
+    g_check_cmp_size(root_frame, !=, SIZE_MAX);
+    g_check_cmp_size(wrapper_frame, !=, SIZE_MAX);
+    g_check_cmp_size(leaf_frame, !=, SIZE_MAX);
+    h_parse_diagnostic_free(diagnostic);
+}
+
 void register_trace_tests(void) {
     g_test_add_func("/core/parser/trace_with_context_owns_metadata",
                     test_with_context_owns_metadata);
@@ -1402,6 +1511,20 @@ void register_trace_tests(void) {
                          test_trace_nested_input_trail);
     g_test_add_data_func("/core/parser/glr/trace_nested_input_trail", GINT_TO_POINTER(PB_GLR),
                          test_trace_nested_input_trail);
+
+#define ADD_AUTOMATIC_TRAIL_TESTS(name, backend)                                               \
+    g_test_add_data_func("/core/parser/" name "/trace_automatic_input_trail",                 \
+                         GINT_TO_POINTER(backend), test_trace_automatic_input_trail);            \
+    g_test_add_data_func("/core/parser/" name "/trace_automatic_reused_input_trail",          \
+                         GINT_TO_POINTER(backend), test_trace_automatic_reused_input_trail);     \
+    g_test_add_data_func("/core/parser/" name "/trace_mixed_context_input_trail",             \
+                         GINT_TO_POINTER(backend), test_trace_mixed_context_input_trail)
+    ADD_AUTOMATIC_TRAIL_TESTS("regex", PB_REGULAR);
+    ADD_AUTOMATIC_TRAIL_TESTS("packrat", PB_PACKRAT);
+    ADD_AUTOMATIC_TRAIL_TESTS("ll", PB_LL);
+    ADD_AUTOMATIC_TRAIL_TESTS("lalr", PB_LALR);
+    ADD_AUTOMATIC_TRAIL_TESTS("glr", PB_GLR);
+#undef ADD_AUTOMATIC_TRAIL_TESTS
 
     g_test_add_data_func("/core/parser/regex/trace_custom_failure", GINT_TO_POINTER(PB_REGULAR),
                          test_trace_custom_failure);

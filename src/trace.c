@@ -130,6 +130,8 @@ typedef struct HTraceContext_ {
     HTraceFrame input_frames[H_PARSE_DIAGNOSTIC_MAX_INPUT_FRAMES];
     size_t input_frame_count;
     HTraceFrame observed_frames[H_PARSE_DIAGNOSTIC_MAX_INPUT_FRAMES];
+    const HDiagnosticContext *observed_occurrences[H_PARSE_DIAGNOSTIC_MAX_INPUT_FRAMES];
+    bool observed_entered[H_PARSE_DIAGNOSTIC_MAX_INPUT_FRAMES];
     size_t observed_frame_count;
     const HDiagnosticContext *observed_provenance;
     size_t observed_index;
@@ -151,6 +153,8 @@ typedef struct HTraceContext_ {
     size_t choice_root;
     HTraceChoiceScope choice_scopes[H_TRACE_MAX_CHOICE_DEPTH];
     size_t choice_depth;
+    const HTraceCandidateFrame *pending_input_frames;
+    size_t pending_input_frame_count;
     size_t next_choice_scope;
     size_t next_branch_id;
     struct HTraceContext_ *parent;
@@ -705,6 +709,8 @@ void h_trace_enter(const HParser *parser, HParseState *state) {
         fputc('\n', stderr);
         free(parser_name);
     }
+    if (trace_context && !trace_context->root_parser)
+        trace_context->root_parser = parser;
     if (trace_context && trace_context->frame_count < H_TRACE_MAX_FRAMES) {
         HTraceFrame *frame = &trace_context->frames[trace_context->frame_count];
         frame->parser = parser;
@@ -1016,43 +1022,65 @@ static size_t trace_provenance_depth(const HDiagnosticContext *provenance) {
     return depth;
 }
 
-static bool trace_provenance_is_prefix(const HDiagnosticContext *prefix,
-                                       const HDiagnosticContext *path) {
-    for (; prefix; prefix = prefix->next, path = path ? path->next : NULL) {
-        if (!path || prefix->parser != path->parser)
-            return false;
+static bool trace_provenance_has_parent(const HDiagnosticContext *path,
+                                        const HDiagnosticContext *parent) {
+    size_t path_depth = trace_provenance_depth(path);
+    size_t parent_depth = trace_provenance_depth(parent);
+    while (path && path_depth > parent_depth) {
+        path = path->next;
+        path_depth--;
     }
-    return true;
+    return path == parent;
 }
 
-/* Remember when each annotated occurrence on a compiled provenance path was
- * first observed.  Regex supplies PUSH positions and LR supplies terminal
- * shifts; both are runtime positions, so outer wrappers retain their true
- * entry offset instead of inheriting the final failure offset. */
+static bool trace_observed_occurrence_equal(const HTraceContext *context, size_t index,
+                                            const HDiagnosticContext *item) {
+    if (context->observed_occurrences[index] == item)
+        return true;
+    return h_is_context_parser(item->parser) &&
+           context->observed_frames[index].parser == item->parser;
+}
+
+/* Remember entry positions for compiled parser occurrences. Ancestors keep
+ * their first observation while the parser producing the current PUSH/shift
+ * is refreshed, so repeated occurrences use their latest runtime entry. */
 static void trace_observe_provenance(HTraceContext *context, const HDiagnosticContext *provenance,
-                                     size_t index) {
+                                     const HParser *event_parser, size_t index) {
     if (!context || !provenance)
         return;
 
     size_t depth = trace_provenance_depth(provenance);
+    const HDiagnosticContext *event = NULL;
+    for (const HDiagnosticContext *item = provenance; item; item = item->next)
+        if (!event && item->parser == event_parser)
+            event = item;
+
     for (const HDiagnosticContext *item = provenance; item; item = item->next) {
         const HParser *parser = item->parser;
         if (!parser)
             continue;
         HTraceFrame *frame = NULL;
+        size_t slot = 0;
         for (size_t i = 0; i < context->observed_frame_count; i++) {
-            if (context->observed_frames[i].parser == parser) {
+            if (trace_observed_occurrence_equal(context, i, item)) {
                 frame = &context->observed_frames[i];
+                slot = i;
                 break;
             }
         }
         if (!frame && context->observed_frame_count < H_PARSE_DIAGNOSTIC_MAX_INPUT_FRAMES) {
-            frame = &context->observed_frames[context->observed_frame_count++];
+            slot = context->observed_frame_count++;
+            frame = &context->observed_frames[slot];
             memset(frame, 0, sizeof(*frame));
+            context->observed_occurrences[slot] = item;
             frame->parser = parser;
             frame->name = parser->vtable ? trace_vt_name(parser->vtable) : "?(no parser)";
             frame->start = index;
-        } else if (frame && index < frame->start) {
+        }
+        if (frame && item == event && !context->observed_entered[slot]) {
+            frame->start = index;
+            context->observed_entered[slot] = true;
+        } else if (frame && !context->observed_entered[slot] && index < frame->start) {
             frame->start = index;
         }
     }
@@ -1072,18 +1100,32 @@ static void trace_snapshot_provenance(HTraceContext *context, const HDiagnosticC
 
     const HDiagnosticContext *path = provenance;
     if (context->observed_provenance &&
-        (!path || trace_provenance_is_prefix(path, context->observed_provenance)))
+        (!path || trace_provenance_has_parent(context->observed_provenance, path)))
         path = context->observed_provenance;
     if (!path)
         return;
 
     context->input_frame_count = 0;
-    const HParser *previous = NULL;
+    size_t depth = trace_provenance_depth(path);
+    size_t skip = depth > H_PARSE_DIAGNOSTIC_MAX_INPUT_FRAMES
+                      ? depth - H_PARSE_DIAGNOSTIC_MAX_INPUT_FRAMES
+                      : 0;
+    while (path && skip-- > 0)
+        path = path->next;
+    const HDiagnosticContext *ordered[H_PARSE_DIAGNOSTIC_MAX_INPUT_FRAMES];
+    size_t ordered_count = 0;
     for (const HDiagnosticContext *item = path;
-         item && context->input_frame_count < H_PARSE_DIAGNOSTIC_MAX_INPUT_FRAMES;
-         item = item->next) {
+         item && ordered_count < H_PARSE_DIAGNOSTIC_MAX_INPUT_FRAMES; item = item->next)
+        ordered[ordered_count++] = item;
+
+    const HParser *previous = NULL;
+    while (ordered_count > 0 &&
+           context->input_frame_count < H_PARSE_DIAGNOSTIC_MAX_INPUT_FRAMES) {
+        const HDiagnosticContext *item = ordered[--ordered_count];
         const HParser *parser = item->parser;
         if (!parser || parser == previous)
+            continue;
+        if (h_is_context_parser(previous) && h_context_parser_child(previous) == parser)
             continue;
         previous = parser;
 
@@ -1093,7 +1135,7 @@ static void trace_snapshot_provenance(HTraceContext *context, const HDiagnosticC
         dst->name = parser->vtable ? trace_vt_name(parser->vtable) : "?(no parser)";
         dst->start = fallback_start;
         for (size_t i = 0; i < context->observed_frame_count; i++) {
-            if (context->observed_frames[i].parser == parser) {
+            if (trace_observed_occurrence_equal(context, i, item)) {
                 dst->start = context->observed_frames[i].start;
                 dst->start_bit = context->observed_frames[i].start_bit;
                 break;
@@ -1107,7 +1149,8 @@ static void trace_snapshot_provenance(HTraceContext *context, const HDiagnosticC
 static void trace_observe_svm_trace(HTraceContext *context, const HRVMTrace *trace) {
     for (const HRVMTrace *item = trace; item; item = item->next) {
         if (item->opcode == SVM_PUSH)
-            trace_observe_provenance(context, item->diagnostic_context, item->input_pos);
+            trace_observe_provenance(context, item->diagnostic_context, item->parser,
+                                     item->input_pos);
     }
 }
 
@@ -1121,16 +1164,14 @@ static void trace_snapshot_input_frames(HTraceContext *context, size_t reached,
         const HTraceFrame *src = &context->frames[i];
         const HParser *parser = src->parser;
 
-        /*
-         * Keep explicitly annotated parser. Optionally keep the
-         * innermost semantic parser even if it has no annotation.
-         */
-        if (!parser || (!parser->diagnostic_source && !parser->diagnostic_label &&
-                        !h_is_context_parser(parser)))
+        if (!parser)
             continue;
 
         if (context->input_frame_count > 0) {
             const HTraceFrame *previous = &context->input_frames[context->input_frame_count - 1];
+            if (h_is_context_parser(previous->parser) &&
+                h_context_parser_child(previous->parser) == parser)
+                continue;
             if (previous->parser == parser && previous->start == src->start &&
                 previous->start_bit == src->start_bit)
                 continue;
@@ -1145,9 +1186,19 @@ static void trace_snapshot_input_frames(HTraceContext *context, size_t reached,
 
 static void trace_snapshot_failure_occurrence(HTraceContext *context, const HParser *parser,
                                               size_t start, size_t reached) {
-    if (!context || context->input_frame_count != 0 || !parser ||
-        (!parser->diagnostic_source && !parser->diagnostic_label))
+    if (!context || !parser ||
+        context->input_frame_count >= H_PARSE_DIAGNOSTIC_MAX_INPUT_FRAMES)
         return;
+
+    for (size_t i = 0; i < context->input_frame_count; i++) {
+        const HTraceFrame *existing = &context->input_frames[i];
+        if (existing->parser == parser &&
+            (existing->start == start || h_is_context_parser(parser)))
+            return;
+        if (existing->start == start && h_is_context_parser(existing->parser) &&
+            h_context_parser_child(existing->parser) == parser)
+            return;
+    }
 
     HTraceFrame *frame = &context->input_frames[context->input_frame_count++];
     memset(frame, 0, sizeof(*frame));
@@ -1155,6 +1206,31 @@ static void trace_snapshot_failure_occurrence(HTraceContext *context, const HPar
     frame->name = parser->vtable ? trace_vt_name(parser->vtable) : "?(no parser)";
     frame->start = start;
     frame->reached = reached;
+}
+
+static void trace_snapshot_candidate_frames(HTraceContext *context,
+                                            const HTraceCandidateFrame frames[], size_t count,
+                                            size_t reached) {
+    context->input_frame_count = 0;
+    for (size_t i = 0; i < count &&
+                       context->input_frame_count < H_PARSE_DIAGNOSTIC_MAX_INPUT_FRAMES;
+         i++) {
+        const HParser *parser = frames[i].parser;
+        if (!parser)
+            continue;
+        if (context->input_frame_count > 0) {
+            const HTraceFrame *previous = &context->input_frames[context->input_frame_count - 1];
+            if (h_is_context_parser(previous->parser) &&
+                h_context_parser_child(previous->parser) == parser)
+                continue;
+        }
+        HTraceFrame *dst = &context->input_frames[context->input_frame_count++];
+        memset(dst, 0, sizeof(*dst));
+        dst->parser = parser;
+        dst->name = parser->vtable ? trace_vt_name(parser->vtable) : "?(no parser)";
+        dst->start = frames[i].start;
+        dst->reached = reached;
+    }
 }
 
 static void trace_record_failure(const HParser *parser, HParseState *state,
@@ -1262,6 +1338,7 @@ static void trace_record_failure(const HParser *parser, HParseState *state,
         context->expected_eof = expected_eof;
 
         trace_snapshot_input_frames(context, end, state->input_stream.bit_offset);
+        trace_snapshot_failure_occurrence(context, parser, frame->start, end);
     } else if (progress == previous_progress && kind == error->kind &&
                !!failure_message == !!error->message) {
         trace_error_add_parser(error, failure_name);
@@ -1767,10 +1844,12 @@ void h_backend_trace_failure(size_t start, size_t end, HParseErrorKind kind, con
 
         if (context->frame_count > 0)
             trace_snapshot_input_frames(context, end, 0);
-        else
+        else if (context->pending_input_frame_count > 0)
+            trace_snapshot_candidate_frames(context, context->pending_input_frames,
+                                            context->pending_input_frame_count, end);
+        else if (provenance)
             trace_snapshot_provenance(context, provenance, start, end, 0);
-        if (context->input_frame_count == 0)
-            trace_snapshot_failure_occurrence(context, origin, start, end);
+        trace_snapshot_failure_occurrence(context, origin, start, end);
     } else if (progress == previous_progress && kind == error->kind &&
                !!failure_message == !!error->message) {
         trace_error_add_parser(error, failure_name);
@@ -1790,6 +1869,19 @@ static const HTraceCandidateChoice *trace_candidate_choice_at(
     return candidate && depth < candidate->choice_depth ? &candidate->choices[depth] : NULL;
 }
 
+static void trace_report_failure_candidate(const HTraceFailureCandidate *candidate) {
+    HTraceContext *context = trace_context;
+    if (!candidate || !context)
+        return;
+    context->pending_input_frames = candidate->input_frames;
+    context->pending_input_frame_count = candidate->input_frame_count;
+    h_backend_trace_failure(candidate->start, candidate->end, candidate->kind, candidate->parser,
+                            candidate->provenance, candidate->expected_bytes,
+                            candidate->expected_eof);
+    context->pending_input_frames = NULL;
+    context->pending_input_frame_count = 0;
+}
+
 static void trace_report_choice_candidates(const HTraceFailureCandidate *candidates,
                                            const size_t *indices, size_t count, size_t depth) {
     if (count == 0)
@@ -1801,9 +1893,7 @@ static void trace_report_choice_candidates(const HTraceFailureCandidate *candida
     if (!root) {
         for (size_t i = 0; i < count; i++) {
             const HTraceFailureCandidate *candidate = &candidates[indices[i]];
-            h_backend_trace_failure(candidate->start, candidate->end, candidate->kind,
-                                    candidate->parser, candidate->provenance,
-                                    candidate->expected_bytes, candidate->expected_eof);
+            trace_report_failure_candidate(candidate);
         }
         return;
     }
@@ -1821,9 +1911,7 @@ static void trace_report_choice_candidates(const HTraceFailureCandidate *candida
     if (scope == H_TRACE_CHOICE_NONE) {
         for (size_t i = 0; i < scoped_count; i++) {
             const HTraceFailureCandidate *candidate = &candidates[scoped[i]];
-            h_backend_trace_failure(candidate->start, candidate->end, candidate->kind,
-                                    candidate->parser, candidate->provenance,
-                                    candidate->expected_bytes, candidate->expected_eof);
+            trace_report_failure_candidate(candidate);
         }
         return;
     }
@@ -1877,13 +1965,6 @@ void h_backend_trace_failures(const HTraceFailureCandidate *candidates, size_t c
     trace_report_choice_candidates(candidates, indices, count, 0);
 }
 
-bool h_trace_candidates_have_choice(const HTraceFailureCandidate *candidates, size_t count) {
-    for (size_t i = 0; i < count; i++)
-        if (candidates[i].choice_depth > 0)
-            return true;
-    return false;
-}
-
 static bool trace_candidate_path_equal(const HTraceFailureCandidate *candidate,
                                        const HTraceCandidateChoice path[], size_t depth) {
     if (candidate->choice_depth != depth)
@@ -1895,10 +1976,22 @@ static bool trace_candidate_path_equal(const HTraceFailureCandidate *candidate,
     return true;
 }
 
+static bool trace_candidate_frames_equal(const HTraceFailureCandidate *candidate,
+                                         const HTraceCandidateFrame frames[], size_t count) {
+    if (candidate->input_frame_count != count)
+        return false;
+    for (size_t i = 0; i < count; i++)
+        if (candidate->input_frames[i].parser != frames[i].parser ||
+            candidate->input_frames[i].start != frames[i].start)
+            return false;
+    return true;
+}
+
 typedef struct HTraceCFContinuation_ {
     HCFChoice **items;
     const struct HTraceCFContinuation_ *next;
     size_t choice_depth;
+    size_t parser_depth;
     const HParser *origin;
 } HTraceCFContinuation;
 
@@ -1919,17 +2012,20 @@ typedef struct HTraceCFWalk_ {
 static void trace_walk_cf_items(HTraceCFWalk *walk, HCFChoice **items, size_t position,
                                 const HTraceCFContinuation *continuation, size_t grammar_depth,
                                 HTraceCandidateChoice path[], size_t choice_depth,
+                                HTraceCandidateFrame parser_path[], size_t parser_depth,
                                 const HParser *origin);
 
 static void trace_add_cf_candidate(HTraceCFWalk *walk, const HCFChoice *symbol,
-                                   HTraceCandidateChoice path[], size_t choice_depth) {
+                                   HTraceCandidateChoice path[], size_t choice_depth,
+                                   HTraceCandidateFrame parser_path[], size_t parser_depth) {
     const HDiagnosticContext *provenance = symbol->diagnostic_context;
     const HParser *parser = h_cfchoice_diagnostic_parser(symbol, walk->fallback);
     HTraceFailureCandidate *candidate = NULL;
     for (size_t i = 0; i < walk->count; i++) {
         if (walk->candidates[i].provenance == provenance &&
             walk->candidates[i].parser == parser &&
-            trace_candidate_path_equal(&walk->candidates[i], path, choice_depth)) {
+            trace_candidate_path_equal(&walk->candidates[i], path, choice_depth) &&
+            trace_candidate_frames_equal(&walk->candidates[i], parser_path, parser_depth)) {
             candidate = &walk->candidates[i];
             break;
         }
@@ -1947,6 +2043,8 @@ static void trace_add_cf_candidate(HTraceCFWalk *walk, const HCFChoice *symbol,
         candidate->provenance = provenance;
         memcpy(candidate->choices, path, choice_depth * sizeof(path[0]));
         candidate->choice_depth = choice_depth;
+        memcpy(candidate->input_frames, parser_path, parser_depth * sizeof(parser_path[0]));
+        candidate->input_frame_count = parser_depth;
     }
     if (symbol->type == HCF_END)
         candidate->expected_eof = true;
@@ -1959,22 +2057,31 @@ static void trace_add_cf_candidate(HTraceCFWalk *walk, const HCFChoice *symbol,
 
 static void trace_walk_cf_continuation(HTraceCFWalk *walk, size_t position,
                                        const HTraceCFContinuation *continuation,
-                                       size_t grammar_depth, HTraceCandidateChoice path[]) {
+                                       size_t grammar_depth, HTraceCandidateChoice path[],
+                                       HTraceCandidateFrame parser_path[]) {
     if (!continuation)
         return;
     trace_walk_cf_items(walk, continuation->items, position, continuation->next, grammar_depth + 1,
-                        path, continuation->choice_depth, continuation->origin);
+                        path, continuation->choice_depth, parser_path, continuation->parser_depth,
+                        continuation->origin);
 }
 
 static void trace_walk_cf_symbol(HTraceCFWalk *walk, const HCFChoice *symbol, size_t position,
                                  const HTraceCFContinuation *continuation, size_t grammar_depth,
                                  HTraceCandidateChoice path[], size_t choice_depth,
+                                 HTraceCandidateFrame parser_path[], size_t parser_depth,
                                  const HParser *origin) {
     if (!symbol || grammar_depth >= 64 || walk->count >= H_TRACE_MAX_FAILURE_CANDIDATES ||
         position > walk->target)
         return;
     if (symbol->parser && h_is_context_parser(symbol->parser))
         origin = symbol->parser;
+    if (symbol->parser && parser_depth < H_TRACE_MAX_CANDIDATE_FRAMES &&
+        (parser_depth == 0 || parser_path[parser_depth - 1].parser != symbol->parser)) {
+        parser_path[parser_depth].parser = symbol->parser;
+        parser_path[parser_depth].start = position;
+        parser_depth++;
+    }
     if (symbol->type == HCF_CHOICE) {
         bool is_choice = h_is_choice_parser(symbol->parser) &&
                          choice_depth < H_TRACE_MAX_CANDIDATE_CHOICE_DEPTH;
@@ -1990,14 +2097,15 @@ static void trace_walk_cf_symbol(HTraceCFWalk *walk, const HCFChoice *symbol, si
                 entry->id = (size_t)(uintptr_t)symbol;
             }
             trace_walk_cf_items(walk, (*sequence)->items, position, continuation,
-                                grammar_depth + 1, path, child_choice_depth, origin);
+                                grammar_depth + 1, path, child_choice_depth, parser_path,
+                                parser_depth, origin);
         }
         return;
     }
     if (symbol->type != HCF_CHAR && symbol->type != HCF_CHARSET && symbol->type != HCF_END)
         return;
     if (position == walk->target) {
-        trace_add_cf_candidate(walk, symbol, path, choice_depth);
+        trace_add_cf_candidate(walk, symbol, path, choice_depth, parser_path, parser_depth);
         return;
     }
     if (symbol->type == HCF_END || position < walk->input_pos ||
@@ -2007,33 +2115,35 @@ static void trace_walk_cf_symbol(HTraceCFWalk *walk, const HCFChoice *symbol, si
     bool matched = symbol->type == HCF_CHAR ? actual == symbol->data.chr
                                            : charset_isset(symbol->data.charset, actual);
     if (matched)
-        trace_walk_cf_continuation(walk, position + 1, continuation, grammar_depth, path);
+        trace_walk_cf_continuation(walk, position + 1, continuation, grammar_depth, path,
+                                   parser_path);
 }
 
 static void trace_walk_cf_items(HTraceCFWalk *walk, HCFChoice **items, size_t position,
                                 const HTraceCFContinuation *continuation, size_t grammar_depth,
                                 HTraceCandidateChoice path[], size_t choice_depth,
+                                HTraceCandidateFrame parser_path[], size_t parser_depth,
                                 const HParser *origin) {
     if (grammar_depth >= 64 || walk->count >= H_TRACE_MAX_FAILURE_CANDIDATES)
         return;
     if (!items || !*items) {
-        trace_walk_cf_continuation(walk, position, continuation, grammar_depth, path);
+        trace_walk_cf_continuation(walk, position, continuation, grammar_depth, path, parser_path);
         return;
     }
-    HTraceCFContinuation next = {items + 1, continuation, choice_depth, origin};
+    HTraceCFContinuation next = {items + 1, continuation, choice_depth, parser_depth, origin};
     trace_walk_cf_symbol(walk, *items, position, &next, grammar_depth + 1, path, choice_depth,
-                         origin);
+                         parser_path, parser_depth, origin);
 }
 
-size_t h_cf_trace_choice_candidates(const HCFChoice *root, const uint8_t *input,
-                                    size_t input_pos, size_t input_len, size_t start, size_t index,
-                                    HParseErrorKind kind, const HParser *fallback,
-                                    HTraceFailureCandidate candidates[]) {
+size_t h_cf_trace_candidates(const HCFChoice *root, const uint8_t *input, size_t input_pos,
+                             size_t input_len, size_t start, size_t index, HParseErrorKind kind,
+                             const HParser *fallback, HTraceFailureCandidate candidates[]) {
     if (!root || !input || !candidates || start < input_pos || index < start)
         return 0;
     HTraceCFWalk walk = {input, input_pos, input_len, index, kind, fallback, candidates, 0};
     HTraceCandidateChoice path[H_TRACE_MAX_CANDIDATE_CHOICE_DEPTH] = {{0}};
-    trace_walk_cf_symbol(&walk, root, start, NULL, 0, path, 0, NULL);
+    HTraceCandidateFrame parser_path[H_TRACE_MAX_CANDIDATE_FRAMES] = {{0}};
+    trace_walk_cf_symbol(&walk, root, start, NULL, 0, path, 0, parser_path, 0, NULL);
     return walk.count;
 }
 
@@ -2121,7 +2231,7 @@ void h_cf_trace_lr_shift(size_t branch, size_t from_state, size_t to_state, size
     if (!display_trace || !trace_context)
         return;
 
-    trace_observe_provenance(trace_context, provenance, index);
+    trace_observe_provenance(trace_context, provenance, parser, index);
     if (!dump_trace)
         return;
 

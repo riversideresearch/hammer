@@ -77,19 +77,29 @@ static void record_rvm_match_failure(HRVMMatchFailure *failure, size_t index, ui
                                            : H_PARSE_ERROR_PRIMITIVE_MISMATCH;
         candidate->parser = parser;
         candidate->provenance = diagnostic_context;
-        const HParser *origin = NULL;
+        HTraceCandidateChoice reverse_path[H_TRACE_MAX_CANDIDATE_CHOICE_DEPTH];
+        size_t reverse_depth = 0;
         for (const HDiagnosticContext *item = diagnostic_context; item; item = item->next) {
-            if (item->parser)
-                origin = item->parser;
-            if (item->choice &&
-                candidate->choice_depth < H_TRACE_MAX_CANDIDATE_CHOICE_DEPTH) {
-                HTraceCandidateChoice *path = &candidate->choices[candidate->choice_depth++];
+            if (item->choice && reverse_depth < H_TRACE_MAX_CANDIDATE_CHOICE_DEPTH) {
+                const HParser *origin = item->choice;
+                for (const HDiagnosticContext *parent = item->next; parent;
+                     parent = parent->next) {
+                    if (parent->choice)
+                        break;
+                    if (h_is_context_parser(parent->parser)) {
+                        origin = parent->parser;
+                        break;
+                    }
+                }
+                HTraceCandidateChoice *path = &reverse_path[reverse_depth++];
                 path->choice = item->choice;
-                path->origin = origin ? origin : item->choice;
+                path->origin = origin;
                 path->alternative = item->choice_alternative;
                 path->id = item->choice_id;
             }
         }
+        while (reverse_depth > 0)
+            candidate->choices[candidate->choice_depth++] = reverse_path[--reverse_depth];
     }
 
     if (expected_eof) {
@@ -571,10 +581,21 @@ bool h_svm_action_clear_to_mark(HArena *arena, HSVMContext *ctx, void *env) {
 bool h_compile_regex(HRVMProg *prog, const HParser *parser) {
     if (!parser->vtable->compile_to_rvm)
         return false;
-    const HParser *parent = prog->current_parser;
+
+    const HParser *parent_parser = prog->current_parser;
+    const HDiagnosticContext *parent_context = prog->current_context;
     prog->current_parser = parser;
+    HDiagnosticContext *path = h_rvm_alloc(prog, sizeof(*path));
+    path->parser = parser;
+    path->choice = NULL;
+    path->choice_alternative = 0;
+    path->choice_id = 0;
+    path->next = parent_context;
+
+    prog->current_context = path;
     bool result = parser->vtable->compile_to_rvm(prog, parser->env);
-    prog->current_parser = parent;
+    prog->current_context = parent_context;
+    prog->current_parser = parent_parser;
     return result;
 }
 

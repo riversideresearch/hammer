@@ -78,20 +78,12 @@ static bool choice_ctrvm(HRVMProg *prog, void *env) {
     for (size_t i = 0; i < s->len; ++i) {
         uint16_t insn = h_rvm_insert_insn(prog, RVM_FORK, 0);
         const HDiagnosticContext *parent_context = prog->current_context;
-        size_t depth = 0;
-        for (const HDiagnosticContext *item = parent_context; item; item = item->next)
-            depth++;
-        HDiagnosticContext *path = h_rvm_alloc(prog, (depth + 1) * sizeof(*path));
-        size_t j = 0;
-        for (const HDiagnosticContext *item = parent_context; item; item = item->next, j++) {
-            path[j] = *item;
-            path[j].next = &path[j + 1];
-        }
-        path[depth].parser = NULL;
-        path[depth].choice = choice;
-        path[depth].choice_alternative = i;
-        path[depth].choice_id = choice_id;
-        path[depth].next = NULL;
+        HDiagnosticContext *path = h_rvm_alloc(prog, sizeof(*path));
+        path->parser = NULL;
+        path->choice = choice;
+        path->choice_alternative = i;
+        path->choice_id = choice_id;
+        path->next = parent_context;
         prog->current_context = path;
         bool compiled = h_compile_regex(prog, s->p_array[i]);
         prog->current_context = parent_context;

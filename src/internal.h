@@ -501,8 +501,8 @@ typedef struct HCFSequence_ HCFSequence;
 typedef HParsedToken *(*HCFPlanAction)(const HParseResult *result, void *user_data,
                                        HActionPlan **plan);
 
-/* Grammar-occurrence provenance carried by compiled representations.  The
- * list is ordered from the outermost context wrapper to the innermost one. */
+/* Immutable grammar-occurrence provenance. Each node describes the current
+ * occurrence and points to its enclosing parent. */
 typedef struct HDiagnosticContext_ {
     const HParser *parser;
     const HParser *choice;
@@ -511,13 +511,24 @@ typedef struct HDiagnosticContext_ {
     const struct HDiagnosticContext_ *next;
 } HDiagnosticContext;
 
+bool h_is_context_parser(const HParser *parser);
+const HParser *h_context_parser_child(const HParser *parser);
+
 static inline const HParser *h_diagnostic_context_parser(const HDiagnosticContext *context,
                                                          const HParser *fallback) {
-    const HParser *parser = fallback;
-    for (; context; context = context->next)
-        if (context->parser)
-            parser = context->parser;
-    return parser;
+    const HParser *occurrence = fallback;
+    bool found = false;
+    for (; context; context = context->next) {
+        if (!context->parser)
+            continue;
+        if (!found) {
+            occurrence = context->parser;
+            found = true;
+        }
+        if (h_is_context_parser(context->parser))
+            return context->parser;
+    }
+    return occurrence;
 }
 
 struct HCFChoice_ {
@@ -533,7 +544,7 @@ struct HCFChoice_ {
     HCFPlanAction plan_action;
     HPredicate pred;
     HParser *parser; // if this is a parser, then this is the parser that produced it.
-    const HDiagnosticContext *diagnostic_context; // outer-to-inner occurrence provenance
+    const HDiagnosticContext *diagnostic_context; // current occurrence followed by its parents
     void *env;
     void *user_data;
     size_t dispatch_opcode;
@@ -756,8 +767,6 @@ bool h_is_get_value_parser(const HParser *parser); // either h_get_value or h_fr
 bool h_is_put_value_parser(const HParser *parser);
 bool h_is_int_range_parser(const HParser *parser);
 bool h_is_float_range_parser(const HParser *parser);
-bool h_is_context_parser(const HParser *parser);
-const HParser *h_context_parser_child(const HParser *parser);
 bool h_is_attr_bool_parser(const HParser *parser);
 
 #if 0

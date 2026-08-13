@@ -46,6 +46,12 @@ typedef struct HTraceDispatchFailure_ {
 
 #define H_TRACE_MAX_FAILURE_CANDIDATES 16
 #define H_TRACE_MAX_CANDIDATE_CHOICE_DEPTH 8
+#define H_TRACE_MAX_CANDIDATE_FRAMES 16
+
+typedef struct HTraceCandidateFrame_ {
+    const HParser *parser;
+    size_t start;
+} HTraceCandidateFrame;
 
 typedef struct HTraceCandidateChoice_ {
     const HParser *choice;
@@ -64,6 +70,8 @@ typedef struct HTraceFailureCandidate_ {
     bool expected_eof;
     HTraceCandidateChoice choices[H_TRACE_MAX_CANDIDATE_CHOICE_DEPTH];
     size_t choice_depth;
+    HTraceCandidateFrame input_frames[H_TRACE_MAX_CANDIDATE_FRAMES];
+    size_t input_frame_count;
 } HTraceFailureCandidate;
 
 #define H_TRACE_MAX_CHOICE_NODES 16
@@ -175,11 +183,9 @@ void h_backend_trace_failures(const HTraceFailureCandidate *candidates, size_t c
 void h_trace_fprint_choice(FILE *stream, const HTraceChoiceNode *nodes, size_t node_count,
                            const HTraceChoiceAlternative *alternatives,
                            size_t alternative_count, size_t root);
-bool h_trace_candidates_have_choice(const HTraceFailureCandidate *candidates, size_t count);
-size_t h_cf_trace_choice_candidates(const HCFChoice *root, const uint8_t *input,
-                                    size_t input_pos, size_t input_len, size_t start, size_t index,
-                                    HParseErrorKind kind, const HParser *fallback,
-                                    HTraceFailureCandidate candidates[]);
+size_t h_cf_trace_candidates(const HCFChoice *root, const uint8_t *input, size_t input_pos,
+                             size_t input_len, size_t start, size_t index, HParseErrorKind kind,
+                             const HParser *fallback, HTraceFailureCandidate candidates[]);
 void h_backend_trace_end(bool success);
 
 // regex trace functions

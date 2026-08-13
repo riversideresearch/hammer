@@ -1119,6 +1119,37 @@ typedef struct HContextCFClone_ {
     struct HContextCFClone_ *next;
 } HContextCFClone;
 
+static HDiagnosticContext *context_extend_cf_provenance(
+    HAllocator *mm__, const HDiagnosticContext *source, const HParser *context) {
+    HDiagnosticContext *head = NULL;
+    HDiagnosticContext *tail = NULL;
+    for (; source; source = source->next) {
+        HDiagnosticContext *node = h_new(HDiagnosticContext, 1);
+        if (!node)
+            return NULL;
+        *node = *source;
+        node->next = NULL;
+        if (tail)
+            tail->next = node;
+        else
+            head = node;
+        tail = node;
+    }
+    HDiagnosticContext *outer = h_new(HDiagnosticContext, 1);
+    if (!outer)
+        return NULL;
+    outer->parser = context;
+    outer->choice = NULL;
+    outer->choice_alternative = 0;
+    outer->choice_id = 0;
+    outer->next = NULL;
+    if (tail)
+        tail->next = outer;
+    else
+        head = outer;
+    return head;
+}
+
 static HParseResult *parse_context(void *env, HParseState *state) {
     return h_do_parse(((HContextEnv *)env)->child, state);
 }
@@ -1135,25 +1166,7 @@ static bool context_is_valid_cf(void *env) {
 
 static bool context_compile_to_rvm(HRVMProg *prog, void *env) {
     HContextEnv *context = env;
-    const HDiagnosticContext *parent_context = prog->current_context;
-    size_t depth = 0;
-    for (const HDiagnosticContext *item = parent_context; item; item = item->next)
-        depth++;
-    HDiagnosticContext *path = h_rvm_alloc(prog, (depth + 1) * sizeof(*path));
-    size_t i = 0;
-    for (const HDiagnosticContext *item = parent_context; item; item = item->next, i++) {
-        path[i] = *item;
-        path[i].next = &path[i + 1];
-    }
-    path[depth].parser = context->wrapper;
-    path[depth].choice = NULL;
-    path[depth].choice_alternative = 0;
-    path[depth].choice_id = 0;
-    path[depth].next = NULL;
-    prog->current_context = path;
-    bool result = h_compile_regex(prog, context->child);
-    prog->current_context = parent_context;
-    return result;
+    return h_compile_regex(prog, context->child);
 }
 
 static HCFChoice *context_clone_cf_choice(HAllocator *mm__, const HCFChoice *source,
@@ -1167,14 +1180,10 @@ static HCFChoice *context_clone_cf_choice(HAllocator *mm__, const HCFChoice *sou
     if (!clone || !entry)
         return NULL;
     *clone = *source;
-    HDiagnosticContext *provenance = h_new(HDiagnosticContext, 1);
+    HDiagnosticContext *provenance =
+        context_extend_cf_provenance(mm__, source->diagnostic_context, context);
     if (!provenance)
         return NULL;
-    provenance->parser = context;
-    provenance->choice = NULL;
-    provenance->choice_alternative = 0;
-    provenance->choice_id = 0;
-    provenance->next = source->diagnostic_context;
     clone->diagnostic_context = provenance;
     entry->source = source;
     entry->clone = clone;

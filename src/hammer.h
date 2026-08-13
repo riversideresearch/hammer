@@ -529,8 +529,9 @@ HParseResult *h_parse__m(HAllocator *mm__, const HParser *parser, const uint8_t 
  * @param input Input data
  * @param length Length of input data
  * @param error Out-parameter for structured failure info, or NULL
- * @param dumpExecutionTrace Whether to print the backend's full execution trace in
- * addition to the summary and failure diagnostic
+ * @param dumpExecutionTrace on true, print the backend's full execution trace
+ * on false, print just a shortened trail of the parsers
+ * @param dumpInputContext on true, print the input bytes (up to 256)
  * @return Parse result, or NULL on failure
  */
 HParseResult *h_parse_debug(const HParser *parser, const uint8_t *input, size_t length,

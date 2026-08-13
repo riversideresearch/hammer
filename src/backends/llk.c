@@ -355,16 +355,16 @@ static void llk_trace_lookup_failure(const HStringMap *row, HInputStream stream,
             if (symbol) {
                 HTraceFailureCandidate grammar_candidates[H_TRACE_MAX_FAILURE_CANDIDATES] = {{0}};
                 size_t grammar_count = 0;
-                grammar_count = h_cf_trace_choice_candidates(
+                grammar_count = h_cf_trace_candidates(
                     symbol, stream.input, stream.pos, stream.length, failure_start, index,
                     H_PARSE_ERROR_UNEXPECTED_EOF, parser, grammar_candidates);
-                if (h_trace_candidates_have_choice(grammar_candidates, grammar_count)) {
+                if (grammar_count > 0) {
                     memcpy(candidates, grammar_candidates,
                            grammar_count * sizeof(grammar_candidates[0]));
                     count = grammar_count;
                 }
             }
-            if (h_trace_candidates_have_choice(candidates, count))
+            if (count > 0)
                 h_backend_trace_failures(candidates, count);
             else
                 CF_TRACE_FAILURE(index, index, H_PARSE_ERROR_UNEXPECTED_EOF, parser, provenance,
@@ -381,16 +381,16 @@ static void llk_trace_lookup_failure(const HStringMap *row, HInputStream stream,
             if (symbol) {
                 HTraceFailureCandidate grammar_candidates[H_TRACE_MAX_FAILURE_CANDIDATES] = {{0}};
                 size_t grammar_count = 0;
-                grammar_count = h_cf_trace_choice_candidates(
+                grammar_count = h_cf_trace_candidates(
                     symbol, stream.input, stream.pos, stream.length, failure_start, index,
                     H_PARSE_ERROR_PRIMITIVE_MISMATCH, parser, grammar_candidates);
-                if (h_trace_candidates_have_choice(grammar_candidates, grammar_count)) {
+                if (grammar_count > 0) {
                     memcpy(candidates, grammar_candidates,
                            grammar_count * sizeof(grammar_candidates[0]));
                     count = grammar_count;
                 }
             }
-            if (h_trace_candidates_have_choice(candidates, count))
+            if (count > 0)
                 h_backend_trace_failures(candidates, count);
             else
                 CF_TRACE_FAILURE(index, index + 1, H_PARSE_ERROR_PRIMITIVE_MISMATCH, parser,
@@ -595,7 +595,7 @@ static HCountedArray *llk_parse_chunk_(HLLkState *s, const HParser *parser, HInp
 
         if (x != MARK && x->type == HCF_CHOICE) {
             // x is a nonterminal; apply the appropriate production and continue
-            const HParser *origin = h_cfchoice_diagnostic_parser(x, parser);
+            const HParser *origin = x->parser ? x->parser : parser;
             if (trace_failures)
                 CF_TRACE_PARSER_ENTER(origin, symbol_start, "predict");
 
@@ -677,7 +677,7 @@ static HCountedArray *llk_parse_chunk_(HLLkState *s, const HParser *parser, HInp
 
             tok->index = stream->pos + stream->index;
             tok->bit_offset = stream->bit_offset;
-            const HParser *origin = h_cfchoice_diagnostic_parser(x, parser);
+            const HParser *origin = x->parser ? x->parser : parser;
             if (trace_failures)
                 CF_TRACE_PARSER_ENTER(origin, tok->index, "terminal");
 
@@ -778,11 +778,11 @@ static HCountedArray *llk_parse_chunk_(HLLkState *s, const HParser *parser, HInp
                 else if (h_is_float_range_parser(x->parser) || h_is_int_range_parser(x->parser))
                     kind = H_PARSE_ERROR_RANGE;
                 CF_TRACE_FAILURE(symbol_start, stream->pos + stream->index, kind,
-                                 h_cfchoice_diagnostic_parser(x, parser), x->diagnostic_context,
-                                 NULL, false);
+                                 x->parser ? x->parser : parser, x->diagnostic_context, NULL,
+                                 false);
             }
             if (trace_failures)
-                CF_TRACE_PARSER_EXIT(h_cfchoice_diagnostic_parser(x, parser), symbol_start,
+                CF_TRACE_PARSER_EXIT(x->parser ? x->parser : parser, symbol_start,
                                      stream->pos + stream->index, tok, false,
                                      completed_nonterminal ? "predicate" : "terminal predicate");
             goto no_parse; // validation failed -> no parse
@@ -793,7 +793,7 @@ static HCountedArray *llk_parse_chunk_(HLLkState *s, const HParser *parser, HInp
             tok = (HParsedToken *)x->action(make_result(arena, tok), x->user_data);
 
         if (trace_failures)
-            CF_TRACE_PARSER_EXIT(h_cfchoice_diagnostic_parser(x, parser), symbol_start,
+            CF_TRACE_PARSER_EXIT(x->parser ? x->parser : parser, symbol_start,
                                  stream->pos + stream->index, tok, true,
                                  completed_nonterminal ? "reduce" : "terminal");
 
