@@ -84,7 +84,7 @@ typedef struct HSVMFailure_ {
     const char *parser;
 } HSVMFailure;
 
-typedef struct HSVMContext_ {
+struct HSVMContext_ {
     HParsedToken **stack;
     size_t stack_count; // number of items on the stack. Thus stack[stack_count] is the first unused
                         // item on the stack.
@@ -96,7 +96,7 @@ typedef struct HSVMContext_ {
     void *action_plan_frames;
     HSVMFailure failure;
     HTraceState *trace_state;
-} HSVMContext;
+};
 
 // These actions all assume that the items on the stack are not
 // aliased anywhere.
@@ -106,7 +106,7 @@ typedef struct HSVMAction_ {
     void *env;
 } HSVMAction;
 
-typedef struct HRVMTrace_ {
+struct HRVMTrace_ {
     struct HRVMTrace_ *next; // When parsing, these are
                              // reverse-threaded. There is a postproc
                              // step that inverts all the pointers.
@@ -115,7 +115,7 @@ typedef struct HRVMTrace_ {
     const HDiagnosticContext *diagnostic_context;
     uint16_t arg;
     uint8_t opcode;
-} HRVMTrace;
+};
 
 struct HRVMProg_ {
     HAllocator *allocator;

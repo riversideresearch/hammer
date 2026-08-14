@@ -2,9 +2,8 @@
 #ifndef HAMMER_BACKENDS_TRACE__H
 #define HAMMER_BACKENDS_TRACE__H
 
-typedef struct HTraceState_ HTraceState;
+struct HTraceState_;
 
-#include "backends/regex.h"
 #include "internal.h" /* HParser, HParseState, HParseResult */
 
 #include <stddef.h>
