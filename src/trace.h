@@ -84,6 +84,9 @@ typedef struct HTraceChoiceAlternative_ {
     HParseError error;
     bool expected_bytes[256];
     bool expected_eof;
+    bool input_too_short;
+    HTraceNumericRange numeric_range;
+    HTraceDispatchFailure dispatch_failure;
     size_t child_node;
     size_t next;
 } HTraceChoiceAlternative;
@@ -111,6 +114,7 @@ struct HParseDiagnostic_ {
     HParseError error;
     bool expected_bytes[256];
     bool expected_eof;
+    bool input_too_short;
     HTraceNumericRange numeric_range;
     HTraceDispatchFailure dispatch_failure;
     HTraceChoiceNode choice_nodes[H_TRACE_MAX_CHOICE_NODES];
@@ -126,6 +130,12 @@ struct HParseDiagnostic_ {
 
 typedef struct HRVMTrace_ HRVMTrace;
 typedef struct HSVMContext_ HSVMContext;
+
+/* Render the failure reason, position, and expectations shared by the main
+ * diagnostic and individual choice alternatives. Parser/source framing is
+ * deliberately left to the caller. */
+void h_trace_fprint_error_detail(FILE *stream, const HParseDiagnostic *diagnostic,
+                                 bool choice_failure);
 
 /* Compile-time master switch for diagnostic collection and execution tracing.
  * Runtime options and collected failures are owned by an HTraceState attached

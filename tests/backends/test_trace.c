@@ -326,10 +326,72 @@ static void test_trace_choice_trie(gconstpointer backend) {
         rendered[rendered_len] = '\0';
         g_check_cmp_ptr(strstr(rendered, "no alternative matched at index 0"), !=, NULL);
         g_check_cmp_ptr(strstr(rendered, "alternatives:"), !=, NULL);
-        g_check_cmp_ptr(strstr(rendered, "1. [left]"), !=, NULL);
-        g_check_cmp_ptr(strstr(rendered, "2. [right]"), !=, NULL);
+        g_check_cmp_ptr(strstr(rendered,
+                               "1. [left] unexpected byte 'X' (0x58 = 88) at index 0; "
+                               "expected 'A'"),
+                        !=, NULL);
+        g_check_cmp_ptr(strstr(rendered,
+                               "2. [right] unexpected byte 'X' (0x58 = 88) at index 0; "
+                               "expected 'B'"),
+                        !=, NULL);
         fclose(stream);
     }
+    h_parse_diagnostic_free(diagnostic);
+}
+
+static void test_trace_choice_leaf_range_detail_packrat(void) {
+    HParser *small = H_CONTEXT(h_int_range(h_uint8(), 10, 20), "small");
+    HParser *large = H_CONTEXT(h_int_range(h_uint8(), 30, 40), "large");
+    HParser *parser = H_CONTEXT(h_choice(small, large, NULL), "number");
+    const uint8_t input[] = {25};
+
+    HParseDiagnostic *diagnostic = NULL;
+    HParseResult *result =
+        h_parse_debug_ex(parser, input, sizeof(input), &diagnostic, false);
+    g_assert_null(result);
+    g_assert_nonnull(diagnostic);
+
+    FILE *stream = tmpfile();
+    g_assert_nonnull(stream);
+    char rendered[2048] = {0};
+    h_parse_diagnostic_fprint(stream, diagnostic);
+    rewind(stream);
+    size_t rendered_len = fread(rendered, 1, sizeof(rendered) - 1, stream);
+    rendered[rendered_len] = '\0';
+    g_assert_nonnull(strstr(rendered, "no alternative matched at index 0"));
+    g_assert_null(strstr(rendered, "at index 0 at index 0"));
+    g_assert_nonnull(strstr(rendered,
+                            "1. [small] unexpected int 25 at index 0; expected value between "
+                            "10 and 20"));
+    g_assert_nonnull(strstr(rendered,
+                            "2. [large] unexpected int 25 at index 0; expected value between "
+                            "30 and 40"));
+    fclose(stream);
+    h_parse_diagnostic_free(diagnostic);
+}
+
+static void test_trace_choice_leaf_short_input_packrat(void) {
+    HParser *wide = H_CONTEXT(h_bits(12, false), "wide");
+    HParser *wider = H_CONTEXT(h_bits(16, false), "wider");
+    HParser *parser = H_CONTEXT(h_choice(wide, wider, NULL), "bit-field");
+    const uint8_t input[] = {0xff};
+
+    HParseDiagnostic *diagnostic = NULL;
+    HParseResult *result =
+        h_parse_debug_ex(parser, input, sizeof(input), &diagnostic, false);
+    g_assert_null(result);
+    g_assert_nonnull(diagnostic);
+
+    FILE *stream = tmpfile();
+    g_assert_nonnull(stream);
+    char rendered[2048] = {0};
+    h_parse_diagnostic_fprint(stream, diagnostic);
+    rewind(stream);
+    size_t rendered_len = fread(rendered, 1, sizeof(rendered) - 1, stream);
+    rendered[rendered_len] = '\0';
+    g_assert_nonnull(strstr(rendered, "1. [wide] ran out of bits to parse at index 0"));
+    g_assert_nonnull(strstr(rendered, "2. [wider] ran out of bits to parse at index 0"));
+    fclose(stream);
     h_parse_diagnostic_free(diagnostic);
 }
 
@@ -377,6 +439,21 @@ static void test_trace_choice_trie_nested(gconstpointer backend) {
     g_check_cmp_size(first, <, diagnostic->choice_alternative_count);
     if (first < diagnostic->choice_alternative_count)
         g_check_cmp_size(diagnostic->choice_alternatives[first].child_node, ==, 0);
+
+    FILE *stream = tmpfile();
+    g_check_cmp_ptr(stream, !=, NULL);
+    if (stream) {
+        char rendered[2048] = {0};
+        h_parse_diagnostic_fprint(stream, diagnostic);
+        rewind(stream);
+        size_t rendered_len = fread(rendered, 1, sizeof(rendered) - 1, stream);
+        rendered[rendered_len] = '\0';
+        g_check_cmp_ptr(strstr(rendered, "1. [inner] no alternative matched at index 0"), !=,
+                        NULL);
+        g_check_cmp_ptr(strstr(rendered, "1. [A] unexpected byte 'X'"), !=, NULL);
+        g_check_cmp_ptr(strstr(rendered, "2. [B] unexpected byte 'X'"), !=, NULL);
+        fclose(stream);
+    }
     h_parse_diagnostic_free(diagnostic);
 }
 
@@ -1512,6 +1589,10 @@ void register_trace_tests(void) {
                     test_trace_relational_failure_starts);
     g_test_add_data_func("/core/parser/packrat/trace_choice_trie", GINT_TO_POINTER(PB_PACKRAT),
                          test_trace_choice_trie);
+    g_test_add_func("/core/parser/packrat/trace_choice_leaf_range_detail",
+                    test_trace_choice_leaf_range_detail_packrat);
+    g_test_add_func("/core/parser/packrat/trace_choice_leaf_short_input",
+                    test_trace_choice_leaf_short_input_packrat);
     g_test_add_func("/core/parser/packrat/trace_choice_trie_furthest",
                     test_trace_choice_trie_furthest_packrat);
     g_test_add_data_func("/core/parser/packrat/trace_choice_trie_nested",

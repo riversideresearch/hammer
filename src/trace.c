@@ -52,6 +52,7 @@ typedef struct HTraceDiagnosticState_ {
     const HParser *failure_parser;
     bool expected_bytes[256];
     bool expected_eof;
+    bool input_too_short;
     HTraceNumericRange numeric_range;
     HTraceDispatchFailure dispatch_failure;
     HTraceFrame input_frames[H_PARSE_DIAGNOSTIC_MAX_INPUT_FRAMES];
@@ -99,6 +100,7 @@ typedef struct HTraceContext_ {
     const HParser *failure_parser;
     bool expected_bytes[256];
     bool expected_eof;
+    bool input_too_short;
     HTraceNumericRange numeric_range;
     HTraceNumericRange pending_numeric_range;
     HTraceDispatchFailure dispatch_failure;
@@ -191,6 +193,7 @@ static void trace_complete(HTraceState *trace, const HTraceContext *context) {
         memcpy(completed->expected_bytes, context->expected_bytes,
                sizeof(completed->expected_bytes));
         completed->expected_eof = context->expected_eof;
+        completed->input_too_short = context->input_too_short;
         completed->numeric_range = context->numeric_range;
         completed->dispatch_failure = context->dispatch_failure;
         memcpy(completed->choice_nodes, context->choice_nodes,
@@ -260,6 +263,7 @@ void h_trace_get_diagnostic(const HTraceState *trace, HParseDiagnostic **out) {
     memcpy((*out)->expected_bytes, trace->completed.expected_bytes,
            sizeof((*out)->expected_bytes));
     (*out)->expected_eof = trace->completed.expected_eof;
+    (*out)->input_too_short = trace->completed.input_too_short;
     (*out)->numeric_range = trace->completed.numeric_range;
     (*out)->dispatch_failure = trace->completed.dispatch_failure;
     (*out)->choice_node_count = trace->completed.choice_node_count;
@@ -691,6 +695,7 @@ static void trace_state_save(const HTraceContext *context, HTraceDiagnosticState
     state->failure_parser = context->failure_parser;
     memcpy(state->expected_bytes, context->expected_bytes, sizeof(state->expected_bytes));
     state->expected_eof = context->expected_eof;
+    state->input_too_short = context->input_too_short;
     state->numeric_range = context->numeric_range;
     state->dispatch_failure = context->dispatch_failure;
     state->input_frame_count = context->input_frame_count;
@@ -704,6 +709,7 @@ static void trace_state_restore(HTraceContext *context, const HTraceDiagnosticSt
     context->failure_parser = state->failure_parser;
     memcpy(context->expected_bytes, state->expected_bytes, sizeof(context->expected_bytes));
     context->expected_eof = state->expected_eof;
+    context->input_too_short = state->input_too_short;
     context->numeric_range = state->numeric_range;
     context->dispatch_failure = state->dispatch_failure;
     context->input_frame_count = state->input_frame_count;
@@ -717,6 +723,7 @@ static void trace_state_clear(HTraceContext *context) {
     context->failure_parser = NULL;
     memset(context->expected_bytes, 0, sizeof(context->expected_bytes));
     context->expected_eof = false;
+    context->input_too_short = false;
     memset(&context->numeric_range, 0, sizeof(context->numeric_range));
     memset(&context->dispatch_failure, 0, sizeof(context->dispatch_failure));
     memset(&context->pending_numeric_range, 0, sizeof(context->pending_numeric_range));
@@ -835,6 +842,9 @@ void h_trace_choice_arm_end(HTraceState *trace, size_t id, bool success) {
             memcpy(record->expected_bytes, candidate.expected_bytes,
                    sizeof(record->expected_bytes));
             record->expected_eof = candidate.expected_eof;
+            record->input_too_short = candidate.input_too_short;
+            record->numeric_range = candidate.numeric_range;
+            record->dispatch_failure = candidate.dispatch_failure;
             record->child_node = candidate.choice_root;
             record->next = H_TRACE_CHOICE_NONE;
             if (scope->last_alternative != H_TRACE_CHOICE_NONE)
@@ -1165,6 +1175,8 @@ static void trace_record_failure(const HParser *parser, HParseState *state,
     memset(&context->pending_dispatch_failure, 0, sizeof(context->pending_dispatch_failure));
     if (dispatch_failure.present)
         kind = H_PARSE_ERROR_DISPATCH;
+    bool input_too_short = state->input_stream.overrun && parser && parser->vtable &&
+                           !parser->vtable->higher;
     bool value_failure = kind == H_PARSE_ERROR_SEMANTIC_PREDICATE || kind == H_PARSE_ERROR_RANGE ||
                          kind == H_PARSE_ERROR_XOR || kind == H_PARSE_ERROR_DIFFERENCE ||
                          kind == H_PARSE_ERROR_BUTNOT || kind == H_PARSE_ERROR_NO_VALUE ||
@@ -1224,6 +1236,7 @@ static void trace_record_failure(const HParser *parser, HParseState *state,
         context->expected_eof = false;
         memset(&context->numeric_range, 0, sizeof(context->numeric_range));
         memset(&context->dispatch_failure, 0, sizeof(context->dispatch_failure));
+        context->input_too_short = input_too_short;
         if (kind == H_PARSE_ERROR_RANGE)
             context->numeric_range = numeric_range;
         if (kind == H_PARSE_ERROR_DISPATCH)
@@ -1261,6 +1274,7 @@ static void trace_record_failure(const HParser *parser, HParseState *state,
         for (size_t i = 0; i < 256; i++)
             context->expected_bytes[i] |= expected[i];
         context->expected_eof |= expected_eof;
+        context->input_too_short |= input_too_short;
     }
 }
 
@@ -1408,41 +1422,6 @@ static void trace_fprint_byte(FILE *stream, uint8_t c) {
         fprintf(stream, "0x%02x", c);
 }
 
-static void trace_fprint_expectations(FILE *stream, const bool expected[256], bool expected_eof) {
-    bool first = true;
-
-    fputs("; expected ", stream);
-    for (unsigned int lo = 0; lo < 256;) {
-        if (!expected[lo]) {
-            lo++;
-            continue;
-        }
-
-        unsigned int hi = lo;
-        while (hi + 1 < 256 && expected[hi + 1])
-            hi++;
-
-        if (!first)
-            fputs(", ", stream);
-        trace_fprint_byte(stream, (uint8_t)lo);
-        if (hi != lo) {
-            fputc('-', stream);
-            trace_fprint_byte(stream, (uint8_t)hi);
-        }
-        first = false;
-        lo = hi + 1;
-    }
-
-    if (expected_eof) {
-        if (!first)
-            fputs(", ", stream);
-        fputs("end of input", stream);
-        first = false;
-    }
-    if (first)
-        fputs("a valid input byte", stream);
-}
-
 static void trace_fprint_choice_indent(FILE *stream, size_t depth) {
     for (size_t i = 0; i < depth; i++)
         fputs("  ", stream);
@@ -1459,25 +1438,17 @@ static void trace_fprint_choice_leaf(FILE *stream, const HTraceChoiceAlternative
         else
             fprintf(stream, "[%s] ", error->parser);
     }
-    if (error->message) {
-        fputs(error->message, stream);
-    } else if (error->kind == H_PARSE_ERROR_SEMANTIC_PREDICATE) {
-        fputs("semantic predicate failed", stream);
-    } else if (error->kind == H_PARSE_ERROR_RANGE) {
-        fputs("value outside accepted range", stream);
-    } else if (error->kind == H_PARSE_ERROR_EXPLICIT_FAILURE) {
-        fputs("parser always fails", stream);
-    } else if (!error->has_actual) {
-        fputs("unexpected end of input", stream);
-    } else {
-        fputs("unexpected byte ", stream);
-        trace_fprint_byte(stream, error->actual);
-    }
-    fprintf(stream, " at index %zu", error->index);
-    if (!error->message &&
-        (alternative->expected_eof ||
-         memchr(alternative->expected_bytes, true, sizeof(alternative->expected_bytes))))
-        trace_fprint_expectations(stream, alternative->expected_bytes, alternative->expected_eof);
+    HParseDiagnostic diagnostic = {0};
+    diagnostic.error = *error;
+    memcpy(diagnostic.expected_bytes, alternative->expected_bytes,
+           sizeof(diagnostic.expected_bytes));
+    diagnostic.expected_eof = alternative->expected_eof;
+    diagnostic.input_too_short = alternative->input_too_short;
+    diagnostic.numeric_range = alternative->numeric_range;
+    diagnostic.dispatch_failure = alternative->dispatch_failure;
+    diagnostic.choice_root = H_TRACE_CHOICE_NONE;
+    h_trace_fprint_error_detail(stream, &diagnostic,
+                                alternative->child_node != H_TRACE_CHOICE_NONE);
     if (error->source) {
         fputs(" [", stream);
         fputs(error->source->file_name ? error->source->file_name : "<unknown source>", stream);
@@ -1696,6 +1667,8 @@ void h_backend_trace_failure(HTraceState *trace, size_t start, size_t end, HPars
         (h_is_float_range_parser(semantic_parser) || h_is_int_range_parser(semantic_parser))) {
         kind = H_PARSE_ERROR_RANGE;
     }
+    bool input_too_short = kind == H_PARSE_ERROR_UNEXPECTED_EOF && semantic_parser &&
+                           semantic_parser->vtable && !semantic_parser->vtable->higher;
 
     HParseError *error = &context->error;
     HTraceNumericRange numeric_range = context->pending_numeric_range;
@@ -1711,6 +1684,7 @@ void h_backend_trace_failure(HTraceState *trace, size_t start, size_t end, HPars
         memset(error, 0, sizeof(*error));
         memset(context->expected_bytes, 0, sizeof(context->expected_bytes));
         context->expected_eof = false;
+        context->input_too_short = input_too_short;
         memset(&context->numeric_range, 0, sizeof(context->numeric_range));
         if (kind == H_PARSE_ERROR_RANGE)
             context->numeric_range = numeric_range;
@@ -1744,6 +1718,7 @@ void h_backend_trace_failure(HTraceState *trace, size_t start, size_t end, HPars
     } else if (progress == previous_progress && kind == error->kind &&
                !!failure_message == !!error->message) {
         trace_error_add_parser(error, failure_name);
+        context->input_too_short |= input_too_short;
     } else {
         return;
     }

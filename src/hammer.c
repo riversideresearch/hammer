@@ -734,31 +734,20 @@ static void diagnostic_print_byte(FILE *stream, uint8_t byte) {
         fprintf(stream, "0x%02x", byte);
 }
 
-void h_parse_diagnostic_fprint(FILE *stream, const HParseDiagnostic *diagnostic) {
+void h_trace_fprint_error_detail(FILE *stream, const HParseDiagnostic *diagnostic,
+                                 bool choice_failure) {
     if (!stream || !diagnostic)
         return;
     const HParseError *error = &diagnostic->error;
     size_t last_index = error->end_index > error->index ? error->end_index - 1 : error->end_index;
-    fputs("error: ", stream);
-    if (error->source) {
-        if (error->source->file_name)
-            fprintf(stream, "%s", error->source->file_name);
-        else
-            fputs("<unknown source>", stream);
-        if (error->source->line)
-            fprintf(stream, ":%zu", error->source->line);
-        if (error->source->column)
-            fprintf(stream, ":%zu", error->source->column);
-        if (error->source->function_name)
-            fprintf(stream, " in %s", error->source->function_name);
-        fputs(": ", stream);
-    }
-    bool choice_failure = diagnostic->choice_root != H_TRACE_CHOICE_NONE &&
-                          diagnostic->choice_root < diagnostic->choice_node_count;
+    bool summarize_choice = choice_failure && !error->message;
+
     if (error->message)
         fprintf(stream, "%s", error->message);
-    else if (choice_failure)
+    else if (summarize_choice)
         fprintf(stream, "no alternative matched at index %zu", error->index);
+    else if (diagnostic->input_too_short)
+        fprintf(stream, "ran out of bits to parse at index %zu", error->index);
     else if (error->kind == H_PARSE_ERROR_RANGE &&
              diagnostic->numeric_range.kind == H_TRACE_NUMERIC_RANGE_SINT)
         fprintf(stream, "unexpected int %" PRId64, diagnostic->numeric_range.actual.sint);
@@ -803,7 +792,7 @@ void h_parse_diagnostic_fprint(FILE *stream, const HParseDiagnostic *diagnostic)
     if (error->bit_offset)
         fprintf(stream, ".%ub", error->bit_offset);
 
-    if (!error->message &&
+    if (!error->message && !summarize_choice &&
         (error->kind == H_PARSE_ERROR_RANGE || error->kind == H_PARSE_ERROR_SEMANTIC_PREDICATE ||
          error->kind == H_PARSE_ERROR_ACTION || error->kind == H_PARSE_ERROR_XOR ||
          error->kind == H_PARSE_ERROR_DIFFERENCE || error->kind == H_PARSE_ERROR_BUTNOT ||
@@ -814,7 +803,7 @@ void h_parse_diagnostic_fprint(FILE *stream, const HParseDiagnostic *diagnostic)
             fprintf(stream, " at index %zu", error->index);
     }
 
-    if (!error->message && error->kind == H_PARSE_ERROR_RANGE) {
+    if (!error->message && !summarize_choice && error->kind == H_PARSE_ERROR_RANGE) {
         if (diagnostic->numeric_range.kind == H_TRACE_NUMERIC_RANGE_SINT ||
             diagnostic->numeric_range.kind == H_TRACE_NUMERIC_RANGE_UINT)
             fprintf(stream, "; expected value between %" PRId64 " and %" PRId64,
@@ -826,7 +815,7 @@ void h_parse_diagnostic_fprint(FILE *stream, const HParseDiagnostic *diagnostic)
                     diagnostic->numeric_range.expected.floating.upper);
     }
 
-    if (!error->message && error->kind == H_PARSE_ERROR_DISPATCH &&
+    if (!error->message && !summarize_choice && error->kind == H_PARSE_ERROR_DISPATCH &&
         diagnostic->dispatch_failure.expected_count > 0) {
         fputs("; expected opcode ", stream);
         for (size_t i = 0; i < diagnostic->dispatch_failure.expected_count; i++) {
@@ -858,6 +847,30 @@ void h_parse_diagnostic_fprint(FILE *stream, const HParseDiagnostic *diagnostic)
             }
         }
     }
+}
+
+void h_parse_diagnostic_fprint(FILE *stream, const HParseDiagnostic *diagnostic) {
+    if (!stream || !diagnostic)
+        return;
+    const HParseError *error = &diagnostic->error;
+    fprintf(stream, "=== h_parse_error ===\n");
+    fputs("error: ", stream);
+    if (error->source) {
+        if (error->source->file_name)
+            fprintf(stream, "%s", error->source->file_name);
+        else
+            fputs("<unknown source>", stream);
+        if (error->source->line)
+            fprintf(stream, ":%zu", error->source->line);
+        if (error->source->column)
+            fprintf(stream, ":%zu", error->source->column);
+        if (error->source->function_name)
+            fprintf(stream, " in %s", error->source->function_name);
+        fputs(": ", stream);
+    }
+    bool choice_failure = diagnostic->choice_root != H_TRACE_CHOICE_NONE &&
+                          diagnostic->choice_root < diagnostic->choice_node_count;
+    h_trace_fprint_error_detail(stream, diagnostic, choice_failure);
     if (error->n_deepest > 0) {
         fputs(" while running [", stream);
         for (size_t i = 0; i < error->n_deepest; i++) {
