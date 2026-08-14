@@ -112,7 +112,7 @@ javatestexec = javatestenv.Command(
         "LD_LIBRARY_PATH=" + hammer_lib_dir + ":" + javadir +
         " " + sys.executable + " " + reporter +
         " --binding Java --results-file " + results_file +
-        " -- java"
+        " -- java --enable-native-access=ALL-UNNAMED"
         " -Djava.library.path=" + javadir +
         " -cp " + java_classes_dir + ":" + os.path.join(javadir, "hammer.jar") +
         " HammerTests",
