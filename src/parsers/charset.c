@@ -101,6 +101,19 @@ static const HParserVtable charset_vt = {
     .higher = false,
 };
 
+/* Keep complemented character sets distinguishable for diagnostics while
+ * sharing their parse, compile, and desugar implementations. */
+static const HParserVtable not_in_vt = {
+    .name = "h_not_in",
+    .parse = parse_charset,
+    .isValidRegular = h_true,
+    .isValidCF = h_true,
+    .compile_to_rvm = cs_ctrvm,
+    .desugar = desugar_charset,
+    .trace_expectations = trace_expectations_charset,
+    .higher = false,
+};
+
 HParser *h_ch_range(const uint8_t lower, const uint8_t upper) {
     return h_ch_range__m(&system_allocator, lower, upper);
 }
@@ -118,7 +131,7 @@ static HParser *h_in_or_not__m(HAllocator *mm__, const uint8_t *options, size_t 
     for (size_t i = 0; i < count; i++)
         charset_set(cs, options[i], val);
 
-    return h_new_parser(mm__, &charset_vt, cs);
+    return h_new_parser(mm__, val ? &charset_vt : &not_in_vt, cs);
 }
 
 HParser *h_in(const uint8_t *options, size_t count) {
@@ -136,3 +149,5 @@ HParser *h_not_in(const uint8_t *options, size_t count) {
 HParser *h_not_in__m(HAllocator *mm__, const uint8_t *options, size_t count) {
     return h_in_or_not__m(mm__, options, count, 0);
 }
+
+bool h_is_not_in_parser(const HParser *parser) { return parser && parser->vtable == &not_in_vt; }

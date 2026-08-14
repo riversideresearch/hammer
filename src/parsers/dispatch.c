@@ -66,26 +66,50 @@ static bool extract_opcode(HParseResult *result, size_t *opcode_out) {
             return false;
         size_t val = 0;
         for (size_t i = 0; i < b.len; i++) {
-            if (val > (SIZE_MAX >> 8))
-                return false; // opcode can't be represented as type size_t
+            if (val > (UINT32_MAX >> 8))
+                return false; // dispatch map opcodes are uint32_t
 
             val = (val << 8) | b.token[i];
         }
         opcode = val;
         break;
     }
-    case (TT_SINT):
-        opcode = (size_t)(result->ast->token_data.sint);
+    case (TT_SINT): {
+        int64_t value = result->ast->token_data.sint;
+        if (value < 0 || (uint64_t)value > UINT32_MAX)
+            return false;
+        opcode = (size_t)value;
         break;
-    case (TT_UINT):
-        opcode = (size_t)(result->ast->token_data.uint);
+    }
+    case (TT_UINT): {
+        uint64_t value = result->ast->token_data.uint;
+        if (value > UINT32_MAX)
+            return false;
+        opcode = (size_t)value;
         break;
-    case (TT_DOUBLE):
-        opcode = (size_t)(result->ast->token_data.dbl);
+    }
+    case (TT_DOUBLE): {
+        double value = result->ast->token_data.dbl;
+        if (!(value >= 0.0 && value <= 4294967295.0))
+            return false;
+        uint32_t narrowed = (uint32_t)value;
+        if (value != (double)narrowed)
+            return false;
+        opcode = narrowed;
         break;
-    case (TT_FLOAT):
-        opcode = (size_t)(result->ast->token_data.flt);
+    }
+    case (TT_FLOAT): {
+        float value = result->ast->token_data.flt;
+        /* UINT32_MAX rounds up when represented as binary32, so compare
+         * against the first out-of-range value before converting. */
+        if (!(value >= 0.0f && value < 4294967296.0f))
+            return false;
+        uint32_t narrowed = (uint32_t)value;
+        if (value != (float)narrowed)
+            return false;
+        opcode = narrowed;
         break;
+    }
     default:
         return false;
     }

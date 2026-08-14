@@ -126,8 +126,8 @@ static gpointer trace_concurrent_worker(gpointer user_data) {
     test->passed = true;
     for (size_t i = 0; i < 200; i++) {
         HParseError error;
-        HParseResult *result = h_parse_debug(test->parser, test->input, sizeof(test->input),
-                                             &error, false);
+        HParseResult *result =
+            h_parse_debug(test->parser, test->input, sizeof(test->input), &error, false);
         if (result || error.kind != H_PARSE_ERROR_PRIMITIVE_MISMATCH || error.index != 1 ||
             !error.has_actual || error.actual != test->actual || !error.parser ||
             strcmp(error.parser, "h_ch") != 0) {
@@ -165,16 +165,14 @@ static void test_trace_formatter_with_input(void) {
     g_check_cmp_int(h_compile(parser, PB_PACKRAT, NULL), ==, 0);
 
     HParseDiagnostic *diagnostic = NULL;
-    HParseResult *result =
-        h_parse_debug_ex(parser, input, sizeof(input), &diagnostic, false);
+    HParseResult *result = h_parse_debug_ex(parser, input, sizeof(input), &diagnostic, false);
     g_check_cmp_ptr(result, ==, NULL);
     g_check_cmp_ptr(diagnostic, !=, NULL);
     if (!diagnostic)
         return;
 
     size_t execution_length = 0;
-    const char *execution_trace =
-        h_parse_diagnostic_execution_trace(diagnostic, &execution_length);
+    const char *execution_trace = h_parse_diagnostic_execution_trace(diagnostic, &execution_length);
     g_check_cmp_ptr(execution_trace, !=, NULL);
     g_check_cmp_size(execution_length, >, 0);
     if (execution_trace) {
@@ -207,8 +205,7 @@ static void test_trace_flag_prints_condensed_report(void) {
         g_assert_cmpint(h_compile(parser, PB_PACKRAT, NULL), ==, 0);
 
         HParseDiagnostic *diagnostic = NULL;
-        HParseResult *result =
-            h_parse_debug_ex(parser, input, sizeof(input), &diagnostic, true);
+        HParseResult *result = h_parse_debug_ex(parser, input, sizeof(input), &diagnostic, true);
         g_assert_null(result);
         g_assert_nonnull(diagnostic);
         size_t trace_length = 0;
@@ -299,8 +296,7 @@ static void test_trace_choice_trie(gconstpointer backend) {
     g_check_cmp_int(h_compile(parser, be, NULL), ==, 0);
 
     HParseDiagnostic *diagnostic = NULL;
-    HParseResult *result =
-        h_parse_debug_ex(parser, input, sizeof(input), &diagnostic, false);
+    HParseResult *result = h_parse_debug_ex(parser, input, sizeof(input), &diagnostic, false);
     g_check_cmp_ptr(result, ==, NULL);
     g_check_cmp_ptr(diagnostic, !=, NULL);
     if (!diagnostic)
@@ -326,13 +322,11 @@ static void test_trace_choice_trie(gconstpointer backend) {
         rendered[rendered_len] = '\0';
         g_check_cmp_ptr(strstr(rendered, "no alternative matched at index 0"), !=, NULL);
         g_check_cmp_ptr(strstr(rendered, "alternatives:"), !=, NULL);
-        g_check_cmp_ptr(strstr(rendered,
-                               "1. [left] unexpected byte 'X' (0x58 = 88) at index 0; "
-                               "expected 'A'"),
+        g_check_cmp_ptr(strstr(rendered, "1. [left] unexpected byte 'X' (0x58 = 88) at index 0; "
+                                         "expected 'A'"),
                         !=, NULL);
-        g_check_cmp_ptr(strstr(rendered,
-                               "2. [right] unexpected byte 'X' (0x58 = 88) at index 0; "
-                               "expected 'B'"),
+        g_check_cmp_ptr(strstr(rendered, "2. [right] unexpected byte 'X' (0x58 = 88) at index 0; "
+                                         "expected 'B'"),
                         !=, NULL);
         fclose(stream);
     }
@@ -346,8 +340,7 @@ static void test_trace_choice_leaf_range_detail_packrat(void) {
     const uint8_t input[] = {25};
 
     HParseDiagnostic *diagnostic = NULL;
-    HParseResult *result =
-        h_parse_debug_ex(parser, input, sizeof(input), &diagnostic, false);
+    HParseResult *result = h_parse_debug_ex(parser, input, sizeof(input), &diagnostic, false);
     g_assert_null(result);
     g_assert_nonnull(diagnostic);
 
@@ -377,8 +370,7 @@ static void test_trace_choice_leaf_short_input_packrat(void) {
     const uint8_t input[] = {0xff};
 
     HParseDiagnostic *diagnostic = NULL;
-    HParseResult *result =
-        h_parse_debug_ex(parser, input, sizeof(input), &diagnostic, false);
+    HParseResult *result = h_parse_debug_ex(parser, input, sizeof(input), &diagnostic, false);
     g_assert_null(result);
     g_assert_nonnull(diagnostic);
 
@@ -402,8 +394,7 @@ static void test_trace_choice_trie_furthest_packrat(void) {
     const uint8_t input[] = {'A', 'B', '?'};
 
     HParseDiagnostic *diagnostic = NULL;
-    HParseResult *result =
-        h_parse_debug_ex(parser, input, sizeof(input), &diagnostic, false);
+    HParseResult *result = h_parse_debug_ex(parser, input, sizeof(input), &diagnostic, false);
     g_check_cmp_ptr(result, ==, NULL);
     g_check_cmp_ptr(diagnostic, !=, NULL);
     if (!diagnostic)
@@ -448,8 +439,7 @@ static void test_trace_choice_trie_nested(gconstpointer backend) {
         rewind(stream);
         size_t rendered_len = fread(rendered, 1, sizeof(rendered) - 1, stream);
         rendered[rendered_len] = '\0';
-        g_check_cmp_ptr(strstr(rendered, "1. [inner] no alternative matched at index 0"), !=,
-                        NULL);
+        g_check_cmp_ptr(strstr(rendered, "1. [inner] no alternative matched at index 0"), !=, NULL);
         g_check_cmp_ptr(strstr(rendered, "1. [A] unexpected byte 'X'"), !=, NULL);
         g_check_cmp_ptr(strstr(rendered, "2. [B] unexpected byte 'X'"), !=, NULL);
         fclose(stream);
@@ -466,8 +456,7 @@ static void test_trace_choice_trie_nonzero(gconstpointer backend) {
     g_check_cmp_int(h_compile(parser, be, NULL), ==, 0);
 
     HParseDiagnostic *diagnostic = NULL;
-    HParseResult *result =
-        h_parse_debug_ex(parser, input, sizeof(input), &diagnostic, false);
+    HParseResult *result = h_parse_debug_ex(parser, input, sizeof(input), &diagnostic, false);
     g_check_cmp_ptr(result, ==, NULL);
     g_check_cmp_ptr(diagnostic, !=, NULL);
     if (!diagnostic)
@@ -490,8 +479,7 @@ static void test_trace_choice_trie_reused_parser_packrat(void) {
     const uint8_t input[] = {'Z', 'X'};
 
     HParseDiagnostic *diagnostic = NULL;
-    HParseResult *result =
-        h_parse_debug_ex(parser, input, sizeof(input), &diagnostic, false);
+    HParseResult *result = h_parse_debug_ex(parser, input, sizeof(input), &diagnostic, false);
     g_check_cmp_ptr(result, ==, NULL);
     g_check_cmp_ptr(diagnostic, !=, NULL);
     if (!diagnostic)
@@ -511,8 +499,7 @@ static void test_trace_choice_success_discards_failures_packrat(void) {
     HParser *parser = h_choice(h_ch('A'), h_ch('B'), NULL);
     const uint8_t input[] = {'B'};
     HParseDiagnostic *diagnostic = NULL;
-    HParseResult *result =
-        h_parse_debug_ex(parser, input, sizeof(input), &diagnostic, false);
+    HParseResult *result = h_parse_debug_ex(parser, input, sizeof(input), &diagnostic, false);
     g_check_cmp_ptr(result, !=, NULL);
     g_check_cmp_ptr(diagnostic, !=, NULL);
     if (diagnostic) {
@@ -534,8 +521,7 @@ static void test_trace_dispatch_failure(void) {
     g_check_cmp_int(h_compile(parser, PB_PACKRAT, NULL), ==, 0);
 
     HParseDiagnostic *diagnostic = NULL;
-    HParseResult *result =
-        h_parse_debug_ex(parser, input, sizeof(input), &diagnostic, false);
+    HParseResult *result = h_parse_debug_ex(parser, input, sizeof(input), &diagnostic, false);
     g_check_cmp_ptr(result, ==, NULL);
     g_check_cmp_ptr(diagnostic, !=, NULL);
     if (!diagnostic)
@@ -573,8 +559,7 @@ static void test_trace_dispatch_invalid_opcode(void) {
     g_check_cmp_int(h_compile(parser, PB_PACKRAT, NULL), ==, 0);
 
     HParseDiagnostic *diagnostic = NULL;
-    HParseResult *result =
-        h_parse_debug_ex(parser, input, sizeof(input), &diagnostic, false);
+    HParseResult *result = h_parse_debug_ex(parser, input, sizeof(input), &diagnostic, false);
     g_check_cmp_ptr(result, ==, NULL);
     g_check_cmp_ptr(diagnostic, !=, NULL);
     if (!diagnostic)
@@ -635,13 +620,11 @@ static void test_trace_cf_verbose_dump(gconstpointer backend) {
     HParser *p = h_sequence(h_ch('a'), h_ch('b'), NULL);
     g_assert_cmpint(h_compile(p, be, NULL), ==, 0);
     HParseDiagnostic *diagnostic = NULL;
-    HParseResult *res =
-        h_parse_debug_ex(p, (const uint8_t *)"ab", 2, &diagnostic, false);
+    HParseResult *res = h_parse_debug_ex(p, (const uint8_t *)"ab", 2, &diagnostic, false);
     g_assert_nonnull(res);
     g_assert_nonnull(diagnostic);
     size_t trace_length = 0;
-    const char *execution_trace =
-        h_parse_diagnostic_execution_trace(diagnostic, &trace_length);
+    const char *execution_trace = h_parse_diagnostic_execution_trace(diagnostic, &trace_length);
     g_assert_nonnull(execution_trace);
     g_assert_cmpuint(trace_length, >, 0);
     if (be == PB_LL) {
@@ -813,8 +796,7 @@ static void test_trace_occurrence_provenance(gconstpointer backend) {
         h_parse_result_free(success);
 
     HParseDiagnostic *diagnostic = NULL;
-    HParseResult *result =
-        h_parse_debug_ex(parser, (const uint8_t *)"AB", 2, &diagnostic, false);
+    HParseResult *result = h_parse_debug_ex(parser, (const uint8_t *)"AB", 2, &diagnostic, false);
     g_check_cmp_ptr(result, ==, NULL);
     g_check_cmp_ptr(diagnostic, !=, NULL);
     if (diagnostic) {
@@ -1246,8 +1228,7 @@ static bool trace_nested_debug_failure_then_reject(HParseResult *p, void *user_d
     (void)p;
     (void)user_data;
     uint8_t nested[] = {7};
-    HParseResult *result =
-        h_parse_debug(trace_nested_parser, nested, 0, &trace_nested_error, true);
+    HParseResult *result = h_parse_debug(trace_nested_parser, nested, 0, &trace_nested_error, true);
     g_assert_null(result);
     return false;
 }
@@ -1375,8 +1356,7 @@ static void test_trace_nested_input_trail(gconstpointer backend) {
 
     g_check_cmp_int(h_compile(parser, be, NULL), ==, 0);
     HParseDiagnostic *diagnostic = NULL;
-    HParseResult *result =
-        h_parse_debug_ex(parser, input, sizeof(input), &diagnostic, false);
+    HParseResult *result = h_parse_debug_ex(parser, input, sizeof(input), &diagnostic, false);
     g_check_cmp_ptr(result, ==, NULL);
     g_check_cmp_ptr(diagnostic, !=, NULL);
     if (!diagnostic)
@@ -1423,8 +1403,7 @@ static void test_trace_automatic_input_trail(gconstpointer backend) {
 
     g_check_cmp_int(h_compile(parser, be, NULL), ==, 0);
     HParseDiagnostic *diagnostic = NULL;
-    HParseResult *result =
-        h_parse_debug_ex(parser, input, sizeof(input), &diagnostic, false);
+    HParseResult *result = h_parse_debug_ex(parser, input, sizeof(input), &diagnostic, false);
     g_check_cmp_ptr(result, ==, NULL);
     g_check_cmp_ptr(diagnostic, !=, NULL);
     if (!diagnostic)
@@ -1455,8 +1434,7 @@ static void test_trace_automatic_reused_input_trail(gconstpointer backend) {
 
     g_check_cmp_int(h_compile(parser, be, NULL), ==, 0);
     HParseDiagnostic *diagnostic = NULL;
-    HParseResult *result =
-        h_parse_debug_ex(parser, input, sizeof(input), &diagnostic, false);
+    HParseResult *result = h_parse_debug_ex(parser, input, sizeof(input), &diagnostic, false);
     g_check_cmp_ptr(result, ==, NULL);
     g_check_cmp_ptr(diagnostic, !=, NULL);
     if (!diagnostic)
@@ -1489,8 +1467,7 @@ static void test_trace_mixed_context_input_trail(gconstpointer backend) {
 
     g_check_cmp_int(h_compile(parser, be, NULL), ==, 0);
     HParseDiagnostic *diagnostic = NULL;
-    HParseResult *result =
-        h_parse_debug_ex(parser, input, sizeof(input), &diagnostic, false);
+    HParseResult *result = h_parse_debug_ex(parser, input, sizeof(input), &diagnostic, false);
     g_check_cmp_ptr(result, ==, NULL);
     g_check_cmp_ptr(diagnostic, !=, NULL);
     if (!diagnostic)
@@ -1509,6 +1486,92 @@ static void test_trace_mixed_context_input_trail(gconstpointer backend) {
     h_parse_diagnostic_free(diagnostic);
 }
 
+static void trace_check_owned_failure(HParser *parser, const uint8_t *input, size_t length,
+                                      HParseErrorKind kind, const char *message, size_t start,
+                                      size_t end) {
+    g_check_cmp_int(h_compile(parser, PB_PACKRAT, NULL), ==, 0);
+    HParseError error;
+    HParseResult *result = h_parse_debug(parser, input, length, &error, false);
+    g_check_cmp_ptr(result, ==, NULL);
+    g_check_cmp_int(error.kind, ==, kind);
+    g_check_string(error.message, ==, message);
+    g_check_cmp_size(error.index, ==, start);
+    g_check_cmp_size(error.end_index, ==, end);
+    h_parse_error_free(&error);
+}
+
+static HParser *trace_null_continuation(HAllocator *allocator, const HParsedToken *token,
+                                        void *environment) {
+    (void)allocator;
+    (void)token;
+    (void)environment;
+    return NULL;
+}
+
+static void test_trace_parser_owned_failures(void) {
+    const uint8_t empty[] = {0};
+    const uint8_t one[] = {'A'};
+    const uint8_t two[] = {'A', 'B'};
+
+    trace_check_owned_failure(h_many(h_epsilon_p()), empty, 0, H_PARSE_ERROR_HIGHER_ORDER,
+                              "repeated parser matched empty input", 0, 0);
+    trace_check_owned_failure(h_length_value(h_bytes(1), h_ch('A')), one, 1,
+                              H_PARSE_ERROR_HIGHER_ORDER,
+                              "length parser must return an unsigned integer", 0, 1);
+    trace_check_owned_failure(h_many1_cap(h_ch('A'), 0), empty, 0, H_PARSE_ERROR_HIGHER_ORDER,
+                              "minimum repetition cannot be satisfied with a zero cap", 0, 0);
+    trace_check_owned_failure(h_not(h_token(two, sizeof(two))), two, sizeof(two),
+                              H_PARSE_ERROR_HIGHER_ORDER,
+                              "negative lookahead failed because its parser matched", 0, 2);
+    trace_check_owned_failure(h_seek(-1, SEEK_SET), one, sizeof(one), H_PARSE_ERROR_HIGHER_ORDER,
+                              "seek target is before the start of input", 0, 0);
+    trace_check_owned_failure(h_bind(h_ch('A'), trace_null_continuation, NULL), one, sizeof(one),
+                              H_PARSE_ERROR_HIGHER_ORDER,
+                              "bind continuation did not produce a parser", 1, 1);
+    trace_check_owned_failure(h_indirect(), empty, 0, H_PARSE_ERROR_HIGHER_ORDER,
+                              "indirect parser has not been bound", 0, 0);
+    trace_check_owned_failure(h_permutation(h_ch('A'), h_ch('B'), NULL), (const uint8_t *)"AX", 2,
+                              H_PARSE_ERROR_HIGHER_ORDER, "no permutation ordering matched", 1, 2);
+    trace_check_owned_failure(h_get_value("missing"), empty, 0, H_PARSE_ERROR_NO_VALUE,
+                              "no value is stored under that name", 0, 0);
+
+    HParser *put_twice =
+        h_sequence(h_put_value(h_ch('A'), "saved"), h_put_value(h_ch('B'), "saved"), NULL);
+    trace_check_owned_failure(put_twice, two, sizeof(two), H_PARSE_ERROR_REUSED_NAME,
+                              "a value is already stored under that name", 1, 1);
+}
+
+static void test_trace_not_in_failure(gconstpointer backend) {
+    HParserBackend be = (HParserBackend)GPOINTER_TO_INT(backend);
+    const uint8_t forbidden[] = {'A'};
+    HParser *parser = h_not_in(forbidden, sizeof(forbidden));
+    g_check_cmp_int(h_compile(parser, be, NULL), ==, 0);
+
+    HParseError error;
+    HParseResult *result = h_parse_debug(parser, forbidden, sizeof(forbidden), &error, false);
+    g_check_cmp_ptr(result, ==, NULL);
+    g_check_string(error.message, ==, "input byte is forbidden by this charset");
+    g_check_cmp_size(error.index, ==, 0);
+    h_parse_error_free(&error);
+}
+
+static void test_trace_dispatch_rejects_negative_opcode(void) {
+    OpcodeMap entries[] = {{1, h_ch('A')}};
+    HParser *parser = h_dispatch(h_int8(), entries, NULL);
+    const uint8_t input[] = {0xff};
+    g_check_cmp_int(h_compile(parser, PB_PACKRAT, NULL), ==, 0);
+
+    HParseDiagnostic *diagnostic = NULL;
+    HParseResult *result = h_parse_debug_ex(parser, input, sizeof(input), &diagnostic, false);
+    g_check_cmp_ptr(result, ==, NULL);
+    g_check_cmp_ptr(diagnostic, !=, NULL);
+    if (diagnostic) {
+        g_check_cmp_int(diagnostic->error.kind, ==, H_PARSE_ERROR_DISPATCH);
+        g_check_cmp_int(diagnostic->dispatch_failure.has_opcode, ==, false);
+        h_parse_diagnostic_free(diagnostic);
+    }
+}
+
 void register_trace_tests(void) {
     g_test_add_func("/core/parser/trace_with_context_owns_metadata",
                     test_with_context_owns_metadata);
@@ -1517,10 +1580,24 @@ void register_trace_tests(void) {
     g_test_add_func("/core/parser/trace_formatter_with_input", test_trace_formatter_with_input);
     g_test_add_func("/core/parser/trace_flag_prints_condensed_report",
                     test_trace_flag_prints_condensed_report);
+    g_test_add_func("/core/parser/packrat/trace_parser_owned_failures",
+                    test_trace_parser_owned_failures);
+    g_test_add_func("/core/parser/packrat/trace_dispatch_rejects_negative_opcode",
+                    test_trace_dispatch_rejects_negative_opcode);
 
-#define ADD_EMPTY_INPUT_TEST(name, backend)                                                   \
-    g_test_add_data_func("/core/parser/" name "/trace_empty_input_eof",                     \
-                         GINT_TO_POINTER(backend), test_trace_empty_input_eof)
+#define ADD_NOT_IN_FAILURE_TEST(name, backend)                                                     \
+    g_test_add_data_func("/core/parser/" name "/trace_not_in_failure", GINT_TO_POINTER(backend),   \
+                         test_trace_not_in_failure)
+    ADD_NOT_IN_FAILURE_TEST("regex", PB_REGULAR);
+    ADD_NOT_IN_FAILURE_TEST("packrat", PB_PACKRAT);
+    ADD_NOT_IN_FAILURE_TEST("ll", PB_LL);
+    ADD_NOT_IN_FAILURE_TEST("lalr", PB_LALR);
+    ADD_NOT_IN_FAILURE_TEST("glr", PB_GLR);
+#undef ADD_NOT_IN_FAILURE_TEST
+
+#define ADD_EMPTY_INPUT_TEST(name, backend)                                                        \
+    g_test_add_data_func("/core/parser/" name "/trace_empty_input_eof", GINT_TO_POINTER(backend),  \
+                         test_trace_empty_input_eof)
     ADD_EMPTY_INPUT_TEST("regex", PB_REGULAR);
     ADD_EMPTY_INPUT_TEST("packrat", PB_PACKRAT);
     ADD_EMPTY_INPUT_TEST("ll", PB_LL);
@@ -1544,8 +1621,8 @@ void register_trace_tests(void) {
                          GINT_TO_POINTER(PB_REGULAR), test_trace_structured_expectations);
     g_test_add_data_func("/core/parser/regex/trace_choice_trie", GINT_TO_POINTER(PB_REGULAR),
                          test_trace_choice_trie);
-    g_test_add_data_func("/core/parser/regex/trace_choice_trie_nested",
-                         GINT_TO_POINTER(PB_REGULAR), test_trace_choice_trie_nested);
+    g_test_add_data_func("/core/parser/regex/trace_choice_trie_nested", GINT_TO_POINTER(PB_REGULAR),
+                         test_trace_choice_trie_nested);
     g_test_add_data_func("/core/parser/regex/trace_choice_trie_nonzero",
                          GINT_TO_POINTER(PB_REGULAR), test_trace_choice_trie_nonzero);
     g_test_add_func("/core/parser/regex/trace_structured_expected_eof",
@@ -1762,12 +1839,12 @@ void register_trace_tests(void) {
     g_test_add_data_func("/core/parser/glr/trace_nested_input_trail", GINT_TO_POINTER(PB_GLR),
                          test_trace_nested_input_trail);
 
-#define ADD_AUTOMATIC_TRAIL_TESTS(name, backend)                                               \
-    g_test_add_data_func("/core/parser/" name "/trace_automatic_input_trail",                 \
-                         GINT_TO_POINTER(backend), test_trace_automatic_input_trail);            \
-    g_test_add_data_func("/core/parser/" name "/trace_automatic_reused_input_trail",          \
-                         GINT_TO_POINTER(backend), test_trace_automatic_reused_input_trail);     \
-    g_test_add_data_func("/core/parser/" name "/trace_mixed_context_input_trail",             \
+#define ADD_AUTOMATIC_TRAIL_TESTS(name, backend)                                                   \
+    g_test_add_data_func("/core/parser/" name "/trace_automatic_input_trail",                      \
+                         GINT_TO_POINTER(backend), test_trace_automatic_input_trail);              \
+    g_test_add_data_func("/core/parser/" name "/trace_automatic_reused_input_trail",               \
+                         GINT_TO_POINTER(backend), test_trace_automatic_reused_input_trail);       \
+    g_test_add_data_func("/core/parser/" name "/trace_mixed_context_input_trail",                  \
                          GINT_TO_POINTER(backend), test_trace_mixed_context_input_trail)
     ADD_AUTOMATIC_TRAIL_TESTS("regex", PB_REGULAR);
     ADD_AUTOMATIC_TRAIL_TESTS("packrat", PB_PACKRAT);

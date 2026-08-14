@@ -557,8 +557,7 @@ HParserBackendWithParams *h_get_backend_with_params_by_name(const char *name_wit
 }
 
 static HParseResult *h_parse_with_trace(HAllocator *mm__, const HParser *parser,
-                                        const uint8_t *input, size_t length,
-                                        HTraceState *trace) {
+                                        const uint8_t *input, size_t length, HTraceState *trace) {
     // Set up a parse state...
     HInputStream input_stream = {.pos = 0,
                                  .index = 0,
@@ -718,8 +717,7 @@ bool h_parse_diagnostic_expected(const HParseDiagnostic *diagnostic, size_t inde
     return false;
 }
 
-const char *h_parse_diagnostic_execution_trace(const HParseDiagnostic *diagnostic,
-                                               size_t *length) {
+const char *h_parse_diagnostic_execution_trace(const HParseDiagnostic *diagnostic, size_t *length) {
     if (length)
         *length = diagnostic ? diagnostic->execution_trace_length : 0;
     return diagnostic ? diagnostic->execution_trace : NULL;
@@ -787,8 +785,12 @@ void h_trace_fprint_error_detail(FILE *stream, const HParseDiagnostic *diagnosti
         fprintf(stream, " (0x%02x = %u) at index %zu", error->actual, error->actual, error->index);
     }
 
-    if (error->message)
-        fprintf(stream, " at index %zu", error->index);
+    if (error->message) {
+        if (error->end_index > error->index)
+            fprintf(stream, " from index %zu to index %zu", error->index, error->end_index - 1);
+        else
+            fprintf(stream, " at index %zu", error->index);
+    }
     if (error->bit_offset)
         fprintf(stream, ".%ub", error->bit_offset);
 
@@ -891,8 +893,8 @@ void h_parse_diagnostic_fprint(FILE *stream, const HParseDiagnostic *diagnostic)
     fputc('\n', stream);
     if (choice_failure)
         h_trace_fprint_choice(stream, diagnostic->choice_nodes, diagnostic->choice_node_count,
-                              diagnostic->choice_alternatives,
-                              diagnostic->choice_alternative_count, diagnostic->choice_root);
+                              diagnostic->choice_alternatives, diagnostic->choice_alternative_count,
+                              diagnostic->choice_root);
     h_trace_fprint_input_trail(stream, diagnostic->input_frames, diagnostic->input_frame_count);
 }
 
@@ -1181,8 +1183,9 @@ typedef struct HContextCFClone_ {
     struct HContextCFClone_ *next;
 } HContextCFClone;
 
-static HDiagnosticContext *context_extend_cf_provenance(
-    HAllocator *mm__, const HDiagnosticContext *source, const HParser *context) {
+static HDiagnosticContext *context_extend_cf_provenance(HAllocator *mm__,
+                                                        const HDiagnosticContext *source,
+                                                        const HParser *context) {
     HDiagnosticContext *head = NULL;
     HDiagnosticContext *tail = NULL;
     for (; source; source = source->next) {

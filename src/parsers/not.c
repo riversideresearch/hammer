@@ -1,14 +1,24 @@
 /* Copyright (c) 2026 Riverside Research */
+#include "../trace.h"
 #include "parser_internal.h"
 
 static HParseResult *parse_not(void *env, HParseState *state) {
     HInputStream bak = state->input_stream;
-    if (h_do_parse((HParser *)env, state))
+    HActionPlan *bak_plan = state->action_plan;
+    size_t start = state->input_stream.pos + state->input_stream.index;
+    if (h_do_parse((HParser *)env, state)) {
+        size_t end = state->input_stream.pos + state->input_stream.index;
+        state->input_stream = bak;
+        state->action_plan = bak_plan;
+        h_trace_note_failure(state->input_stream.trace, H_PARSE_ERROR_HIGHER_ORDER,
+                             "negative lookahead failed because its parser matched", start, end);
         return NULL;
+    }
     if (want_suspend(state))
         return NULL; // bail out early, leaving overrun flag
     // regular parse failure -> success
     state->input_stream = bak;
+    state->action_plan = bak_plan;
     return make_result(state->arena, NULL);
 }
 

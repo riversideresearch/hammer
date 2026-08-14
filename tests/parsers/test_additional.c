@@ -1044,7 +1044,8 @@ static void test_many_internal(gconstpointer backend) {
         HParsedToken *next_seq = h_make_seq(arena);
         h_carray_append(inner_seq_with_3->token_data.seq, char_tok1); // element 0
         h_carray_append(inner_seq_with_3->token_data.seq, char_tok2); // element 1
-        h_carray_append(inner_seq_with_3->token_data.seq, next_seq);  // element 2 (used=3, n-2=1, n-1=2)
+        h_carray_append(inner_seq_with_3->token_data.seq,
+                        next_seq); // element 2 (used=3, n-2=1, n-1=2)
         h_carray_append(seq_token2->token_data.seq, inner_seq_with_3);
         HParseResult mock_result2 = {.arena = arena, .ast = seq_token2, .bit_length = 0};
         HParsedToken *reshaped2 = desugared_many->reshape(&mock_result2, NULL);
@@ -1122,28 +1123,14 @@ static void test_many_internal(gconstpointer backend) {
     HParseResult *len_val_fail_res = h_parse(len_val_fail, len_val_fail_input, 1);
     g_check_cmp_ptr(len_val_fail_res, ==, NULL); // Should fail (covers line 221)
 
-    // Line 223: h_platform_errx when length parser returns wrong token type
-    // We need a parser that succeeds but returns a non-UINT token type
+    // A successful length parser with a non-UINT token is a parse failure, not
+    // a process-terminating programming error.
     HParser *wrong_type_len = h_action(h_uint8(), change_token_type_action, NULL);
     HParser *len_val_wrong_type = h_length_value(wrong_type_len, h_ch('a'));
     h_compile(len_val_wrong_type, be, NULL);
     uint8_t wrong_type_input[] = {3, 'a', 'a', 'a'};
-    // This should trigger h_platform_errx (line 223) because token_type is TT_BYTES, not TT_UINT
-    // h_platform_errx calls exit(), which terminates the process
-    // Use fork() to run this in a child process so the parent can continue
-    pid_t pid = fork();
-    if (pid == 0) {
-        // Child process - this will exit when h_platform_errx is called
-        HParseResult *wrong_type_res = h_parse(len_val_wrong_type, wrong_type_input, 4);
-        (void)wrong_type_res; // Won't be reached
-        _exit(0);             // Should not reach here
-    } else if (pid > 0) {
-        // Parent process - wait for child to exit
-        int status;
-        waitpid(pid, &status, 0);
-        // Child should have exited with error code from h_platform_errx
-    }
-    // Coverage data will be written for the child process's execution
+    HParseResult *wrong_type_res = h_parse(len_val_wrong_type, wrong_type_input, 4);
+    g_check_cmp_ptr(wrong_type_res, ==, NULL);
 }
 
 static void test_not_internal(gconstpointer backend) {

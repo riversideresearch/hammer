@@ -1,4 +1,5 @@
 /* Copyright (c) 2026 Riverside Research */
+#include "../trace.h"
 #include "parser_internal.h"
 
 typedef struct {
@@ -17,6 +18,7 @@ static HParseResult *parse_seek(void *env, HParseState *state) {
     HSeek *s = (HSeek *)env;
     HInputStream *stream = &state->input_stream;
     size_t pos;
+    size_t start = stream->pos + stream->index;
 
     /* determine base position */
     switch (s->whence) {
@@ -34,20 +36,31 @@ static HParseResult *parse_seek(void *env, HParseState *state) {
         pos = h_input_stream_pos(stream);
         break;
     default:
+        h_trace_note_failure(stream->trace, H_PARSE_ERROR_HIGHER_ORDER,
+                             "seek uses an invalid origin", start, start);
         return NULL; /* invalid argument */
     }
 
     /* calculate target position and do basic overflow checks */
-    if (s->offset < 0 && (size_t)(-s->offset) > pos)
+    if (s->offset < 0 && (size_t)(-(s->offset + 1)) + 1 > pos) {
+        h_trace_note_failure(stream->trace, H_PARSE_ERROR_HIGHER_ORDER,
+                             "seek target is before the start of input", start, start);
         return NULL; /* underflow */
-    if (s->offset > 0 && SIZE_MAX - s->offset < pos)
+    }
+    if (s->offset > 0 && (size_t)s->offset > SIZE_MAX - pos) {
+        h_trace_note_failure(stream->trace, H_PARSE_ERROR_HIGHER_ORDER,
+                             "seek target overflows the input position", start, start);
         return NULL; /* overflow */
+    }
     pos += s->offset;
 
     /* perform the seek and check for overrun */
     h_seek_bits(stream, pos);
-    if (stream->overrun)
+    if (stream->overrun) {
+        h_trace_note_failure(stream->trace, H_PARSE_ERROR_UNEXPECTED_EOF,
+                             "seek target exceeds available input", start, start);
         return NULL;
+    }
 
     HParsedToken *tok = a_new(HParsedToken, 1);
     tok->token_type = TT_UINT;

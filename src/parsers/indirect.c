@@ -1,4 +1,5 @@
 /* Copyright (c) 2026 Riverside Research */
+#include "../trace.h"
 #include "parser_internal.h"
 
 typedef struct HIndirectEnv_ {
@@ -7,7 +8,14 @@ typedef struct HIndirectEnv_ {
 } HIndirectEnv;
 
 static HParseResult *parse_indirect(void *env, HParseState *state) {
-    return h_do_parse(((HIndirectEnv *)env)->parser, state);
+    const HParser *parser = ((HIndirectEnv *)env)->parser;
+    if (!parser) {
+        size_t at = state->input_stream.pos + state->input_stream.index;
+        h_trace_note_failure(state->input_stream.trace, H_PARSE_ERROR_HIGHER_ORDER,
+                             "indirect parser has not been bound", at, at);
+        return NULL;
+    }
+    return h_do_parse(parser, state);
 }
 
 static bool indirect_isValidCF(void *env) {

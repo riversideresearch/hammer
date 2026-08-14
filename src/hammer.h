@@ -528,9 +528,8 @@ HParseResult *h_parse__m(HAllocator *mm__, const HParser *parser, const uint8_t 
  * @param input Input data
  * @param length Length of input data
  * @param error Out-parameter for structured failure info, or NULL
- * @param dumpExecutionTrace on true, print the normalized error, condensed
+ * @param showError on true, print the normalized error, condensed
  * input trail, and bounded input context to stderr; on false, emit no text.
- * The historical parameter name is retained for source compatibility.
  * @note Use h_parse_error_fprint() to render @p error to a caller-selected
  * stream. h_parse_debug_ex() additionally retains the complete execution trace
  * regardless of this flag; retrieve it with
@@ -538,23 +537,29 @@ HParseResult *h_parse__m(HAllocator *mm__, const HParser *parser, const uint8_t 
  * @return Parse result, or NULL on failure
  */
 HParseResult *h_parse_debug(const HParser *parser, const uint8_t *input, size_t length,
-                            HParseError *error, bool dumpExecutionTrace);
+                            HParseError *error, bool showError);
 HParseResult *h_parse_debug__m(HAllocator *mm__, const HParser *parser, const uint8_t *input,
-                               size_t length, HParseError *error, bool dumpExecutionTrace);
+                               size_t length, HParseError *error, bool showError);
 
 /**
  * @brief Extensible form of h_parse_debug() with structured expectations.
  *
- * On completion, @p diagnostic receives an owned diagnostic object, including
+ * @param parser Parser to use
+ * @param input Input data
+ * @param length Length of input data
+ * @param diagnostic Out-parameter for structured failure info, or NULL
+ * @param showDiagnostic on true, print the normalized diagnostic, condensed
+ * input trail, and bounded input context to stderr; on false, emit no text.
+ * @note On completion, @p diagnostic receives an owned diagnostic object, including
  * the execution trace for successful and failed parses. On failure, the legacy
  * failure fields are available through h_parse_diagnostic_error(), while
  * expected byte ranges and end-of-input are exposed by the expectation
  * accessors. The complete backend execution trace is also retained regardless
- * of @p dumpExecutionTrace. The caller must release the object with
+ * of @p showDiagnostic. The caller must release the object with
  * h_parse_diagnostic_free().
  */
 HParseResult *h_parse_debug_ex(const HParser *parser, const uint8_t *input, size_t length,
-                               HParseDiagnostic **diagnostic, bool dumpExecutionTrace);
+                               HParseDiagnostic **diagnostic, bool showDiagnostic);
 
 /** Write an HParseError to a caller-selected stream. */
 void h_parse_error_fprint(FILE *stream, const HParseError *error);

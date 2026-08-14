@@ -1,10 +1,10 @@
 /* Copyright (c) 2026 Riverside Research */
-#include "hammer.h"
+#include "trace.h"
 
 #include "backends/regex.h"
+#include "hammer.h"
 #include "internal.h"
 #include "platform.h"
-#include "trace.h"
 
 /* ------------------------------------------------------------------------- *
  * AST-construction trace.
@@ -19,7 +19,7 @@
  * ------------------------------------------------------------------------- */
 #if HAMMER_TRACE_AST
 
-#include <ctype.h> // isprint()
+#include <ctype.h>    // isprint()
 #include <inttypes.h> // PRIu64 etc.
 #include <stddef.h>
 #include <stdint.h>
@@ -77,6 +77,14 @@ typedef struct HTraceChoiceScope_ {
     bool truncated;
 } HTraceChoiceScope;
 
+typedef struct HTracePendingFailure_ {
+    HParseErrorKind kind;
+    const char *message;
+    size_t start;
+    size_t end;
+    bool present;
+} HTracePendingFailure;
+
 typedef struct HTraceContext_ {
     const uint8_t *input;
     size_t input_len;
@@ -105,6 +113,7 @@ typedef struct HTraceContext_ {
     HTraceNumericRange pending_numeric_range;
     HTraceDispatchFailure dispatch_failure;
     HTraceDispatchFailure pending_dispatch_failure;
+    HTracePendingFailure pending_failure;
     HTraceChoiceNode choice_nodes[H_TRACE_MAX_CHOICE_NODES];
     size_t choice_node_count;
     HTraceChoiceAlternative choice_alternatives[H_TRACE_MAX_CHOICE_ALTERNATIVES];
@@ -151,9 +160,7 @@ void h_trace_state_free(HTraceState *trace) {
 }
 
 bool h_trace_is_enabled(const HTraceState *trace) { return trace != NULL; }
-bool h_trace_is_dump_enabled(const HTraceState *trace) {
-    return trace && trace->execution_stream;
-}
+bool h_trace_is_dump_enabled(const HTraceState *trace) { return trace && trace->execution_stream; }
 bool h_trace_should_print_summary(const HTraceState *trace) {
     return trace && trace->print_summary;
 }
@@ -260,8 +267,7 @@ void h_trace_get_diagnostic(const HTraceState *trace, HParseDiagnostic **out) {
     if (!*out)
         return;
     trace_copy_error(&(*out)->error, &trace->completed.error);
-    memcpy((*out)->expected_bytes, trace->completed.expected_bytes,
-           sizeof((*out)->expected_bytes));
+    memcpy((*out)->expected_bytes, trace->completed.expected_bytes, sizeof((*out)->expected_bytes));
     (*out)->expected_eof = trace->completed.expected_eof;
     (*out)->input_too_short = trace->completed.input_too_short;
     (*out)->numeric_range = trace->completed.numeric_range;
@@ -280,9 +286,8 @@ void h_trace_get_diagnostic(const HTraceState *trace, HParseDiagnostic **out) {
     memcpy((*out)->input_frames, trace->completed.input_frames,
            trace->completed.input_frame_count * sizeof(trace->completed.input_frames[0]));
     (*out)->execution_trace = trace_strdup(trace->completed.execution_trace);
-    (*out)->execution_trace_length = (*out)->execution_trace
-                                         ? trace->completed.execution_trace_length
-                                         : 0;
+    (*out)->execution_trace_length =
+        (*out)->execution_trace ? trace->completed.execution_trace_length : 0;
 }
 
 void h_trace_note_int_range(HTraceState *trace, const HParsedToken *token, int64_t lower,
@@ -348,6 +353,25 @@ void h_trace_note_dispatch(HTraceState *trace, const HParsedToken *token, bool h
             failure->expected_truncated = true;
         }
     }
+}
+
+void h_trace_note_failure(HTraceState *trace, HParseErrorKind kind, const char *message,
+                          size_t start, size_t end) {
+    HTraceContext *context = trace ? trace->context : NULL;
+    if (!context || !message)
+        return;
+
+    context->pending_failure.kind = kind;
+    context->pending_failure.message = message;
+    context->pending_failure.start = start;
+    context->pending_failure.end = end < start ? start : end;
+    context->pending_failure.present = true;
+
+    /* A child may have failed while the enclosing parser was deciding why the
+     * overall construct is invalid. Mark the current parser occurrence as the
+     * owner so h_trace_exit() records this more precise causal failure. */
+    if (context->frame_count > 0)
+        context->frames[context->frame_count - 1].failure_serial = context->failure_serial;
 }
 
 static const char *trace_tt_name(HTokenType t) {
@@ -768,8 +792,8 @@ static const HParser *trace_choice_origin(const HTraceContext *context,
 
 static size_t trace_choice_begin_at(HTraceState *trace, const HParser *parser,
                                     const HParser *origin) {
-    if (!trace || !trace->context ||
-        trace->context->choice_depth >= H_TRACE_MAX_CHOICE_DEPTH || !parser)
+    if (!trace || !trace->context || trace->context->choice_depth >= H_TRACE_MAX_CHOICE_DEPTH ||
+        !parser)
         return H_TRACE_CHOICE_NONE;
 
     HTraceContext *context = trace->context;
@@ -1043,8 +1067,7 @@ static void trace_snapshot_provenance(HTraceContext *context, const HDiagnosticC
         ordered[ordered_count++] = item;
 
     const HParser *previous = NULL;
-    while (ordered_count > 0 &&
-           context->input_frame_count < H_PARSE_DIAGNOSTIC_MAX_INPUT_FRAMES) {
+    while (ordered_count > 0 && context->input_frame_count < H_PARSE_DIAGNOSTIC_MAX_INPUT_FRAMES) {
         const HDiagnosticContext *item = ordered[--ordered_count];
         const HParser *parser = item->parser;
         if (!parser || parser == previous)
@@ -1110,14 +1133,12 @@ static void trace_snapshot_input_frames(HTraceContext *context, size_t reached,
 
 static void trace_snapshot_failure_occurrence(HTraceContext *context, const HParser *parser,
                                               size_t start, size_t reached) {
-    if (!context || !parser ||
-        context->input_frame_count >= H_PARSE_DIAGNOSTIC_MAX_INPUT_FRAMES)
+    if (!context || !parser || context->input_frame_count >= H_PARSE_DIAGNOSTIC_MAX_INPUT_FRAMES)
         return;
 
     for (size_t i = 0; i < context->input_frame_count; i++) {
         const HTraceFrame *existing = &context->input_frames[i];
-        if (existing->parser == parser &&
-            (existing->start == start || h_is_context_parser(parser)))
+        if (existing->parser == parser && (existing->start == start || h_is_context_parser(parser)))
             return;
         if (existing->start == start && h_is_context_parser(existing->parser) &&
             h_context_parser_child(existing->parser) == parser)
@@ -1136,9 +1157,8 @@ static void trace_snapshot_candidate_frames(HTraceContext *context,
                                             const HTraceCandidateFrame frames[], size_t count,
                                             size_t reached) {
     context->input_frame_count = 0;
-    for (size_t i = 0; i < count &&
-                       context->input_frame_count < H_PARSE_DIAGNOSTIC_MAX_INPUT_FRAMES;
-         i++) {
+    for (size_t i = 0;
+         i < count && context->input_frame_count < H_PARSE_DIAGNOSTIC_MAX_INPUT_FRAMES; i++) {
         const HParser *parser = frames[i].parser;
         if (!parser)
             continue;
@@ -1166,17 +1186,18 @@ static void trace_record_failure(const HParser *parser, HParseState *state,
     bool expected_eof;
     size_t failure_offset = trace_collect_expectations(
         parser, frame, end, state->input_stream.overrun, expected, &expected_eof);
-    size_t index =
-        parser->vtable->higher ? end : trace_size_add(frame->start, failure_offset);
+    size_t index = parser->vtable->higher ? end : trace_size_add(frame->start, failure_offset);
     HParseErrorKind kind = trace_failure_kind(parser, frame->name, index, context->input_len);
     HTraceNumericRange numeric_range = context->pending_numeric_range;
     memset(&context->pending_numeric_range, 0, sizeof(context->pending_numeric_range));
     HTraceDispatchFailure dispatch_failure = context->pending_dispatch_failure;
     memset(&context->pending_dispatch_failure, 0, sizeof(context->pending_dispatch_failure));
+    HTracePendingFailure pending_failure = context->pending_failure;
+    memset(&context->pending_failure, 0, sizeof(context->pending_failure));
     if (dispatch_failure.present)
         kind = H_PARSE_ERROR_DISPATCH;
-    bool input_too_short = state->input_stream.overrun && parser && parser->vtable &&
-                           !parser->vtable->higher;
+    bool input_too_short =
+        state->input_stream.overrun && parser && parser->vtable && !parser->vtable->higher;
     bool value_failure = kind == H_PARSE_ERROR_SEMANTIC_PREDICATE || kind == H_PARSE_ERROR_RANGE ||
                          kind == H_PARSE_ERROR_XOR || kind == H_PARSE_ERROR_DIFFERENCE ||
                          kind == H_PARSE_ERROR_BUTNOT || kind == H_PARSE_ERROR_NO_VALUE ||
@@ -1217,9 +1238,26 @@ static void trace_record_failure(const HParser *parser, HParseState *state,
     }
     const char *failure_name =
         label_parser ? label_parser->diagnostic_label : trace_parser_diagnostic_name(parser);
-    const char *failure_message = message_parser ? message_parser->diagnostic_message : NULL;
+    const char *failure_message =
+        message_parser ? message_parser->diagnostic_message : pending_failure.message;
 
-    if (value_failure)
+    if (!failure_message && h_is_not_in_parser(parser) && index < context->input_len)
+        failure_message = "input byte is forbidden by this charset";
+
+    if (pending_failure.present) {
+        kind = pending_failure.kind;
+        if (pending_failure.start == SIZE_MAX && pending_failure.end == SIZE_MAX &&
+            error->kind != H_PARSE_ERROR_NONE) {
+            index = error->index;
+            end = error->end_index;
+        } else {
+            index = pending_failure.start;
+            end = pending_failure.end;
+        }
+        input_too_short = false;
+    }
+
+    if (value_failure && !pending_failure.present)
         index = frame->start;
 
     size_t progress = trace_failure_progress(kind, index, end);
@@ -1497,9 +1535,8 @@ void h_trace_fprint_choice(FILE *stream, const HTraceChoiceNode *nodes, size_t n
 }
 
 void rvm_match_error(HTraceState *trace_state, HRVMProg *prog, const uint8_t *input,
-                     size_t input_len,
-                     const HTraceFailureCandidate *candidates, size_t candidate_count,
-                     HRVMTrace *trace) {
+                     size_t input_len, const HTraceFailureCandidate *candidates,
+                     size_t candidate_count, HRVMTrace *trace) {
     if (!trace_state || !candidates || candidate_count == 0)
         return;
     h_backend_trace_begin(trace_state, PB_REGULAR,
@@ -1667,6 +1704,8 @@ void h_backend_trace_failure(HTraceState *trace, size_t start, size_t end, HPars
         (h_is_float_range_parser(semantic_parser) || h_is_int_range_parser(semantic_parser))) {
         kind = H_PARSE_ERROR_RANGE;
     }
+    if (!failure_message && h_is_not_in_parser(semantic_parser) && index < context->input_len)
+        failure_message = "input byte is forbidden by this charset";
     bool input_too_short = kind == H_PARSE_ERROR_UNEXPECTED_EOF && semantic_parser &&
                            semantic_parser->vtable && !semantic_parser->vtable->higher;
 
@@ -1730,8 +1769,8 @@ void h_backend_trace_failure(HTraceState *trace, size_t start, size_t end, HPars
     context->expected_eof |= expected_eof;
 }
 
-static const HTraceCandidateChoice *trace_candidate_choice_at(
-    const HTraceFailureCandidate *candidate, size_t depth) {
+static const HTraceCandidateChoice *
+trace_candidate_choice_at(const HTraceFailureCandidate *candidate, size_t depth) {
     return candidate && depth < candidate->choice_depth ? &candidate->choices[depth] : NULL;
 }
 
@@ -1891,8 +1930,7 @@ static void trace_add_cf_candidate(HTraceCFWalk *walk, const HCFChoice *symbol,
     const HParser *parser = h_cfchoice_diagnostic_parser(symbol, walk->fallback);
     HTraceFailureCandidate *candidate = NULL;
     for (size_t i = 0; i < walk->count; i++) {
-        if (walk->candidates[i].provenance == provenance &&
-            walk->candidates[i].parser == parser &&
+        if (walk->candidates[i].provenance == provenance && walk->candidates[i].parser == parser &&
             trace_candidate_path_equal(&walk->candidates[i], path, choice_depth) &&
             trace_candidate_frames_equal(&walk->candidates[i], parser_path, parser_depth)) {
             candidate = &walk->candidates[i];
@@ -1953,8 +1991,8 @@ static void trace_walk_cf_symbol(HTraceCFWalk *walk, const HCFChoice *symbol, si
         parser_depth++;
     }
     if (symbol->type == HCF_CHOICE) {
-        bool is_choice = h_is_choice_parser(symbol->parser) &&
-                         choice_depth < H_TRACE_MAX_CANDIDATE_CHOICE_DEPTH;
+        bool is_choice =
+            h_is_choice_parser(symbol->parser) && choice_depth < H_TRACE_MAX_CANDIDATE_CHOICE_DEPTH;
         size_t alternative = 0;
         for (HCFSequence **sequence = symbol->data.seq; sequence && *sequence;
              sequence++, alternative++) {
@@ -1966,9 +2004,8 @@ static void trace_walk_cf_symbol(HTraceCFWalk *walk, const HCFChoice *symbol, si
                 entry->alternative = alternative;
                 entry->id = (size_t)(uintptr_t)symbol;
             }
-            trace_walk_cf_items(walk, (*sequence)->items, position, continuation,
-                                grammar_depth + 1, path, child_choice_depth, parser_path,
-                                parser_depth, origin);
+            trace_walk_cf_items(walk, (*sequence)->items, position, continuation, grammar_depth + 1,
+                                path, child_choice_depth, parser_path, parser_depth, origin);
         }
         return;
     }
@@ -1983,7 +2020,7 @@ static void trace_walk_cf_symbol(HTraceCFWalk *walk, const HCFChoice *symbol, si
         return;
     uint8_t actual = walk->input[position - walk->input_pos];
     bool matched = symbol->type == HCF_CHAR ? actual == symbol->data.chr
-                                           : charset_isset(symbol->data.charset, actual);
+                                            : charset_isset(symbol->data.charset, actual);
     if (matched && position != SIZE_MAX)
         trace_walk_cf_continuation(walk, position + 1, continuation, grammar_depth, path,
                                    parser_path);
@@ -2101,8 +2138,7 @@ static void trace_lr_parser(HTraceState *trace, const HParser *parser) {
 }
 
 void h_cf_trace_lr_shift(HTraceState *trace, size_t branch, size_t from_state, size_t to_state,
-                         size_t index,
-                         const HParser *parser, const HDiagnosticContext *provenance,
+                         size_t index, const HParser *parser, const HDiagnosticContext *provenance,
                          const HParsedToken *token) {
     if (!trace || !trace->context)
         return;
@@ -2126,8 +2162,7 @@ void h_cf_trace_lr_shift(HTraceState *trace, size_t branch, size_t from_state, s
 }
 
 void h_cf_trace_lr_reduce(HTraceState *trace, size_t branch, size_t from_state, size_t to_state,
-                          size_t length,
-                          size_t start, size_t end, const HParser *parser,
+                          size_t length, size_t start, size_t end, const HParser *parser,
                           const HDiagnosticContext *provenance, const HParsedToken *token,
                           bool success) {
     (void)provenance;
@@ -2155,8 +2190,7 @@ void h_cf_trace_lr_reduce(HTraceState *trace, size_t branch, size_t from_state, 
 }
 
 void h_cf_trace_lr_error(HTraceState *trace, size_t branch, size_t state, size_t index,
-                         const HParser *parser,
-                         const HDiagnosticContext *provenance) {
+                         const HParser *parser, const HDiagnosticContext *provenance) {
     (void)provenance;
     if (!trace || !trace->execution_stream || !trace->context)
         return;
