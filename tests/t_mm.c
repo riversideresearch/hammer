@@ -14,6 +14,12 @@ static size_t test_slob_align_up(size_t size) {
     return rem == 0 ? size : size + (TEST_SLOB_ALIGNMENT - rem);
 }
 
+static uint8_t *test_slob_align_ptr(uint8_t *ptr) {
+    uintptr_t addr = (uintptr_t)ptr;
+    size_t rem = addr % TEST_SLOB_ALIGNMENT;
+    return rem == 0 ? ptr : ptr + (TEST_SLOB_ALIGNMENT - rem);
+}
+
 static void check_slob_ptr(void *ptr, uint8_t *mem, size_t mem_size) {
     g_check_cmp_ptr(ptr, !=, NULL);
     if (!ptr)
@@ -160,6 +166,28 @@ static void test_sloballoc_hammer(void) {
     check_sloballoc_invariants();
 }
 
+static void test_sloballoc_misaligned_region(void) {
+    static uint8_t storage[N + TEST_SLOB_ALIGNMENT + 1];
+    uint8_t *mem = test_slob_align_ptr(storage) + 1;
+    SLOB *slob = slobinit(mem, N);
+    g_check_cmp_ptr(slob, !=, NULL);
+    g_check_cmp_uint64((uint64_t)((uintptr_t)slob % TEST_SLOB_ALIGNMENT), ==, 0);
+
+    void *p = sloballoc(slob, 1);
+    check_slob_ptr(p, mem, N);
+}
+
+static void test_h_sloballoc_misaligned_region(void) {
+    static uint8_t storage[N + TEST_SLOB_ALIGNMENT + 1];
+    uint8_t *mem = test_slob_align_ptr(storage) + 1;
+    HAllocator *mm = h_sloballoc(mem, N);
+    g_check_cmp_ptr(mm, !=, NULL);
+    g_check_cmp_uint64((uint64_t)((uintptr_t)mm % TEST_SLOB_ALIGNMENT), ==, 0);
+
+    void *p = mm->alloc(mm, 1);
+    check_slob_ptr(p, mem, N);
+}
+
 #undef N
 
 void register_mm_tests(void) {
@@ -167,4 +195,7 @@ void register_mm_tests(void) {
     g_test_add_func("/core/mm/sloballoc/merge", test_sloballoc_merge);
     g_test_add_func("/core/mm/sloballoc/small", test_sloballoc_small);
     g_test_add_func("/core/mm/sloballoc/hammer", test_sloballoc_hammer);
+    g_test_add_func("/core/mm/sloballoc/misaligned_region", test_sloballoc_misaligned_region);
+    g_test_add_func("/core/mm/sloballoc/hammer_misaligned_region",
+                    test_h_sloballoc_misaligned_region);
 }

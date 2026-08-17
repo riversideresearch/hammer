@@ -8,8 +8,7 @@ permissions:
   contents: write
 
 env:
-  CFLAGS: "-std=c99 -pedantic -Wall -Wstrict-prototypes -Wwrite-strings -Wpointer-arith -Wcast-align -Werror -fsanitize=undefined"
-  LDFLAGS: "-fsanitize=undefined"
+  CFLAGS: "-std=c99 -pedantic -Wall -Wstrict-prototypes -Wwrite-strings -Wpointer-arith -Wcast-align -Werror"
 
 jobs:
   checks:
@@ -55,10 +54,16 @@ jobs:
 
       - name: Run tests
         if: matrix.check == 'scons-test'
+        env:
+          CFLAGS: "-std=c99 -pedantic -Wall -Wstrict-prototypes -Wwrite-strings -Wpointer-arith -Wcast-align -Werror -fsanitize=undefined"
+          LDFLAGS: "-fsanitize=undefined"
         run: scons test
 
       - name: Run binding tests
         if: matrix.check == 'scons-test'
+        env:
+          CFLAGS: "-std=c99 -pedantic -Wall -Wstrict-prototypes -Wwrite-strings -Wpointer-arith -Wcast-align -Werror -fsanitize=undefined"
+          LDFLAGS: "-fsanitize=undefined"
         run: scons bindings=all test
 
       - name: Install package dependencies

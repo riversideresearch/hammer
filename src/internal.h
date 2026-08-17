@@ -374,7 +374,7 @@ extern HParserBackendVTable h__glr_backend_vtable;
 char *h_get_description_with_no_params(HAllocator *mm__, HParserBackend be, void *params);
 char *h_get_short_name_with_no_params(HAllocator *mm__, HParserBackend be, void *params);
 
-int64_t h_read_bits(HInputStream *state, int count, char signed_p);
+int64_t h_read_bits(HInputStream *state, size_t count, char signed_p);
 void h_skip_bits(HInputStream *state, size_t count);
 void h_seek_bits(HInputStream *state, size_t pos);
 static inline size_t h_input_stream_pos(HInputStream *state) {

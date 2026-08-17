@@ -48,17 +48,26 @@ static size_t slob_align_up(size_t size) {
 
 static size_t slob_align_down(size_t size) { return size - (size % SLOB_ALIGNMENT); }
 
+static void *slob_align_region(void *mem, size_t *size) {
+    uintptr_t addr = (uintptr_t)mem;
+    size_t rem = addr % SLOB_ALIGNMENT;
+    size_t padding = rem == 0 ? 0 : SLOB_ALIGNMENT - rem;
+    if (padding > *size)
+        return NULL;
+    *size -= padding;
+    return (uint8_t *)mem + padding;
+}
+
 SLOB *slobinit(void *mem, size_t size) {
-    SLOB *slob = mem;
+    SLOB *slob = slob_align_region(mem, &size);
 
-    if (size < sizeof(SLOB) + sizeof(struct block))
+    if (!slob || size < sizeof(SLOB) + sizeof(struct block))
         return NULL;
-    if (size >= UINTPTR_MAX - (uintptr_t)mem)
+    if (size >= UINTPTR_MAX - (uintptr_t)slob)
         return NULL;
 
-    slob = mem;
     slob->size = slob_align_down(size - sizeof(SLOB));
-    slob->head = (struct block *)((uint8_t *)mem + sizeof(SLOB));
+    slob->head = (struct block *)((uint8_t *)slob + sizeof(SLOB));
     slob->head->size = slob->size - sizeof(struct alloc);
     slob->head->next = NULL;
 
@@ -277,12 +286,12 @@ static void *h_slob_realloc(HAllocator *mm, void *p, size_t size) {
 }
 
 HAllocator *h_sloballoc(void *mem, size_t size) {
+    HAllocator *mm = slob_align_region(mem, &size);
     size_t slob_offset = h_slob_offset();
-    if (size < slob_offset)
+    if (!mm || size < slob_offset)
         return NULL;
 
-    HAllocator *mm = mem;
-    SLOB *slob = slobinit((uint8_t *)mem + slob_offset, size - slob_offset);
+    SLOB *slob = slobinit((uint8_t *)mm + slob_offset, size - slob_offset);
     if (!slob)
         return NULL;
     assert(slob == h_slob_get(mm));
