@@ -51,7 +51,4 @@ HParser *h_xor__m(HAllocator *mm__, const HParser *p1, const HParser *p2) {
     return h_new_parser(mm__, &xor_vt, env);
 }
 
-
-bool h_is_xor_parser(const HParser *parser){
-    return parser && parser->vtable == &xor_vt;
-}
+bool h_is_xor_parser(const HParser *parser) { return parser && parser->vtable == &xor_vt; }

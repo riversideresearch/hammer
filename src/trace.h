@@ -272,7 +272,7 @@ void svm_failure_error(HSVMContext *ctx, HRVMProg *orig_prog, HRVMTrace *trace,
 #define h_trace_note_int_range(trace, token, lower, upper) ((void)0)
 #define h_trace_note_float_range(trace, token, lower, upper) ((void)0)
 #define h_trace_note_dispatch(trace, token, has_opcode, opcode, map, count) ((void)0)
-#define h_trace_note_failure(trace, kind, message, start, end)                                    \
+#define h_trace_note_failure(trace, kind, message, start, end)                                     \
     ((void)(trace), (void)(kind), (void)(message), (void)(start), (void)(end))
 #define h_trace_fprint_choice(stream, nodes, node_count, alternatives, alternative_count, root)    \
     ((void)0)

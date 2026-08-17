@@ -369,8 +369,7 @@ static void llk_trace_lookup_failure(const HStringMap *row, HInputStream stream,
                 h_backend_trace_failures(trace, candidates, count);
             else
                 CF_TRACE_FAILURE(trace, index, index, H_PARSE_ERROR_UNEXPECTED_EOF, parser,
-                                 provenance,
-                                 expected, expected_eof);
+                                 provenance, expected, expected_eof);
             return;
         }
 

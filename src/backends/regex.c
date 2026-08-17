@@ -73,8 +73,8 @@ static void record_rvm_match_failure(HRVMMatchFailure *failure, size_t index, ui
         memset(candidate, 0, sizeof(*candidate));
         candidate->start = index;
         candidate->end = index + 1;
-        candidate->kind = explicit_failure ? H_PARSE_ERROR_EXPLICIT_FAILURE
-                                           : H_PARSE_ERROR_PRIMITIVE_MISMATCH;
+        candidate->kind =
+            explicit_failure ? H_PARSE_ERROR_EXPLICIT_FAILURE : H_PARSE_ERROR_PRIMITIVE_MISMATCH;
         candidate->parser = parser;
         candidate->provenance = diagnostic_context;
         HTraceCandidateChoice reverse_path[H_TRACE_MAX_CANDIDATE_CHOICE_DEPTH];
@@ -82,8 +82,7 @@ static void record_rvm_match_failure(HRVMMatchFailure *failure, size_t index, ui
         for (const HDiagnosticContext *item = diagnostic_context; item; item = item->next) {
             if (item->choice && reverse_depth < H_TRACE_MAX_CANDIDATE_CHOICE_DEPTH) {
                 const HParser *origin = item->choice;
-                for (const HDiagnosticContext *parent = item->next; parent;
-                     parent = parent->next) {
+                for (const HDiagnosticContext *parent = item->next; parent; parent = parent->next) {
                     if (parent->choice)
                         break;
                     if (h_is_context_parser(parent->parser)) {
@@ -131,7 +130,7 @@ HRVMTrace *invert_trace(HRVMTrace *trace) {
 }
 
 static void *h_rvm_run__m(HAllocator *mm__, HRVMProg *prog, const uint8_t *input, size_t len,
-                           HTraceState *trace_state) {
+                          HTraceState *trace_state) {
     HArena *arena = h_new_arena(mm__, 0);
     HSArray *heads_a = h_sarray_new(mm__, prog->length), // Both of these contain HRVMTrace*'s
         *heads_b = h_sarray_new(mm__, prog->length);
@@ -279,8 +278,8 @@ finalize:
     } else if (match_failure.present) {
         for (size_t i = 0; i < match_failure.candidate_count; i++) {
             HTraceFailureCandidate *candidate = &match_failure.candidates[i];
-            candidate->end = match_failure.index < len ? match_failure.index + 1
-                                                       : match_failure.index;
+            candidate->end =
+                match_failure.index < len ? match_failure.index + 1 : match_failure.index;
             if (candidate->kind != H_PARSE_ERROR_EXPLICIT_FAILURE)
                 candidate->kind = match_failure.index < len ? H_PARSE_ERROR_PRIMITIVE_MISMATCH
                                                             : H_PARSE_ERROR_UNEXPECTED_EOF;
