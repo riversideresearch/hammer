@@ -1,8 +1,11 @@
 /* Copyright (c) 2026 Riverside Research */
 #include "../internal.h"
 #include "../parsers/parser_internal.h"
+#include "../trace.h"
 
 #include <assert.h>
+#include <inttypes.h>
+#include <stdio.h>
 #include <string.h>
 
 /* #define DETAILED_PACKRAT_STATISTICS */
@@ -238,6 +241,8 @@ HParseResult *h_do_parse(const HParser *parser, HParseState *state) {
     HParserCacheValue *m = NULL, *cached = NULL;
     HActionPlan *selected_plan = NULL;
 
+    TRACE_ENTER(parser, state);
+
     key->input_pos = state->input_stream;
     key->parser = parser;
     keyhash = cache_key_hash(key);
@@ -270,8 +275,10 @@ HParseResult *h_do_parse(const HParser *parser, HParseState *state) {
             h_slist_pop(state->lr_stack);
             /* update the cached value to our new position */
             cached = h_hashtable_get_precomp(state->cache, key, keyhash);
-            if (cached == NULL)
+            if (cached == NULL) {
+                TRACE_EXIT(parser, state, tmp_res, "computed (cache removed)");
                 return select_result(state, tmp_res, selected_plan);
+            }
             assert(cached != NULL);
             cached->input_stream = state->input_stream;
         }
@@ -285,11 +292,13 @@ HParseResult *h_do_parse(const HParser *parser, HParseState *state) {
                 h_hashtable_put_precomp(state->cache, key,
                                         cached_result(state, tmp_res, selected_plan), keyhash);
             }
+            TRACE_EXIT(parser, state, tmp_res, parser->vtable->higher ? "computed" : "primitive");
             return select_result(state, tmp_res, selected_plan);
         } else {
             base->seed = tmp_res;
             base->seed_plan = tmp_res ? selected_plan : NULL;
             HParseResult *res = lr_answer(key, state, base, &selected_plan);
+            TRACE_EXIT(parser, state, res, "left-recursion answer");
             return select_result(state, res, selected_plan);
         }
     } else {
@@ -297,10 +306,12 @@ HParseResult *h_do_parse(const HParser *parser, HParseState *state) {
         state->input_stream = m->input_stream;
         if (PC_LEFT == m->value_type) {
             setupLR(parser, state, m->value.left);
+            TRACE_EXIT(parser, state, m->value.left->seed, "memoized (LR seed)");
             selected_plan = m->value.left->seed ? m->value.left->seed_plan : NULL;
             return select_result(state, m->value.left->seed, selected_plan);
         } else {
             selected_plan = m->value.right ? m->action_plan : NULL;
+            TRACE_EXIT(parser, state, m->value.right, "memoized (cache hit)");
             return select_result(state, m->value.right, selected_plan);
         }
     }
@@ -351,6 +362,7 @@ static bool pos_equal(const void *key1, const void *key2) {
 }
 
 HParseResult *h_packrat_parse(HAllocator *mm__, const HParser *parser, HInputStream *input_stream) {
+    TRACE_BEGIN(input_stream->trace, input_stream->input, input_stream->length);
     HArena *arena = h_new_arena(mm__, 0);
 
     // out-of-memory handling
@@ -378,6 +390,7 @@ HParseResult *h_packrat_parse(HAllocator *mm__, const HParser *parser, HInputStr
     h_hashtable_free(parse_state->recursion_heads);
     // tear down the parse state
     h_hashtable_free(parse_state->cache);
+    TRACE_END(res, parse_state);
     if (!res)
         h_delete_arena(parse_state->arena);
 

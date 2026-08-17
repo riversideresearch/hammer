@@ -11,6 +11,7 @@
 
 #include <stdarg.h>
 #include <stdint.h>
+#include <stdio.h>
 
 /* String Formatting */
 
@@ -19,6 +20,9 @@ int h_platform_asprintf(char **strp, const char *fmt, ...);
 
 /** see GNU C vasprintf */
 int h_platform_vasprintf(char **strp, const char *fmt, va_list arg);
+
+/* Return nonzero when stream is attached to an interactive terminal. */
+int h_platform_is_terminal(FILE *stream);
 
 /* Error Reporting */
 

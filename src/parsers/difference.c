@@ -41,6 +41,7 @@ static HParseResult *parse_difference(void *env, HParseState *state) {
 }
 
 static const HParserVtable difference_vt = {
+    .name = "h_difference",
     .parse = parse_difference,
     .isValidRegular = h_false,
     .isValidCF = h_false,
@@ -55,4 +56,8 @@ HParser *h_difference__m(HAllocator *mm__, const HParser *p1, const HParser *p2)
     env->p1 = p1;
     env->p2 = p2;
     return h_new_parser(mm__, &difference_vt, env);
+}
+
+bool h_is_difference_parser(const HParser *parser) {
+    return parser && parser->vtable == &difference_vt;
 }

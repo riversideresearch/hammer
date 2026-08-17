@@ -90,6 +90,7 @@ static bool opt_ctrvm(HRVMProg *prog, void *env) {
 }
 
 static const HParserVtable optional_vt = {
+    .name = "h_optional",
     .parse = parse_optional,
     .isValidRegular = opt_isValidRegular,
     .isValidCF = opt_isValidCF,

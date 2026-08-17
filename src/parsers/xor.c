@@ -36,6 +36,7 @@ static HParseResult *parse_xor(void *env, HParseState *state) {
 }
 
 static const HParserVtable xor_vt = {
+    .name = "h_xor",
     .parse = parse_xor,
     .isValidRegular = h_false,
     .isValidCF = h_false, // XXX should this be true if both p1 and p2 are CF?
@@ -49,3 +50,5 @@ HParser *h_xor__m(HAllocator *mm__, const HParser *p1, const HParser *p2) {
     env->p2 = p2;
     return h_new_parser(mm__, &xor_vt, env);
 }
+
+bool h_is_xor_parser(const HParser *parser) { return parser && parser->vtable == &xor_vt; }

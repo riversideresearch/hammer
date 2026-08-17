@@ -33,7 +33,7 @@ cppenv["CCFLAGS"] = [
     if str(f) not in ("-std=c99", "-Werror")
 ]
 cppenv.Append(CXXFLAGS=["-std=c++17"])
-cppenv.Append(CPPPATH=[cpp_src_dir, src_dir])
+cppenv.Replace(CPPPATH=[cpp_src_dir, src_dir])
 cppenv.Append(LIBS=["hammer"])
 cppenv.Append(LIBPATH=[hammer_lib_dir])
 cppenv.MergeFlags("-Wno-missing-field-initializers")

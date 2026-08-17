@@ -1,4 +1,5 @@
 /* Copyright (c) 2026 Riverside Research */
+#include "../trace.h"
 #include "parser_internal.h"
 
 typedef struct {
@@ -7,26 +8,40 @@ typedef struct {
     int64_t upper;
 } HRange;
 
+void h_int_range_trace_failure(HTraceState *trace, const HParser *parser,
+                               const HParsedToken *token) {
+    if (!parser || !h_is_int_range_parser(parser))
+        return;
+    const HRange *range = parser->env;
+    h_trace_note_int_range(trace, token, range->lower, range->upper);
+}
+
+static bool int_range_match(const HParsedToken *token, const HRange *range, HTraceState *trace) {
+    bool valid;
+    if (!token)
+        return false;
+    switch (token->token_type) {
+    case TT_SINT:
+        valid = range->lower <= token->token_data.sint && token->token_data.sint <= range->upper;
+        break;
+    case TT_UINT:
+        valid = (uint64_t)range->lower <= token->token_data.uint &&
+                token->token_data.uint <= (uint64_t)range->upper;
+        break;
+    default:
+        return false;
+    }
+    if (!valid)
+        h_trace_note_int_range(trace, token, range->lower, range->upper);
+    return valid;
+}
+
 static HParseResult *parse_int_range(void *env, HParseState *state) {
     HRange *r_env = (HRange *)env;
     HParseResult *ret = h_do_parse(r_env->p, state);
     if (!ret || !ret->ast)
         return NULL;
-    switch (ret->ast->token_type) {
-    case TT_SINT:
-        if (r_env->lower <= ret->ast->token_data.sint && r_env->upper >= ret->ast->token_data.sint)
-            return ret;
-        else
-            return NULL;
-    case TT_UINT:
-        if ((uint64_t)r_env->lower <= ret->ast->token_data.uint &&
-            (uint64_t)r_env->upper >= ret->ast->token_data.uint)
-            return ret;
-        else
-            return NULL;
-    default:
-        return NULL;
-    }
+    return int_range_match(ret->ast, r_env, state->input_stream.trace) ? ret : NULL;
 }
 
 static bool int_range_predicate(HParseResult *result, void *user_data) {
@@ -35,18 +50,7 @@ static bool int_range_predicate(HParseResult *result, void *user_data) {
     if (!result || !result->ast)
         return false;
 
-    switch (result->ast->token_type) {
-    case TT_SINT:
-        return range->lower <= result->ast->token_data.sint &&
-               result->ast->token_data.sint <= range->upper;
-
-    case TT_UINT:
-        return (uint64_t)range->lower <= result->ast->token_data.uint &&
-               result->ast->token_data.uint <= (uint64_t)range->upper;
-
-    default:
-        return false;
-    }
+    return int_range_match(result->ast, range, NULL);
 }
 
 struct bits_env {
@@ -80,6 +84,8 @@ static bool h_svm_action_mark_int_range(HArena *arena, HSVMContext *ctx, void *e
 
 static bool h_svm_action_validate_int_range(HArena *arena, HSVMContext *ctx, void *env) {
     HRange *r_env = (HRange *)env;
+    if (ctx->stack_count == 0)
+        return false;
     HParsedToken *head = ctx->stack[ctx->stack_count - 1];
     bool valid;
 
@@ -92,7 +98,8 @@ static bool h_svm_action_validate_int_range(HArena *arena, HSVMContext *ctx, voi
                 (uint64_t)r_env->upper >= head->token_data.uint;
         break;
     default:
-        return false;
+        valid = false;
+        break;
     }
 
     if (valid) {
@@ -113,6 +120,18 @@ static bool h_svm_action_validate_int_range(HArena *arena, HSVMContext *ctx, voi
         }
         return false;
     }
+
+    ctx->failure.kind = SVM_FAILURE_INT_RANGE;
+    ctx->failure.start = head->index;
+    ctx->failure.end = ctx->input_pos;
+    ctx->failure.actual_type = head->token_type;
+    ctx->failure.lower = r_env->lower;
+    ctx->failure.upper = r_env->upper;
+    ctx->failure.parser = "h_int_range";
+    if (head->token_type == TT_SINT)
+        ctx->failure.actual.sint = head->token_data.sint;
+    else if (head->token_type == TT_UINT)
+        ctx->failure.actual.uint = head->token_data.uint;
     return false;
 }
 
@@ -143,6 +162,7 @@ static bool int_isValidCF(void *env) {
 }
 
 static const HParserVtable int_range_vt = {
+    .name = "h_int_range",
     .parse = parse_int_range,
     .isValidRegular = int_isValidRegular,
     .isValidCF = int_isValidCF,
@@ -161,4 +181,8 @@ HParser *h_int_range__m(HAllocator *mm__, const HParser *p, const int64_t lower,
     r_env->lower = lower;
     r_env->upper = upper;
     return h_new_parser(mm__, &int_range_vt, r_env);
+}
+
+bool h_is_int_range_parser(const HParser *parser) {
+    return parser && parser->vtable == &int_range_vt;
 }

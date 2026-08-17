@@ -48,6 +48,7 @@ static bool ignore_ctrvm(HRVMProg *prog, void *env) {
 }
 
 static const HParserVtable ignore_vt = {
+    .name = "h_ignore",
     .parse = parse_ignore,
     .isValidRegular = ignore_isValidRegular,
     .isValidCF = ignore_isValidCF,

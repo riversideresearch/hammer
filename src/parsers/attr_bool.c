@@ -79,8 +79,13 @@ static bool h_svm_action_attr_bool(HArena *arena, HSVMContext *ctx, void *arg) {
 
     res.ast = head;
     res.arena = arena;
-    if (!ab->pred(&res, ab->user_data))
+    if (!ab->pred(&res, ab->user_data)) {
+        ctx->failure.kind = SVM_FAILURE_SEMANTIC_PREDICATE;
+        ctx->failure.start = ctx->stack[boundary]->index;
+        ctx->failure.end = ctx->input_pos;
+        ctx->failure.parser = "h_attr_bool";
         return false;
+    }
 
     ctx->stack[boundary] = head;
     ctx->stack_count = boundary + 1;
@@ -104,6 +109,7 @@ static bool ab_ctrvm(HRVMProg *prog, void *env) {
 }
 
 static const HParserVtable attr_bool_vt = {
+    .name = "h_attr_bool",
     .parse = parse_attr_bool,
     .isValidRegular = ab_isValidRegular,
     .isValidCF = ab_isValidCF,
@@ -121,4 +127,8 @@ HParser *h_attr_bool__m(HAllocator *mm__, const HParser *p, HPredicate pred, voi
     env->pred = pred;
     env->user_data = user_data;
     return h_new_parser(mm__, &attr_bool_vt, env);
+}
+
+bool h_is_attr_bool_parser(const HParser *parser) {
+    return parser && parser->vtable == &attr_bool_vt;
 }

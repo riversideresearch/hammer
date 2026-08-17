@@ -1,4 +1,5 @@
 /* Copyright (c) 2026 Riverside Research */
+#include "../trace.h"
 #include "parser_internal.h"
 
 #include <assert.h>
@@ -24,6 +25,7 @@ static HParseResult *parse_many(void *env, HParseState *state) {
     while (env_->min_p || env_->count > count) {
         bak = state->input_stream;
         iteration_plan = state->action_plan;
+        size_t iteration_start = h_input_stream_pos(&state->input_stream);
         if (count > 0 && env_->sep != NULL) {
             HParseResult *sep = h_do_parse(env_->sep, state);
             if (!sep)
@@ -32,6 +34,14 @@ static HParseResult *parse_many(void *env, HParseState *state) {
         HParseResult *elem = h_do_parse(env_->p, state);
         if (!elem)
             goto stop;
+        if (env_->min_p && h_input_stream_pos(&state->input_stream) == iteration_start) {
+            state->input_stream = bak;
+            state->action_plan = iteration_plan;
+            size_t at = bak.pos + bak.index;
+            h_trace_note_failure(state->input_stream.trace, H_PARSE_ERROR_HIGHER_ORDER,
+                                 "repeated parser matched empty input", at, at);
+            return NULL;
+        }
         if (elem->ast)
             h_carray_append(seq, (void *)elem->ast);
         count++;
@@ -196,6 +206,7 @@ static bool many_ctrvm(HRVMProg *prog, void *env) {
 }
 
 static const HParserVtable many_vt = {
+    .name = "h_many",
     .parse = parse_many,
     .isValidRegular = many_isValidRegular,
     .isValidCF = many_isValidCF,
@@ -267,11 +278,16 @@ typedef struct {
 
 static HParseResult *parse_length_value(void *env, HParseState *state) {
     HLenVal *lv = (HLenVal *)env;
+    size_t start = state->input_stream.pos + state->input_stream.index;
     HParseResult *len = h_do_parse(lv->length, state);
     if (!len)
         return NULL;
-    if (len->ast->token_type != TT_UINT)
-        h_platform_errx(1, "Length parser must return an unsigned integer");
+    if (!len->ast || len->ast->token_type != TT_UINT) {
+        size_t end = state->input_stream.pos + state->input_stream.index;
+        h_trace_note_failure(state->input_stream.trace, H_PARSE_ERROR_HIGHER_ORDER,
+                             "length parser must return an unsigned integer", start, end);
+        return NULL;
+    }
     // TODO: allocate this using public functions
     HRepeat repeat = {
         .p = lv->value, .sep = NULL, .count = len->ast->token_data.uint, .min_p = false};
@@ -279,6 +295,7 @@ static HParseResult *parse_length_value(void *env, HParseState *state) {
 }
 
 static const HParserVtable length_value_vt = {
+    .name = "h_length_value",
     .parse = parse_length_value,
     .isValidRegular = h_false,
     .isValidCF = h_false,
@@ -306,6 +323,9 @@ static HParseResult *parse_cap(void *env, HParseState *state) {
     HInputStream bak;
     // handle edge case of many1_cap with count=0
     if (env_->min_p && env_->count == 0) {
+        size_t at = state->input_stream.pos + state->input_stream.index;
+        h_trace_note_failure(state->input_stream.trace, H_PARSE_ERROR_HIGHER_ORDER,
+                             "minimum repetition cannot be satisfied with a zero cap", at, at);
         return NULL;
     }
     while (env_->count > count) {
@@ -428,6 +448,7 @@ static void desugar_cap(HAllocator *mm__, HCFStack *stk__, void *env) {
 }
 
 static const HParserVtable cap_vt = {
+    .name = "h_cap",
     .parse = parse_cap,
     .isValidRegular = many_isValidRegular,
     .isValidCF = many_isValidCF,

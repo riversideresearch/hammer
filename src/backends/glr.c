@@ -1,3 +1,4 @@
+#include "../trace.h"
 #include "lr.h"
 #include "params.h"
 
@@ -40,6 +41,9 @@ static HLREngine *lrengine_merge(HLREngine *old, HLREngine *new) {
     ret->stack = h_slist_new(arena);
     ret->merged[0] = old;
     ret->merged[1] = new;
+    if (old->trace_failures)
+        CF_TRACE_GLR_MERGE(old->input.trace, old->trace_id, new->trace_id, old->state,
+                           old->input.pos + old->input.index);
 
     return ret;
 }
@@ -123,6 +127,12 @@ HLREngine *fork_engine(const HLREngine *engine) {
 
     eng2->arena = engine->arena;
     eng2->tarena = engine->tarena;
+    eng2->trace_failures = engine->trace_failures;
+    eng2->root_parser = engine->root_parser;
+    eng2->trace_id = engine->trace_failures
+                         ? CF_TRACE_GLR_FORK(engine->input.trace, engine->trace_id, engine->state,
+                                             engine->input.pos + engine->input.index)
+                         : engine->trace_id;
     return eng2;
 }
 
@@ -197,9 +207,12 @@ static bool glr_step(HLREngine **winner, HSlist *engines, HLREngine *engine,
 }
 
 HParseResult *h_glr_parse(HAllocator *mm__, const HParser *parser, HInputStream *stream) {
+    CF_TRACE_BEGIN(stream->trace, PB_GLR, parser, stream->input, stream->length);
     HLRTable *table = parser->backend_data;
-    if (!table)
+    if (!table) {
+        CF_TRACE_END(stream->trace, false);
         return NULL;
+    }
 
     HArena *arena = h_new_arena(mm__, 0);  // will hold the results
     HArena *tarena = h_new_arena(mm__, 0); // tmp, deleted after parse
@@ -211,6 +224,7 @@ HParseResult *h_glr_parse(HAllocator *mm__, const HParser *parser, HInputStream 
     if (setjmp(except)) {
         h_delete_arena(arena);
         h_delete_arena(tarena);
+        CF_TRACE_END(stream->trace, false);
         return NULL;
     }
 
@@ -220,7 +234,10 @@ HParseResult *h_glr_parse(HAllocator *mm__, const HParser *parser, HInputStream 
     HSlist *engback = h_slist_new(tarena);
 
     // create initial engine
-    h_slist_push(engines, h_lrengine_new(arena, tarena, table, stream));
+    HLREngine *initial = h_lrengine_new(arena, tarena, table, stream);
+    initial->trace_failures = TRACE_ENABLED(stream->trace);
+    initial->root_parser = parser;
+    h_slist_push(engines, initial);
 
     HLREngine *winner = NULL;
     while (winner == NULL && !h_slist_empty(engines)) {
@@ -232,7 +249,10 @@ HParseResult *h_glr_parse(HAllocator *mm__, const HParser *parser, HInputStream 
         while (!h_slist_empty(engines)) {
             HLREngine *engine = h_slist_pop(engines);
             const HLRAction *action = h_lrengine_action(engine);
-            glr_step(&winner, engback, engine, action);
+            if (action == NULL || action == NEED_INPUT)
+                h_lrengine_trace_action_failure(engine);
+            if (action != NEED_INPUT)
+                glr_step(&winner, engback, engine, action);
             // XXX detect ambiguous results - two engines terminating at the same pos
             // -> kill both engines, i.e. ignore if there is a later unamb. success
         }
@@ -253,6 +273,7 @@ HParseResult *h_glr_parse(HAllocator *mm__, const HParser *parser, HInputStream 
     if (!result)
         h_delete_arena(arena);
     h_delete_arena(tarena);
+    CF_TRACE_END(stream->trace, result != NULL);
     return result;
 }
 

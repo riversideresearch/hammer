@@ -77,6 +77,7 @@ static bool ws_ctrvm(HRVMProg *prog, void *env) {
 }
 
 static const HParserVtable whitespace_vt = {
+    .name = "h_whitespace",
     .parse = parse_whitespace,
     .isValidRegular = ws_isValidRegular,
     .isValidCF = ws_isValidCF,

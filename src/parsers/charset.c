@@ -79,12 +79,38 @@ static bool cs_ctrvm(HRVMProg *prog, void *env) {
     return true;
 }
 
+static size_t trace_expectations_charset(void *env, size_t consumed, bool overrun,
+                                         bool expected[256], bool *expected_eof) {
+    (void)consumed;
+    (void)overrun;
+    (void)expected_eof;
+    HCharset cs = env;
+    for (size_t i = 0; i < 256; i++)
+        expected[i] |= charset_isset(cs, (uint8_t)i);
+    return 0;
+}
+
 static const HParserVtable charset_vt = {
+    .name = "h_charset",
     .parse = parse_charset,
     .isValidRegular = h_true,
     .isValidCF = h_true,
     .compile_to_rvm = cs_ctrvm,
     .desugar = desugar_charset,
+    .trace_expectations = trace_expectations_charset,
+    .higher = false,
+};
+
+/* Keep complemented character sets distinguishable for diagnostics while
+ * sharing their parse, compile, and desugar implementations. */
+static const HParserVtable not_in_vt = {
+    .name = "h_not_in",
+    .parse = parse_charset,
+    .isValidRegular = h_true,
+    .isValidCF = h_true,
+    .compile_to_rvm = cs_ctrvm,
+    .desugar = desugar_charset,
+    .trace_expectations = trace_expectations_charset,
     .higher = false,
 };
 
@@ -105,7 +131,7 @@ static HParser *h_in_or_not__m(HAllocator *mm__, const uint8_t *options, size_t 
     for (size_t i = 0; i < count; i++)
         charset_set(cs, options[i], val);
 
-    return h_new_parser(mm__, &charset_vt, cs);
+    return h_new_parser(mm__, val ? &charset_vt : &not_in_vt, cs);
 }
 
 HParser *h_in(const uint8_t *options, size_t count) {
@@ -123,3 +149,5 @@ HParser *h_not_in(const uint8_t *options, size_t count) {
 HParser *h_not_in__m(HAllocator *mm__, const uint8_t *options, size_t count) {
     return h_in_or_not__m(mm__, options, count, 0);
 }
+
+bool h_is_not_in_parser(const HParser *parser) { return parser && parser->vtable == &not_in_vt; }

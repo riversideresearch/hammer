@@ -1,6 +1,7 @@
 #include "lr.h"
 
 #include "../parsers/parser_internal.h"
+#include "../trace.h"
 
 #include <assert.h>
 #include <ctype.h>
@@ -117,6 +118,8 @@ HLRTable *h_lrtable_new(HAllocator *mm__, size_t nrows) {
     ret->ntmap = h_arena_malloc(arena, nrows * sizeof(HHashTable *));
     ret->tmap = h_arena_malloc(arena, nrows * sizeof(HStringMap *));
     ret->forall = h_arena_malloc(arena, nrows * sizeof(HLRAction *));
+    ret->expected_parsers = h_arena_malloc(arena, nrows * sizeof(*ret->expected_parsers));
+    ret->expected_contexts = h_arena_malloc(arena, nrows * sizeof(*ret->expected_contexts));
     ret->inadeq = h_slist_new(arena);
     ret->arena = arena;
     ret->mm__ = mm__;
@@ -125,6 +128,8 @@ HLRTable *h_lrtable_new(HAllocator *mm__, size_t nrows) {
         ret->ntmap[i] = h_hashtable_new(arena, h_eq_symbol, h_hash_symbol);
         ret->tmap[i] = h_stringmap_new(arena);
         ret->forall[i] = NULL;
+        ret->expected_parsers[i] = NULL;
+        ret->expected_contexts[i] = NULL;
     }
 
     return ret;
@@ -136,9 +141,10 @@ void h_lrtable_free(HLRTable *table) {
     h_free(table);
 }
 
-HLRAction *h_shift_action(HArena *arena, size_t nextstate) {
+HLRAction *h_shift_action(HArena *arena, size_t nextstate, const HCFChoice *symbol) {
     HLRAction *action = h_arena_malloc(arena, sizeof(HLRAction));
     action->type = HLR_SHIFT;
+    action->shift_symbol = symbol;
     action->data.nextstate = nextstate;
     return action;
 }
@@ -146,6 +152,7 @@ HLRAction *h_shift_action(HArena *arena, size_t nextstate) {
 HLRAction *h_reduce_action(HArena *arena, const HLRItem *item) {
     HLRAction *action = h_arena_malloc(arena, sizeof(HLRAction));
     action->type = HLR_REDUCE;
+    action->shift_symbol = NULL;
     action->data.production.lhs = item->lhs;
     action->data.production.length = item->len;
 #ifndef NDEBUG
@@ -162,6 +169,7 @@ HLRAction *h_lr_conflict(HArena *arena, HLRAction *action, HLRAction *new) {
         HLRAction *old = action;
         action = h_arena_malloc(arena, sizeof(HLRAction));
         action->type = HLR_CONFLICT;
+        action->shift_symbol = NULL;
         action->data.branches = h_slist_new(arena);
         h_slist_push(action->data.branches, old);
         h_slist_push(action->data.branches, new);
@@ -196,6 +204,9 @@ static HLREngine *h_lrengine_new_(HArena *arena, HArena *tarena, const HLRTable 
     engine->merged[1] = NULL;
     engine->arena = arena;
     engine->tarena = tarena;
+    engine->trace_failures = false;
+    engine->root_parser = NULL;
+    engine->trace_id = 0;
 
     return engine;
 }
@@ -222,6 +233,116 @@ static const HLRAction *terminal_lookup(const HLREngine *engine, const HInputStr
         return table->forall[state];
     } else {
         return h_stringmap_get_lookahead(table->tmap[state], *stream);
+    }
+}
+
+static bool lr_action_only_nothing(const HLRAction *action) {
+    if (!action)
+        return false;
+    if (action->type == HLR_REDUCE)
+        return h_is_nothing_parser(action->data.production.lhs->parser);
+    if (action->type != HLR_CONFLICT || h_slist_empty(action->data.branches))
+        return false;
+    for (HSlistNode *branch = action->data.branches->head; branch; branch = branch->next)
+        if (!lr_action_only_nothing(branch->elem))
+            return false;
+    return true;
+}
+
+static void lr_expected_from_map(const HStringMap *map, bool expected[256], bool *expected_eof) {
+    memset(expected, 0, 256 * sizeof(*expected));
+    *expected_eof = false;
+    if (!map)
+        return;
+
+    *expected_eof = map->end_branch != NULL && !lr_action_only_nothing(map->end_branch);
+    const HHashTable *branches = map->char_branches;
+    for (size_t i = 0; i < branches->capacity; i++) {
+        for (HHashTableEntry *entry = &branches->contents[i]; entry; entry = entry->next) {
+            if (entry->key)
+                expected[key_char((HCharKey)entry->key)] = true;
+        }
+    }
+}
+
+void h_lrengine_trace_action_failure(const HLREngine *engine) {
+    size_t state = engine->state;
+    if (!engine->trace_failures || state >= engine->table->nrows)
+        return;
+
+    const HStringMap *map = engine->table->tmap[state];
+    HInputStream input = engine->input;
+    const HParser *origin = engine->table->expected_parsers[state];
+    const HDiagnosticContext *provenance = engine->table->expected_contexts[state];
+    if (!origin)
+        origin = engine->root_parser;
+    CF_TRACE_LR_ERROR(engine->input.trace, engine->trace_id, state, input.pos + input.index, origin,
+                      provenance);
+
+    if (!map) {
+        size_t index = input.pos + input.index;
+        CF_TRACE_FAILURE(engine->input.trace, index, index, H_PARSE_ERROR_HIGHER_ORDER, origin,
+                         provenance, NULL, false);
+        return;
+    }
+
+    while (map && !map->epsilon_branch) {
+        size_t index = input.pos + input.index;
+        uint8_t actual = h_read_bits(&input, 8, false);
+        if (input.overrun) {
+            bool expected[256], expected_eof;
+            lr_expected_from_map(map, expected, &expected_eof);
+            HTraceFailureCandidate candidates[H_TRACE_MAX_FAILURE_CANDIDATES] = {{0}};
+            size_t count = 0;
+            if (engine->root_parser && engine->root_parser->desugared) {
+                HTraceFailureCandidate grammar_candidates[H_TRACE_MAX_FAILURE_CANDIDATES] = {{0}};
+                size_t grammar_count = 0;
+                grammar_count = h_cf_trace_candidates(
+                    engine->root_parser->desugared, engine->input.input, engine->input.pos,
+                    engine->input.length, engine->input.pos, index, H_PARSE_ERROR_UNEXPECTED_EOF,
+                    origin, grammar_candidates);
+                if (grammar_count > 0) {
+                    memcpy(candidates, grammar_candidates,
+                           grammar_count * sizeof(grammar_candidates[0]));
+                    count = grammar_count;
+                }
+            }
+            if (count > 0)
+                h_backend_trace_failures(engine->input.trace, candidates, count);
+            else
+                CF_TRACE_FAILURE(engine->input.trace, index, index, H_PARSE_ERROR_UNEXPECTED_EOF,
+                                 origin, provenance, expected, expected_eof);
+            return;
+        }
+
+        const HStringMap *next = h_stringmap_get_char(map, actual);
+        if (!next) {
+            bool expected[256], expected_eof;
+            lr_expected_from_map(map, expected, &expected_eof);
+            HTraceFailureCandidate candidates[H_TRACE_MAX_FAILURE_CANDIDATES] = {{0}};
+            size_t count = 0;
+            if (engine->root_parser && engine->root_parser->desugared) {
+                HTraceFailureCandidate grammar_candidates[H_TRACE_MAX_FAILURE_CANDIDATES] = {{0}};
+                size_t grammar_count = 0;
+                grammar_count = h_cf_trace_candidates(
+                    engine->root_parser->desugared, engine->input.input, engine->input.pos,
+                    engine->input.length, engine->input.pos, index,
+                    H_PARSE_ERROR_PRIMITIVE_MISMATCH, origin, grammar_candidates);
+                if (grammar_count > 0) {
+                    memcpy(candidates, grammar_candidates,
+                           grammar_count * sizeof(grammar_candidates[0]));
+                    count = grammar_count;
+                }
+            }
+            if (count > 0)
+                h_backend_trace_failures(engine->input.trace, candidates, count);
+            else
+                CF_TRACE_FAILURE(engine->input.trace, index, index + 1,
+                                 H_PARSE_ERROR_PRIMITIVE_MISMATCH, origin, provenance, expected,
+                                 expected_eof);
+            return;
+        }
+        map = next;
     }
 }
 
@@ -269,6 +390,7 @@ bool h_lrengine_step(HLREngine *engine, const HLRAction *action) {
     HSlist *stack = engine->stack;
     HArena *arena = engine->arena;
     HArena *tarena = engine->tarena;
+    size_t action_state = engine->state;
 
     if (action == NULL)
         return false; // no handle recognizable in input, terminate
@@ -319,6 +441,7 @@ bool h_lrengine_step(HLREngine *engine, const HLRAction *action) {
             value->index = engine->input.pos + engine->input.index;
             value->bit_offset = engine->input.bit_offset;
         }
+        size_t reduction_start = value->index;
 
         // perform token reshape if indicated
         if (symbol->reshape) {
@@ -332,8 +455,28 @@ bool h_lrengine_step(HLREngine *engine, const HLRAction *action) {
         }
 
         // call validation and semantic action, if present
-        if (symbol->pred && !symbol->pred(make_result(tarena, value), symbol->user_data))
+        if (symbol->pred && !symbol->pred(make_result(tarena, value), symbol->user_data)) {
+            if (engine->trace_failures) {
+                HParseErrorKind kind = H_PARSE_ERROR_SEMANTIC_PREDICATE;
+                if (h_is_nothing_parser(symbol->parser))
+                    kind = H_PARSE_ERROR_EXPLICIT_FAILURE;
+                else if (h_is_float_range_parser(symbol->parser) ||
+                         h_is_int_range_parser(symbol->parser)) {
+                    kind = H_PARSE_ERROR_RANGE;
+                    h_float_range_trace_failure(engine->input.trace, symbol->parser, value);
+                    h_int_range_trace_failure(engine->input.trace, symbol->parser, value);
+                }
+                const HParser *origin = h_cfchoice_diagnostic_parser(symbol, engine->root_parser);
+                CF_TRACE_FAILURE(engine->input.trace, reduction_start,
+                                 engine->input.pos + engine->input.index, kind, origin,
+                                 symbol->diagnostic_context, NULL, false);
+                CF_TRACE_LR_REDUCE(engine->input.trace, engine->trace_id, action_state,
+                                   engine->state, len, reduction_start,
+                                   engine->input.pos + engine->input.index, origin,
+                                   symbol->diagnostic_context, value, false);
+            }
             return false; // validation failed -> no parse; terminate
+        }
         if (symbol->plan_action)
             value = symbol->plan_action(make_result(arena, value), symbol->user_data, &plan);
         else if (symbol->action)
@@ -356,6 +499,11 @@ bool h_lrengine_step(HLREngine *engine, const HLRAction *action) {
         h_slist_push(stack, (void *)(uintptr_t)engine->state);
         h_slist_push(stack, semantic);
         engine->state = shift->data.nextstate;
+        if (engine->trace_failures)
+            CF_TRACE_LR_REDUCE(engine->input.trace, engine->trace_id, action_state, engine->state,
+                               len, reduction_start, engine->input.pos + engine->input.index,
+                               h_cfchoice_diagnostic_parser(symbol, engine->root_parser),
+                               symbol->diagnostic_context, value, true);
 
         // check for success
         if (engine->state == HLR_SUCCESS) {
@@ -366,6 +514,7 @@ bool h_lrengine_step(HLREngine *engine, const HLRAction *action) {
         }
     } else {
         assert(action->type == HLR_SHIFT);
+        size_t input_start = engine->input.pos + engine->input.index;
         HParsedToken *value = consume_input(engine);
         HLRSemanticValue *semantic = h_arena_malloc(tarena, sizeof(*semantic));
         semantic->ast = value;
@@ -373,6 +522,19 @@ bool h_lrengine_step(HLREngine *engine, const HLRAction *action) {
         h_slist_push(stack, (void *)(uintptr_t)engine->state);
         h_slist_push(stack, semantic);
         engine->state = action->data.nextstate;
+        if (engine->trace_failures) {
+            const HCFChoice *shift_symbol = action->shift_symbol;
+            const HParser *origin = h_cfchoice_diagnostic_parser(shift_symbol, NULL);
+            const HDiagnosticContext *provenance =
+                shift_symbol ? shift_symbol->diagnostic_context : NULL;
+            if (!origin && action_state < engine->table->nrows)
+                origin = engine->table->expected_parsers[action_state];
+            if (!provenance && action_state < engine->table->nrows)
+                provenance = engine->table->expected_contexts[action_state];
+            CF_TRACE_LR_SHIFT(engine->input.trace, engine->trace_id, action_state, engine->state,
+                              input_start, origin ? origin : engine->root_parser, provenance,
+                              value);
+        }
     }
 
     return true;
@@ -407,13 +569,18 @@ bool h_lrengine_execute_plan(HLREngine *engine) {
 }
 
 HParseResult *h_lr_parse(HAllocator *mm__, const HParser *parser, HInputStream *stream) {
+    CF_TRACE_BEGIN(stream->trace, PB_LALR, parser, stream->input, stream->length);
     HLRTable *table = parser->backend_data;
-    if (!table)
+    if (!table) {
+        CF_TRACE_END(stream->trace, false);
         return NULL;
+    }
 
     HArena *arena = h_new_arena(mm__, 0);  // will hold the results
     HArena *tarena = h_new_arena(mm__, 0); // tmp, deleted after parse
     HLREngine *engine = h_lrengine_new(arena, tarena, table, stream);
+    engine->trace_failures = TRACE_ENABLED(stream->trace);
+    engine->root_parser = parser;
 
     // out-of-memory handling
     jmp_buf except;
@@ -422,12 +589,18 @@ HParseResult *h_lr_parse(HAllocator *mm__, const HParser *parser, HInputStream *
     if (setjmp(except)) {
         h_delete_arena(arena);
         h_delete_arena(tarena);
+        CF_TRACE_END(stream->trace, false);
         return NULL;
     }
 
     // iterate engine to completion
-    while (h_lrengine_step(engine, h_lrengine_action(engine)))
-        ;
+    while (true) {
+        const HLRAction *action = h_lrengine_action(engine);
+        if (action == NULL || action == NEED_INPUT)
+            h_lrengine_trace_action_failure(engine);
+        if (action == NEED_INPUT || !h_lrengine_step(engine, action))
+            break;
+    }
 
     HParseResult *result = h_lrengine_result(engine);
     if (result && !h_lrengine_execute_plan(engine))
@@ -435,6 +608,7 @@ HParseResult *h_lr_parse(HAllocator *mm__, const HParser *parser, HInputStream *
     if (!result)
         h_delete_arena(arena);
     h_delete_arena(tarena);
+    CF_TRACE_END(stream->trace, result != NULL);
     return result;
 }
 

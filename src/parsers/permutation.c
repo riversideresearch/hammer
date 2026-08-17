@@ -1,4 +1,5 @@
 /* Copyright (c) 2026 Riverside Research */
+#include "../trace.h"
 #include "parser_internal.h"
 
 #include <stdarg.h>
@@ -100,11 +101,14 @@ static HParseResult *parse_permutation(void *env, HParseState *state) {
     } else {
         // no parse
         // XXX free seq
+        h_trace_note_failure(state->input_stream.trace, H_PARSE_ERROR_HIGHER_ORDER,
+                             "no permutation ordering matched", SIZE_MAX, SIZE_MAX);
         return NULL;
     }
 }
 
 static const HParserVtable permutation_vt = {
+    .name = "h_permutation",
     .parse = parse_permutation,
     .isValidRegular = h_false,
     .isValidCF = h_false,

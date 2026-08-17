@@ -146,14 +146,17 @@ HCFChoice *h_desugar(HAllocator *mm__, HCFStack *stk__, const HParser *parser) {
         assert(parser->vtable->desugar != NULL);
         mutable_parser->desugared = nstk__->prealloc;
         parser->vtable->desugar(cfg_mm__, nstk__, parser->env);
+        if (mutable_parser->desugared)
+            mutable_parser->desugared->parser = mutable_parser;
         if (stk__ == NULL) {
             h_cfstack_free(cfg_mm__, nstk__);
         }
-    } else if (stk__ != NULL) {
+    } else {
         HDesugarContext *ctx = desugar_context_from_allocator(mm__);
         if (ctx && parser->desugar_ctx)
             desugar_context_merge(ctx, parser->desugar_ctx);
-        desugar_stack_store(mm__, stk__, parser->desugared);
+        if (stk__ != NULL)
+            desugar_stack_store(mm__, stk__, parser->desugared);
     }
 
     return parser->desugared;

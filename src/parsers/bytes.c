@@ -91,7 +91,8 @@ static bool bytes_ctrvm(HRVMProg *prog, void *env) {
     return true;
 }
 
-static const HParserVtable bytes_vt = {.parse = parse_bytes,
+static const HParserVtable bytes_vt = {.name = "h_bytes",
+                                       .parse = parse_bytes,
                                        .desugar = desugar_bytes,
                                        .isValidRegular = h_true,
                                        .isValidCF = h_true,

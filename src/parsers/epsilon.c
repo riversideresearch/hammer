@@ -13,6 +13,7 @@ static HParseResult *parse_epsilon(void *env, HParseState *state) {
 static bool epsilon_ctrvm(HRVMProg *prog, void *env) { return true; }
 
 static const HParserVtable epsilon_vt = {
+    .name = "h_epsilon",
     .parse = parse_epsilon,
     .isValidRegular = h_true,
     .isValidCF = h_true,

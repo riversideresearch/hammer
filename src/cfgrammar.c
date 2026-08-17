@@ -98,6 +98,9 @@ HCFGrammar *h_cfgrammar_(HAllocator *mm__, HCFChoice *desugared) {
         nt->action = NULL;
         nt->plan_action = NULL;
         nt->reshape = h_act_first;
+        nt->parser = desugared->parser;
+        nt->diagnostic_context = desugared->diagnostic_context;
+        nt->env = NULL;
         nt->user_data = NULL;
         nt->dispatch_opcode = 0;
         h_hashset_put(g->nts, nt);
