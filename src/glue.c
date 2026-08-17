@@ -166,7 +166,7 @@ HParsedToken *h_seq_index_vpath(const HParsedToken *p, size_t i, va_list va) {
     int j;
 
     while ((j = va_arg(va, int)) >= 0)
-        ret = h_seq_index(ret, j);
+        ret = h_seq_index(ret,(size_t)j);
 
     return ret;
 }
@@ -188,7 +188,7 @@ void h_seq_append(HParsedToken *xs, const HParsedToken *ys) {
         h_carray_append(xs->token_data.seq, ys->token_data.seq->elements[i]);
 }
 
-void h_seq_remove(HParsedToken *xs, uint8_t n) {
+void h_seq_remove(HParsedToken *xs, size_t n) {
     HAMMER_ASSERT(xs != NULL);
     HAMMER_ASSERT(xs->token_type == TT_SEQUENCE);
 

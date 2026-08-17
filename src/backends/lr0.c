@@ -43,11 +43,11 @@ static void expand_to_closure(HCFGrammar *g, HHashSet *items) {
                 }
             } else if (sym->type == HCF_CHARSET) {
                 for (unsigned int i = 0; i < 256; i++) {
-                    if (charset_isset(sym->data.charset, i)) {
+                    if (charset_isset(sym->data.charset, (uint8_t)i)) {
                         HCFChoice **rhs = h_arena_malloc(arena, 2 * sizeof(*rhs));
                         rhs[0] = h_arena_malloc(arena, sizeof(*rhs[0]));
                         rhs[0]->type = HCF_CHAR;
-                        rhs[0]->data.chr = i;
+                        rhs[0]->data.chr = (uint8_t)i;
                         rhs[0]->reshape = NULL;
                         rhs[0]->action = NULL;
                         rhs[0]->plan_action = NULL;

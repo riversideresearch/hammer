@@ -52,7 +52,28 @@ static HParseResult *parse_seek(void *env, HParseState *state) {
                              "seek target overflows the input position", start, start);
         return NULL; /* overflow */
     }
-    pos += s->offset;
+   if (s->offset < 0) {
+    /* This form remains safe when offset == SSIZE_MIN. */
+        size_t delta = (size_t)(-(s->offset + 1)) + 1U;
+
+        if (delta > pos) {
+            h_trace_note_failure(stream->trace, H_PARSE_ERROR_HIGHER_ORDER,
+                                "seek target is before the start of input", start, start);
+            return NULL;
+        }
+
+        pos -= delta;
+    } else {
+        size_t delta = (size_t)s->offset;
+
+        if (delta > SIZE_MAX - pos) {
+            h_trace_note_failure(stream->trace, H_PARSE_ERROR_HIGHER_ORDER,
+                                "seek target overflows the input position", start, start);
+            return NULL;
+        }
+
+        pos += delta;
+    }
 
     /* perform the seek and check for overrun */
     h_seek_bits(stream, pos);

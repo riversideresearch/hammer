@@ -52,7 +52,7 @@ static inline HHashValue hash_lr_item(const void *p) {
     hash += h_hash_symbol(x->lhs);
     for (HCFChoice **p = x->rhs; *p; p++)
         hash += h_hash_symbol(*p);
-    hash += x->mark;
+    hash += (HHashValue)x->mark;
 
     return hash;
 }
@@ -78,7 +78,7 @@ bool h_eq_transition(const void *p, const void *q) {
 
 HHashValue h_hash_transition(const void *p) {
     const HLRTransition *t = p;
-    return (h_hash_symbol(t->symbol) + t->from + t->to); // XXX ?
+    return ((HHashValue)(h_hash_symbol(t->symbol) + t->from + t->to));
 }
 
 /* Constructors */
@@ -288,7 +288,7 @@ void h_lrengine_trace_action_failure(const HLREngine *engine) {
 
     while (map && !map->epsilon_branch) {
         size_t index = input.pos + input.index;
-        uint8_t actual = h_read_bits(&input, 8, false);
+        uint8_t actual = (uint8_t)h_read_bits(&input, 8, false);
         if (input.overrun) {
             bool expected[256], expected_eof;
             lr_expected_from_map(map, expected, &expected_eof);
@@ -369,7 +369,7 @@ const HLRAction *h_lrengine_action(const HLREngine *engine) {
 static HParsedToken *consume_input(HLREngine *engine) {
     HParsedToken *v;
 
-    uint8_t c = h_read_bits(&engine->input, 8, false);
+    uint8_t c = (uint8_t)h_read_bits(&engine->input, 8, false);
 
     if (engine->input.overrun) { // end of input
         v = NULL;
@@ -754,7 +754,7 @@ static void pprint_transition(FILE *f, const HCFGrammar *g, const HLRTransition 
 
 void h_pprint_lrdfa(FILE *f, const HCFGrammar *g, const HLRDFA *dfa, unsigned int indent) {
     for (size_t i = 0; i < dfa->nstates; i++) {
-        unsigned int indent2 = indent + fprintf(f, "%4zu: ", i);
+        unsigned int indent2 = (indent + (unsigned int)fprintf(f, "%4zu: ", i));
         h_pprint_lrstate(f, g, dfa->states[i], indent2);
         for (HSlistNode *x = dfa->transitions->head; x; x = x->next) {
             const HLRTransition *t = x->elem;

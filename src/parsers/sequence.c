@@ -176,7 +176,7 @@ HParser *h_sequence__mv(HAllocator *mm__, HParser *p, va_list ap_) {
 HParser *h_sequence__a(void *args[]) { return h_sequence__ma(&system_allocator, args); }
 
 HParser *h_sequence__ma(HAllocator *mm__, void *args[]) {
-    size_t len = -1; // because do...while
+    size_t len = (size_t)-1; // because do...while
     const HParser *arg;
 
     do {
@@ -232,7 +232,7 @@ HParser *h_drop_from___mv(HAllocator *mm__, HParser *p, va_list ap) {
     int arg = 0;
 
     for (arg = va_arg(ap, int); arg >= 0; arg = va_arg(ap, int)) {
-        indices[count] = arg;
+        indices[count] = (size_t)arg;
         count++;
     }
     va_end(ap);

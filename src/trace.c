@@ -1407,8 +1407,8 @@ void dump_rvm_prog(HTraceState *trace_state, HRVMProg *prog) {
             break;
         case RVM_MATCH: {
             uint8_t low, high;
-            low = insn->arg & 0xff;
-            high = (insn->arg >> 8) & 0xff;
+            low = (uint8_t)(insn->arg & 0xff);
+            high = (uint8_t)((insn->arg >> 8) & 0xff);
             if (high < low)
                 fprintf(out, "NONE");
             else {

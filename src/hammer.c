@@ -29,6 +29,7 @@
 #include <inttypes.h>
 #include <limits.h>
 #include <stdarg.h>
+#include <stdint.h>
 #include <string.h>
 
 static HParserBackendVTable *backends[PB_MAX + 1] = {
@@ -297,7 +298,7 @@ static char *h_get_backend_text_with_no_params(HAllocator *mm__, HParserBackend 
                                                int description) {
     char *text = NULL;
     const char *src = NULL;
-    int size;
+    size_t size;
 
     if (!(mm__ != NULL && be != PB_INVALID && be >= PB_MIN && be <= PB_MAX))
         goto done;
@@ -375,7 +376,7 @@ HParsedToken *act_backend_name(const HParseResult *p, void *user_data) {
     r->name = h_arena_malloc(p->arena, r->len + 1);
     for (size_t i = 0; i < r->len; ++i) {
 
-        r->name[i] = flat->token_data.seq->elements[i]->token_data.uint;
+        r->name[i] = (uint8_t)flat->token_data.seq->elements[i]->token_data.uint;
     }
     r->name[r->len] = 0;
 
@@ -388,7 +389,7 @@ HParsedToken *act_param(const HParseResult *p, void *user_data) {
     r->len = h_seq_len(p->ast);
     r->param = h_arena_malloc(p->arena, r->len + 1);
     for (size_t i = 0; i < r->len; ++i)
-        r->param[i] = H_FIELD_UINT(i);
+        r->param[i] = (uint8_t)(H_FIELD_UINT(i));
     r->param[r->len] = 0;
 
     return H_MAKE(backend_param_t, r);
@@ -402,7 +403,7 @@ HParsedToken *act_param_name(const HParseResult *p, void *user_data) {
     r->len = h_seq_len(flat);
     r->param_name = h_arena_malloc(p->arena, r->len + 1);
     for (size_t i = 0; i < r->len; ++i)
-        r->param_name[i] = flat->token_data.seq->elements[i]->token_data.uint;
+        r->param_name[i] = (uint8_t)flat->token_data.seq->elements[i]->token_data.uint;
     r->param_name[r->len] = 0;
 
     return H_MAKE(backend_param_name_t, r);
@@ -1037,7 +1038,7 @@ bool h_parse_chunk(HSuspendedParser *s, const uint8_t *input, size_t length) {
     s->done = s->parser->backend_vtable->parse_chunk(s, &input_stream);
     s->endianness = input_stream.endianness;
     s->pos += input_stream.index;
-    s->bit_offset = input_stream.bit_offset;
+    s->bit_offset = (uint8_t)input_stream.bit_offset;
 
     return s->done;
 }

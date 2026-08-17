@@ -38,7 +38,8 @@ static bool h_svm_action_ch(HArena *arena, HSVMContext *ctx, void *env) {
 static bool ch_ctrvm(HRVMProg *prog, void *env) {
     uint8_t c = (uint8_t)(uintptr_t)(env);
     h_rvm_insert_insn(prog, RVM_PUSH, 0);
-    h_rvm_insert_insn(prog, RVM_MATCH, c | c << 8);
+    h_rvm_insert_insn(prog, RVM_MATCH,  (uint16_t)((uint16_t)(uint8_t)c |
+               ((uint16_t)(uint8_t)c << 8)));
     h_rvm_insert_insn(prog, RVM_STEP, 0);
     h_rvm_insert_insn(prog, RVM_CAPTURE, 0);
     h_rvm_insert_insn(prog, RVM_ACTION, h_rvm_create_action(prog, h_svm_action_ch, NULL));

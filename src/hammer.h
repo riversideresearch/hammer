@@ -156,7 +156,7 @@ typedef struct HParsedToken_ {
 #endif
     size_t index;
     size_t bit_length;
-    char bit_offset;
+    uint8_t bit_offset;
 } HParsedToken;
 
 /**
@@ -797,7 +797,7 @@ HParser *h_float32(void);
  */
 HParser *h_float64(void);
 
-HParser *h_floating_point__m(HAllocator *mm__, int bits);
+HParser *h_floating_point__m(HAllocator *mm__, size_t bits);
 /** @} */
 
 /**
@@ -1564,7 +1564,7 @@ void h_benchmark_report(FILE *stream, HBenchmarkResults *results);
 
 struct result_buf;
 
-bool h_append_buf(struct result_buf *buf, const char *input, int len);
+bool h_append_buf(struct result_buf *buf, const char *input, size_t len);
 bool h_append_buf_c(struct result_buf *buf, char v);
 bool h_append_buf_formatted(struct result_buf *buf, const char *format, ...);
 
