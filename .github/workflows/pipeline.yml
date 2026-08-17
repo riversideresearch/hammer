@@ -9,6 +9,7 @@ permissions:
 
 env:
   CFLAGS: "-std=c99 -pedantic -Wall -Wstrict-prototypes -Wwrite-strings -Wpointer-arith -Wcast-align -Werror -fsanitize=undefined"
+  LDFLAGS: "-fsanitize=undefined"
 
 jobs:
   checks:
