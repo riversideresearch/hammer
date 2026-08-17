@@ -516,33 +516,13 @@ HParseResult *h_parse__m(HAllocator *mm__, const HParser *parser, const uint8_t 
  * @brief Like h_parse(), but collects a parse-scoped furthest-position
  * diagnostic. Parsing behavior and return value are identical to h_parse().
  *
- * If @p error is non-NULL, the furthest-failure information is also written
+ * If @p diagnostic is non-NULL, the furthest-failure information is also written
  * there in structured form (see ::HParseError), so callers can react to a
  * failed parse programmatically. Pass NULL if only the optional execution trace
  * is wanted. The struct is zero-initialized
  * before use, and its parser-name list is only populated when the library is
  * built with AST tracing (-DHAMMER_TRACE_AST=1); otherwise this behaves exactly
- * like h_parse() and @p error is left zeroed.
- *
- * @param parser Parser to use
- * @param input Input data
- * @param length Length of input data
- * @param error Out-parameter for structured failure info, or NULL
- * @param showError on true, print the normalized error, condensed
- * input trail, and bounded input context to stderr; on false, emit no text.
- * @note Use h_parse_error_fprint() to render @p error to a caller-selected
- * stream. h_parse_debug_ex() additionally retains the complete execution trace
- * regardless of this flag; retrieve it with
- * h_parse_diagnostic_execution_trace().
- * @return Parse result, or NULL on failure
- */
-HParseResult *h_parse_debug(const HParser *parser, const uint8_t *input, size_t length,
-                            HParseError *error, bool showError);
-HParseResult *h_parse_debug__m(HAllocator *mm__, const HParser *parser, const uint8_t *input,
-                               size_t length, HParseError *error, bool showError);
-
-/**
- * @brief Extensible form of h_parse_debug() with structured expectations.
+ * like h_parse() and @p diagnostic is left zeroed.
  *
  * @param parser Parser to use
  * @param input Input data
@@ -558,11 +538,15 @@ HParseResult *h_parse_debug__m(HAllocator *mm__, const HParser *parser, const ui
  * of @p showDiagnostic. The caller must release the object with
  * h_parse_diagnostic_free().
  */
-HParseResult *h_parse_debug_ex(const HParser *parser, const uint8_t *input, size_t length,
+HParseResult *h_parse_debug(const HParser *parser, const uint8_t *input, size_t length,
                                HParseDiagnostic **diagnostic, bool showDiagnostic);
-
-/** Write an HParseError to a caller-selected stream. */
-void h_parse_error_fprint(FILE *stream, const HParseError *error);
+HParseResult *h_parse_debug__m(
+    HAllocator *allocator,
+    const HParser *parser,
+    const uint8_t *input,
+    size_t length,
+    HParseDiagnostic **diagnostic,
+    bool showDiagnostic);
 const HParseError *h_parse_diagnostic_error(const HParseDiagnostic *diagnostic);
 size_t h_parse_diagnostic_expected_count(const HParseDiagnostic *diagnostic);
 bool h_parse_diagnostic_expected(const HParseDiagnostic *diagnostic, size_t index,
