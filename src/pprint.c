@@ -201,7 +201,8 @@ struct result_buf {
 static inline bool ensure_capacity(struct result_buf *buf, size_t amt) {
     if (buf->failed)
         return false;
-
+    if (amt >= SIZE_MAX - buf->len)
+        return false;
     size_t needed = buf->len + (size_t)amt + 1;
     size_t new_capacity = buf->capacity;
 

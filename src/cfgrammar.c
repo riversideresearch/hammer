@@ -897,7 +897,8 @@ static void pprint_charset(FILE *f, const HCharset cs) {
             pprint_charset_char(f, (uint8_t)i);
 
             // detect ranges
-            if (i + 2 < 256 && charset_isset(cs, (uint8_t)i + 1) && charset_isset(cs, (uint8_t)i + 2)) {
+            if (i + 2 < 256 && charset_isset(cs, (uint8_t)i + 1) &&
+                charset_isset(cs, (uint8_t)i + 2)) {
                 fputc('-', f);
                 for (; i < 256 && charset_isset(cs, (uint8_t)i); i++)
                     ;
@@ -983,7 +984,8 @@ static void pprint_sequence(FILE *f, const HCFGrammar *g, const HCFSequence *seq
     fputc('\n', f);
 }
 
-static void pprint_ntrules(FILE *f, const HCFGrammar *g, const HCFChoice *nt, size_t indent, size_t len) {
+static void pprint_ntrules(FILE *f, const HCFGrammar *g, const HCFChoice *nt, size_t indent,
+                           size_t len) {
     size_t i;
     size_t column = indent + len;
 
@@ -1173,8 +1175,8 @@ static bool pprint_stringmap_elems(FILE *file, bool first, char *prefix, size_t 
                     prefix[n_++] = c;
                 } else {
                     size_t available = (size_t)BUFSIZE - n_;
-                    int written = snprintf(prefix + n_, available, "\\x%02X",
-                                        (unsigned int)(unsigned char)c);
+                    int written =
+                        snprintf(prefix + n_, available, "\\x%02X", (unsigned int)(unsigned char)c);
                     if (written < 0 || (size_t)written >= available) {
                         return first; /* formatting error or insufficient buffer */
                     }

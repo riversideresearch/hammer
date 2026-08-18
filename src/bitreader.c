@@ -131,7 +131,7 @@ void h_skip_bits(HInputStream *stream, size_t count) {
     // consume from a partial byte?
     left = (size_t)(8 - stream->bit_offset - stream->margin);
     if (count < left) {
-         size_t new_offset = (size_t)stream->bit_offset + count;
+        size_t new_offset = (size_t)stream->bit_offset + count;
         assert(new_offset < 8U);
 
         stream->bit_offset = (uint8_t)new_offset;

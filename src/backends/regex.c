@@ -1,5 +1,4 @@
-#define _GNU_SOURC
-#include <stdint.h>
+#define _GNU_SOURCE
 #include "regex.h"
 
 #include "../internal.h"
@@ -7,6 +6,7 @@
 #include "trace.h"
 
 #include <assert.h>
+#include <stdint.h>
 #include <string.h>
 
 #undef a_new
@@ -538,11 +538,11 @@ uint16_t h_rvm_insert_insn(HRVMProg *prog, HRVMOp op, uint16_t arg) {
     return ip;
 }
 
-uint16_t h_rvm_get_ip(HRVMProg *prog) { 
-    if (prog->length > (size_t)UINT16_MAX) {
+uint16_t h_rvm_get_ip(HRVMProg *prog) {
+    if (prog->length > UINT16_MAX) {
         longjmp(prog->except, 1);
     }
-    return (uint16_t)prog->length; 
+    return (uint16_t)prog->length;
 }
 
 void h_rvm_patch_arg(HRVMProg *prog, uint16_t ip, uint16_t new_val) {

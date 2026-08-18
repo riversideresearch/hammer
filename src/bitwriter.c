@@ -94,8 +94,7 @@ void h_bit_writer_put(HBitWriter *w, uint64_t data, size_t nbits) {
         if (w->flags & BIT_BIG_ENDIAN)
             w->buf[w->index] = (w->buf[w->index] << count) | bits;
         else
-            w->buf[w->index] =
-                (uint8_t)((w->buf[w->index] | ((uint16_t)bits << 8)) >> count);
+            w->buf[w->index] = (uint8_t)((w->buf[w->index] | ((uint16_t)bits << 8)) >> count);
 
         // update index and bit_offset.
         w->bit_offset += (char)count;

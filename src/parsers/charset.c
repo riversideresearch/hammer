@@ -72,7 +72,7 @@ static bool cs_ctrvm(HRVMProg *prog, void *env) {
     uint16_t jump = h_rvm_insert_insn(prog, RVM_STEP, 0);
     for (size_t i = start; i < jump; ++i) {
         if (RVM_GOTO == prog->insns[i].op)
-            h_rvm_patch_arg(prog, (uint8_t)i, jump);
+            h_rvm_patch_arg(prog, (uint16_t)i, jump);
     }
 
     h_rvm_insert_insn(prog, RVM_CAPTURE, 0);

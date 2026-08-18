@@ -23,14 +23,10 @@ char *h_format_description_with_param_k(HAllocator *mm__, const char *backend_na
     if (k > 0) {
         required = snprintf(NULL, 0, format_str, backend_name, k);
     } else {
-        required =
-            snprintf(NULL, 0, generic_descr_format_str, backend_name, DEFAULT_KMAX);
+        required = snprintf(NULL, 0, generic_descr_format_str, backend_name, DEFAULT_KMAX);
     }
 
     if (required < 0) {
-        return NULL;
-    }
-    if ((uintmax_t)required >= (uintmax_t)SIZE_MAX) {
         return NULL;
     }
 
@@ -44,8 +40,7 @@ char *h_format_description_with_param_k(HAllocator *mm__, const char *backend_na
     if (k > 0) {
         written = snprintf(descr, len + 1U, format_str, backend_name, k);
     } else {
-        written =
-            snprintf(descr, len + 1U, generic_descr_format_str, backend_name, DEFAULT_KMAX);
+        written = snprintf(descr, len + 1U, generic_descr_format_str, backend_name, DEFAULT_KMAX);
     }
 
     if (written != required) {

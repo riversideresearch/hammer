@@ -80,7 +80,9 @@ static bool token_ctrvm(HRVMProg *prog, void *env) {
     HToken *t = (HToken *)env;
     h_rvm_insert_insn(prog, RVM_PUSH, 0);
     for (size_t i = 0; i < t->len; ++i) {
-        h_rvm_insert_insn(prog, RVM_MATCH, (uint16_t)((uint16_t)(uint8_t)t->str[i] | ((uint16_t)(uint8_t)t->str[i] << 8)));
+        h_rvm_insert_insn(
+            prog, RVM_MATCH,
+            (uint16_t)((uint16_t)(uint8_t)t->str[i] | ((uint16_t)(uint8_t)t->str[i] << 8)));
         h_rvm_insert_insn(prog, RVM_STEP, 0);
     }
     h_rvm_insert_insn(prog, RVM_CAPTURE, 0);

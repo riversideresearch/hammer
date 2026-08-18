@@ -106,7 +106,8 @@ HBenchmarkResults *h_benchmark__m(HAllocator *mm__, HParser *parser, HParserTest
                 }
                 time_diff = h_platform_stopwatch_ns(&stopwatch);
             } while (time_diff < 100000000);
-            ret->results[backend].cases[cur_case].timestamp.parse_time = ((size_t)time_diff / (size_t)count);
+            ret->results[backend].cases[cur_case].timestamp.parse_time =
+                ((size_t)time_diff / (size_t)count);
             ret->results[backend].cases[cur_case].length = tc->length;
             cur_case++;
         }

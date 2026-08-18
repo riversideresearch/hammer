@@ -6,16 +6,16 @@
 #include <stdint.h>
 
 static HParseResult *parse_whitespace(void *env, HParseState *state) {
-    char c;
+    int c;
     HInputStream bak;
     do {
         bak = state->input_stream;
-        c = (char)h_read_bits(&state->input_stream, 8, false);
+        c = (int)h_read_bits(&state->input_stream, 8, false);
         if (want_suspend(state))
             return NULL; // bail out early, leaving overrun flag
         if (state->input_stream.overrun)
             break;
-    } while (isspace((int)c));
+    } while (isspace(c));
     state->input_stream = bak;
     return h_do_parse((HParser *)env, state);
 }

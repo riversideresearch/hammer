@@ -90,7 +90,7 @@ typedef struct HInputStream_ {
     size_t length;
     uint8_t bit_offset;
     uint8_t margin; // The number of bits on the end that is being read
-                 // towards that should be ignored.
+                    // towards that should be ignored.
     char endianness;
     bool overrun;
     bool last_chunk;
