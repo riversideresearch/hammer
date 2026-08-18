@@ -88,9 +88,9 @@ typedef struct HInputStream_ {
     size_t pos; // position of this chunk in a multi-chunk stream
     size_t index;
     size_t length;
-    char bit_offset;
-    char margin; // The number of bits on the end that is being read
-                 // towards that should be ignored.
+    uint8_t bit_offset;
+    uint8_t margin; // The number of bits on the end that is being read
+                    // towards that should be ignored.
     char endianness;
     bool overrun;
     bool last_chunk;
@@ -177,7 +177,7 @@ static inline HCharset new_charset(HAllocator *mm__) {
 }
 
 static inline int charset_isset(HCharset cs, uint8_t pos) {
-    return !!(cs[pos / (sizeof(*cs) * 8)] & (1 << (pos % (sizeof(*cs) * 8))));
+    return !!(cs[pos / (sizeof(*cs) * 8)] & (1u << (pos % (sizeof(*cs) * 8))));
 }
 
 static inline void charset_set(HCharset cs, uint8_t pos, int val) {
@@ -238,7 +238,7 @@ struct HSuspendedParser_ {
     // input stream state
     size_t pos;
     uint8_t bit_offset;
-    uint8_t endianness;
+    char endianness;
 };
 
 struct HParserBackendVTable_ {
@@ -374,7 +374,7 @@ extern HParserBackendVTable h__glr_backend_vtable;
 char *h_get_description_with_no_params(HAllocator *mm__, HParserBackend be, void *params);
 char *h_get_short_name_with_no_params(HAllocator *mm__, HParserBackend be, void *params);
 
-int64_t h_read_bits(HInputStream *state, int count, char signed_p);
+int64_t h_read_bits(HInputStream *state, size_t count, char signed_p);
 void h_skip_bits(HInputStream *state, size_t count);
 void h_seek_bits(HInputStream *state, size_t pos);
 static inline size_t h_input_stream_pos(HInputStream *state) {

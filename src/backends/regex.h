@@ -10,6 +10,7 @@
 
 #include "../hammer.h"
 #include "../trace.h"
+
 #include <setjmp.h>
 #include <stdbool.h>
 #include <stddef.h>

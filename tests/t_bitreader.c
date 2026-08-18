@@ -70,6 +70,22 @@ static void test_read_bits_signed(void) {
     g_check_cmp_int64(result, ==, -1);
 }
 
+static void test_read_bits_signed_wider_than_64(void) {
+    const uint8_t input[9] = {0x80, 0, 0, 0, 0, 0, 0, 0, 0};
+    HInputStream is = MK_INPUT_STREAM(input, sizeof(input), BIT_BIG_ENDIAN | BYTE_BIG_ENDIAN);
+    int64_t result = h_read_bits(&is, 65, true);
+    g_check_cmp_int64(result, ==, 0);
+    g_check_cmp_int(is.overrun, ==, false);
+}
+
+static void test_read_bits_empty_big_endian_64(void) {
+    const uint8_t input[1] = {0};
+    HInputStream is = MK_INPUT_STREAM(input, 0, BIT_BIG_ENDIAN | BYTE_BIG_ENDIAN);
+    int64_t result = h_read_bits(&is, 64, true);
+    g_check_cmp_int64(result, ==, 0);
+    g_check_cmp_int(is.overrun, ==, true);
+}
+
 // Test bitreader.c: h_read_bits with margin (line 42)
 static void test_read_bits_margin(void) {
     HInputStream is = MK_INPUT_STREAM("\x6A\x5A", 2, BIT_BIG_ENDIAN | BYTE_BIG_ENDIAN);
@@ -216,6 +232,8 @@ void register_bitreader_tests(void) {
     g_test_add_func("/core/bitreader/ints", test_bitreader_ints);
     g_test_add_func("/core/bitreader/overrun", test_read_bits_overrun);
     g_test_add_func("/core/bitreader/signed", test_read_bits_signed);
+    g_test_add_func("/core/bitreader/signed_wider_than_64", test_read_bits_signed_wider_than_64);
+    g_test_add_func("/core/bitreader/empty_big_endian_64", test_read_bits_empty_big_endian_64);
     g_test_add_func("/core/bitreader/margin", test_read_bits_margin);
     g_test_add_func("/core/bitreader/fast_path", test_read_bits_fast_path);
     g_test_add_func("/core/bitreader/bit_big_endian_partial",

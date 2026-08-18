@@ -6,6 +6,7 @@
 #include "trace.h"
 
 #include <assert.h>
+#include <stdint.h>
 #include <string.h>
 
 #undef a_new
@@ -73,8 +74,8 @@ static void record_rvm_match_failure(HRVMMatchFailure *failure, size_t index, ui
         memset(candidate, 0, sizeof(*candidate));
         candidate->start = index;
         candidate->end = index + 1;
-        candidate->kind = explicit_failure ? H_PARSE_ERROR_EXPLICIT_FAILURE
-                                           : H_PARSE_ERROR_PRIMITIVE_MISMATCH;
+        candidate->kind =
+            explicit_failure ? H_PARSE_ERROR_EXPLICIT_FAILURE : H_PARSE_ERROR_PRIMITIVE_MISMATCH;
         candidate->parser = parser;
         candidate->provenance = diagnostic_context;
         HTraceCandidateChoice reverse_path[H_TRACE_MAX_CANDIDATE_CHOICE_DEPTH];
@@ -82,8 +83,7 @@ static void record_rvm_match_failure(HRVMMatchFailure *failure, size_t index, ui
         for (const HDiagnosticContext *item = diagnostic_context; item; item = item->next) {
             if (item->choice && reverse_depth < H_TRACE_MAX_CANDIDATE_CHOICE_DEPTH) {
                 const HParser *origin = item->choice;
-                for (const HDiagnosticContext *parent = item->next; parent;
-                     parent = parent->next) {
+                for (const HDiagnosticContext *parent = item->next; parent; parent = parent->next) {
                     if (parent->choice)
                         break;
                     if (h_is_context_parser(parent->parser)) {
@@ -111,7 +111,7 @@ static void record_rvm_match_failure(HRVMMatchFailure *failure, size_t index, ui
 }
 
 HParseResult *run_trace(HAllocator *mm__, HRVMProg *orig_prog, HRVMTrace *trace,
-                        const uint8_t *input, int len, HTraceState *trace_state);
+                        const uint8_t *input, size_t len, HTraceState *trace_state);
 
 HRVMTrace *invert_trace(HRVMTrace *trace) {
     HRVMTrace *last = NULL;
@@ -131,7 +131,7 @@ HRVMTrace *invert_trace(HRVMTrace *trace) {
 }
 
 static void *h_rvm_run__m(HAllocator *mm__, HRVMProg *prog, const uint8_t *input, size_t len,
-                           HTraceState *trace_state) {
+                          HTraceState *trace_state) {
     HArena *arena = h_new_arena(mm__, 0);
     HSArray *heads_a = h_sarray_new(mm__, prog->length), // Both of these contain HRVMTrace*'s
         *heads_b = h_sarray_new(mm__, prog->length);
@@ -189,7 +189,8 @@ static void *h_rvm_run__m(HAllocator *mm__, HRVMProg *prog, const uint8_t *input
         H_SARRAY_FOREACH_KV(tr_head, ip_s, heads_p) {
             ipq_top = 1;
             // TODO: Write this as a threaded VM
-            THREAD.ip = ip_s;
+            assert(ip_s <= UINT16_MAX); // RVM uses 16-bit jump operands, reject programs exceeding
+            THREAD.ip = (uint16_t)ip_s;
             THREAD.trace = tr_head;
             uint8_t hi, lo;
             uint16_t arg;
@@ -209,8 +210,8 @@ static void *h_rvm_run__m(HAllocator *mm__, HRVMProg *prog, const uint8_t *input
                     ipq_top--;
                     goto next_insn;
                 case RVM_MATCH:
-                    hi = (arg >> 8) & 0xff;
-                    lo = arg & 0xff;
+                    hi = (uint8_t)((arg >> 8) & 0xff);
+                    lo = (uint8_t)(arg & 0xff);
                     THREAD.ip++;
                     if (off == len || ch < lo || ch > hi) {
                         record_rvm_match_failure(&match_failure, off, lo, hi, false, insn_parser,
@@ -279,8 +280,8 @@ finalize:
     } else if (match_failure.present) {
         for (size_t i = 0; i < match_failure.candidate_count; i++) {
             HTraceFailureCandidate *candidate = &match_failure.candidates[i];
-            candidate->end = match_failure.index < len ? match_failure.index + 1
-                                                       : match_failure.index;
+            candidate->end =
+                match_failure.index < len ? match_failure.index + 1 : match_failure.index;
             if (candidate->kind != H_PARSE_ERROR_EXPLICIT_FAILURE)
                 candidate->kind = match_failure.index < len ? H_PARSE_ERROR_PRIMITIVE_MISMATCH
                                                             : H_PARSE_ERROR_UNEXPECTED_EOF;
@@ -336,7 +337,7 @@ bool svm_stack_ensure_cap(HAllocator *mm__, HSVMContext *ctx, size_t addl) {
 #pragma GCC diagnostic ignored "-Wclobbered"
 #endif
 HParseResult *run_trace(HAllocator *mm__, HRVMProg *orig_prog, HRVMTrace *trace,
-                        const uint8_t *input, int len, HTraceState *trace_state) {
+                        const uint8_t *input, size_t len, HTraceState *trace_state) {
     // orig_prog is only used for the action table
     HSVMContext *ctx = NULL;
     HArena *arena = h_new_arena(mm__, 0);
@@ -464,6 +465,9 @@ fail:
 #endif
 
 uint16_t h_rvm_create_action(HRVMProg *prog, HSVMActionFunc action_func, void *env) {
+    if (prog->action_count >= (size_t)UINT16_MAX) {
+        longjmp(prog->except, 1);
+    }
     for (uint16_t i = 0; i < prog->action_count; i++) {
         if (prog->actions[i].action == action_func && prog->actions[i].env == env) {
             return i;
@@ -484,7 +488,9 @@ uint16_t h_rvm_create_action(HRVMProg *prog, HSVMActionFunc action_func, void *e
     HSVMAction *action = &prog->actions[prog->action_count];
     action->action = action_func;
     action->env = env;
-    return prog->action_count++;
+    uint16_t action_id = (uint16_t)prog->action_count;
+    prog->action_count++;
+    return action_id;
 }
 
 void *h_rvm_alloc(HRVMProg *prog, size_t size) {
@@ -498,6 +504,9 @@ void *h_rvm_alloc(HRVMProg *prog, size_t size) {
 }
 
 uint16_t h_rvm_insert_insn(HRVMProg *prog, HRVMOp op, uint16_t arg) {
+    if (prog->length >= (size_t)UINT16_MAX) {
+        longjmp(prog->except, 1);
+    }
     // Ensure that there's room in the insn array...
     if (!(prog->length & (prog->length + 1))) {
         // needs to be scaled up.
@@ -524,10 +533,17 @@ uint16_t h_rvm_insert_insn(HRVMProg *prog, HRVMOp op, uint16_t arg) {
     prog->insns[prog->length].arg = arg;
     prog->insn_parsers[prog->length] = prog->current_parser;
     prog->insn_contexts[prog->length] = prog->current_context;
-    return prog->length++;
+    uint16_t ip = (uint16_t)prog->length;
+    prog->length++;
+    return ip;
 }
 
-uint16_t h_rvm_get_ip(HRVMProg *prog) { return prog->length; }
+uint16_t h_rvm_get_ip(HRVMProg *prog) {
+    if (prog->length > UINT16_MAX) {
+        longjmp(prog->except, 1);
+    }
+    return (uint16_t)prog->length;
+}
 
 void h_rvm_patch_arg(HRVMProg *prog, uint16_t ip, uint16_t new_val) {
     if (prog->length <= ip)

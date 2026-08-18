@@ -446,7 +446,8 @@ bool h_packrat_parse_chunk(HSuspendedParser *s, HInputStream *input) {
             s->backend_state = NULL;
             return true;
         }
-        memcpy((void *)cat->input, input->input, input->length);
+        if (input->length > 0)
+            memcpy((void *)cat->input, input->input, input->length);
         s->backend_state = cat;
 
         goto suspend;
@@ -472,7 +473,8 @@ bool h_packrat_parse_chunk(HSuspendedParser *s, HInputStream *input) {
         return true;
     }
     cat->input = new_input;
-    memcpy((void *)((uint8_t *)cat->input + cat->length), input->input, input->length);
+    if (input->length > 0)
+        memcpy((void *)((uint8_t *)cat->input + cat->length), input->input, input->length);
     cat->length = newlen;
     cat->last_chunk = input->last_chunk;
 

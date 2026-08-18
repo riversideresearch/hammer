@@ -23,6 +23,17 @@
 #include <stdint.h>
 #include <string.h>
 
+typedef union HArenaAlignment_ {
+    void *ptr;
+    void (*fn)(void);
+    long l;
+    long long ll;
+    double d;
+    long double ld;
+} HArenaAlignment;
+
+#define ARENA_ALIGNMENT sizeof(HArenaAlignment)
+
 struct arena_link {
     struct arena_link *next;
     uint8_t *block; // pointer to the data block
@@ -52,6 +63,15 @@ struct HArena_ {
 };
 
 static void *h_arena_malloc_raw(HArena *arena, size_t size, bool need_zero);
+
+static size_t align_arena_size(size_t size) {
+    size_t rem = size % ARENA_ALIGNMENT;
+    if (rem == 0)
+        return size;
+    if (size > SIZE_MAX - (ARENA_ALIGNMENT - rem))
+        h_platform_errx(1, "memory allocation failed (%zuB requested)\n", size);
+    return size + (ARENA_ALIGNMENT - rem);
+}
 
 void *h_alloc(HAllocator *mm__, size_t size) {
     if (!mm__) {
@@ -100,6 +120,7 @@ void h_allocator_wrap(HAllocator *out, HAllocatorVtable *vt, void *env) {
 HArena *h_new_arena(HAllocator *mm__, size_t block_size) {
     if (block_size == 0)
         block_size = 4096;
+    block_size = align_arena_size(block_size);
     struct HArena_ *ret = h_new(struct HArena_, 1);
     assert(ret != NULL);
     struct arena_link *link = (struct arena_link *)h_alloc(mm__, sizeof(struct arena_link));
@@ -158,14 +179,15 @@ void *h_arena_malloc(HArena *arena, size_t size) { return h_arena_malloc_raw(are
 static void *h_arena_malloc_raw(HArena *arena, size_t size, bool need_zero) {
     struct arena_link *link = NULL;
     void *ret = NULL;
+    size_t alloc_size = align_arena_size(size);
 
-    if (size <= arena->head->free) {
+    if (alloc_size <= arena->head->free) {
         /* fast path.. */
         ret = arena->head->block + arena->head->used;
-        arena->used += size;
-        arena->wasted -= size;
-        arena->head->used += size;
-        arena->head->free -= size;
+        arena->used += alloc_size;
+        arena->wasted -= alloc_size;
+        arena->head->used += alloc_size;
+        arena->head->free -= alloc_size;
 
 #ifdef DETAILED_ARENA_STATS
         ++(arena->arena_malloc_count);
@@ -178,7 +200,7 @@ static void *h_arena_malloc_raw(HArena *arena, size_t size, bool need_zero) {
             arena->arena_su_malloc_bytes += size;
         }
 #endif
-    } else if (size > arena->block_size) {
+    } else if (alloc_size > arena->block_size) {
         /*
          * Keep dedicated blocks behind the current head so they do not displace
          * a partially filled standard block. Attach the link before allocating
@@ -192,11 +214,11 @@ static void *h_arena_malloc_raw(HArena *arena, size_t size, bool need_zero) {
         link->next = arena->head->next;
         arena->head->next = link;
 
-        uint8_t *block = (uint8_t *)alloc_block(arena, size);
+        uint8_t *block = (uint8_t *)alloc_block(arena, alloc_size);
         link->block = block;
-        link->used = size;
+        link->used = alloc_size;
         link->free = 0;
-        arena->used += size;
+        arena->used += alloc_size;
         arena->wasted += sizeof(struct arena_link);
         ret = link->block;
 
@@ -223,14 +245,14 @@ static void *h_arena_malloc_raw(HArena *arena, size_t size, bool need_zero) {
 
         uint8_t *block = (uint8_t *)alloc_block(arena, arena->block_size);
         link->block = block;
-        link->free = arena->block_size - size;
-        link->used = size;
+        link->free = arena->block_size - alloc_size;
+        link->used = alloc_size;
 #ifdef DETAILED_ARENA_STATS
         arena->mm_malloc_count += 2; /* link and block allocations */
         arena->mm_malloc_bytes += sizeof(struct arena_link) + arena->block_size;
 #endif
-        arena->used += size;
-        arena->wasted += sizeof(struct arena_link) + arena->block_size - size;
+        arena->used += alloc_size;
+        arena->wasted += sizeof(struct arena_link) + arena->block_size - alloc_size;
         ret = link->block;
 
 #ifdef DETAILED_ARENA_STATS

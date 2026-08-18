@@ -44,7 +44,7 @@ static const HParserVtable difference_vt = {
     .name = "h_difference",
     .parse = parse_difference,
     .isValidRegular = h_false,
-    .isValidCF = h_false, // XXX should this be true if both p1 and p2 are CF?
+    .isValidCF = h_false,
     .higher = true,
 };
 

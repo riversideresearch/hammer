@@ -52,7 +52,7 @@ static inline HHashValue hash_lr_item(const void *p) {
     hash += h_hash_symbol(x->lhs);
     for (HCFChoice **p = x->rhs; *p; p++)
         hash += h_hash_symbol(*p);
-    hash += x->mark;
+    hash += (HHashValue)x->mark;
 
     return hash;
 }
@@ -78,7 +78,7 @@ bool h_eq_transition(const void *p, const void *q) {
 
 HHashValue h_hash_transition(const void *p) {
     const HLRTransition *t = p;
-    return (h_hash_symbol(t->symbol) + t->from + t->to); // XXX ?
+    return ((HHashValue)(h_hash_symbol(t->symbol) + t->from + t->to));
 }
 
 /* Constructors */
@@ -288,7 +288,7 @@ void h_lrengine_trace_action_failure(const HLREngine *engine) {
 
     while (map && !map->epsilon_branch) {
         size_t index = input.pos + input.index;
-        uint8_t actual = h_read_bits(&input, 8, false);
+        uint8_t actual = (uint8_t)h_read_bits(&input, 8, false);
         if (input.overrun) {
             bool expected[256], expected_eof;
             lr_expected_from_map(map, expected, &expected_eof);
@@ -299,9 +299,8 @@ void h_lrengine_trace_action_failure(const HLREngine *engine) {
                 size_t grammar_count = 0;
                 grammar_count = h_cf_trace_candidates(
                     engine->root_parser->desugared, engine->input.input, engine->input.pos,
-                    engine->input.length, engine->input.pos, index,
-                    H_PARSE_ERROR_UNEXPECTED_EOF, origin,
-                    grammar_candidates);
+                    engine->input.length, engine->input.pos, index, H_PARSE_ERROR_UNEXPECTED_EOF,
+                    origin, grammar_candidates);
                 if (grammar_count > 0) {
                     memcpy(candidates, grammar_candidates,
                            grammar_count * sizeof(grammar_candidates[0]));
@@ -312,8 +311,7 @@ void h_lrengine_trace_action_failure(const HLREngine *engine) {
                 h_backend_trace_failures(engine->input.trace, candidates, count);
             else
                 CF_TRACE_FAILURE(engine->input.trace, index, index, H_PARSE_ERROR_UNEXPECTED_EOF,
-                                 origin, provenance,
-                                 expected, expected_eof);
+                                 origin, provenance, expected, expected_eof);
             return;
         }
 
@@ -329,8 +327,7 @@ void h_lrengine_trace_action_failure(const HLREngine *engine) {
                 grammar_count = h_cf_trace_candidates(
                     engine->root_parser->desugared, engine->input.input, engine->input.pos,
                     engine->input.length, engine->input.pos, index,
-                    H_PARSE_ERROR_PRIMITIVE_MISMATCH, origin,
-                    grammar_candidates);
+                    H_PARSE_ERROR_PRIMITIVE_MISMATCH, origin, grammar_candidates);
                 if (grammar_count > 0) {
                     memcpy(candidates, grammar_candidates,
                            grammar_count * sizeof(grammar_candidates[0]));
@@ -341,8 +338,8 @@ void h_lrengine_trace_action_failure(const HLREngine *engine) {
                 h_backend_trace_failures(engine->input.trace, candidates, count);
             else
                 CF_TRACE_FAILURE(engine->input.trace, index, index + 1,
-                                 H_PARSE_ERROR_PRIMITIVE_MISMATCH, origin,
-                                 provenance, expected, expected_eof);
+                                 H_PARSE_ERROR_PRIMITIVE_MISMATCH, origin, provenance, expected,
+                                 expected_eof);
             return;
         }
         map = next;
@@ -372,7 +369,7 @@ const HLRAction *h_lrengine_action(const HLREngine *engine) {
 static HParsedToken *consume_input(HLREngine *engine) {
     HParsedToken *v;
 
-    uint8_t c = h_read_bits(&engine->input, 8, false);
+    uint8_t c = (uint8_t)h_read_bits(&engine->input, 8, false);
 
     if (engine->input.overrun) { // end of input
         v = NULL;
@@ -471,11 +468,11 @@ bool h_lrengine_step(HLREngine *engine, const HLRAction *action) {
                 }
                 const HParser *origin = h_cfchoice_diagnostic_parser(symbol, engine->root_parser);
                 CF_TRACE_FAILURE(engine->input.trace, reduction_start,
-                                 engine->input.pos + engine->input.index, kind,
-                                 origin, symbol->diagnostic_context, NULL, false);
+                                 engine->input.pos + engine->input.index, kind, origin,
+                                 symbol->diagnostic_context, NULL, false);
                 CF_TRACE_LR_REDUCE(engine->input.trace, engine->trace_id, action_state,
-                                   engine->state, len,
-                                   reduction_start, engine->input.pos + engine->input.index, origin,
+                                   engine->state, len, reduction_start,
+                                   engine->input.pos + engine->input.index, origin,
                                    symbol->diagnostic_context, value, false);
             }
             return false; // validation failed -> no parse; terminate
@@ -504,8 +501,7 @@ bool h_lrengine_step(HLREngine *engine, const HLRAction *action) {
         engine->state = shift->data.nextstate;
         if (engine->trace_failures)
             CF_TRACE_LR_REDUCE(engine->input.trace, engine->trace_id, action_state, engine->state,
-                               len, reduction_start,
-                               engine->input.pos + engine->input.index,
+                               len, reduction_start, engine->input.pos + engine->input.index,
                                h_cfchoice_diagnostic_parser(symbol, engine->root_parser),
                                symbol->diagnostic_context, value, true);
 
@@ -536,8 +532,8 @@ bool h_lrengine_step(HLREngine *engine, const HLRAction *action) {
             if (!provenance && action_state < engine->table->nrows)
                 provenance = engine->table->expected_contexts[action_state];
             CF_TRACE_LR_SHIFT(engine->input.trace, engine->trace_id, action_state, engine->state,
-                              input_start,
-                              origin ? origin : engine->root_parser, provenance, value);
+                              input_start, origin ? origin : engine->root_parser, provenance,
+                              value);
         }
     }
 
@@ -758,7 +754,7 @@ static void pprint_transition(FILE *f, const HCFGrammar *g, const HLRTransition 
 
 void h_pprint_lrdfa(FILE *f, const HCFGrammar *g, const HLRDFA *dfa, unsigned int indent) {
     for (size_t i = 0; i < dfa->nstates; i++) {
-        unsigned int indent2 = indent + fprintf(f, "%4zu: ", i);
+        unsigned int indent2 = (indent + (unsigned int)fprintf(f, "%4zu: ", i));
         h_pprint_lrstate(f, g, dfa->states[i], indent2);
         for (HSlistNode *x = dfa->transitions->head; x; x = x->next) {
             const HLRTransition *t = x->elem;

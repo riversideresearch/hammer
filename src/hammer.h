@@ -156,7 +156,7 @@ typedef struct HParsedToken_ {
 #endif
     size_t index;
     size_t bit_length;
-    char bit_offset;
+    uint8_t bit_offset;
 } HParsedToken;
 
 /**
@@ -548,8 +548,11 @@ bool h_parse_diagnostic_expected(const HParseDiagnostic *diagnostic, size_t inde
                                  HParseExpectation *expectation);
 /** Borrow the complete execution trace captured for this diagnostic. */
 const char *h_parse_diagnostic_execution_trace(const HParseDiagnostic *diagnostic, size_t *length);
+<<<<<<< HEAD
 /** Write the complete retained execution trace to a caller-selected stream. */
 void h_parse_diagnostic_trace_fprint(FILE *stream, const HParseDiagnostic *diagnostic);
+=======
+>>>>>>> 49a3c165f531227481bfd36d0a326d7f90ba1b60
 void h_parse_diagnostic_fprint(FILE *stream, const HParseDiagnostic *diagnostic);
 /**
  * Write a normalized diagnostic, its condensed input trail, and a bounded hex/
@@ -778,7 +781,7 @@ HParser *h_float32(void);
  */
 HParser *h_float64(void);
 
-HParser *h_floating_point__m(HAllocator *mm__, int bits);
+HParser *h_floating_point__m(HAllocator *mm__, size_t bits);
 /** @} */
 
 /**
@@ -1048,7 +1051,7 @@ HParser *h_permutation__ma(HAllocator *mm__, void *args[]);
 /**
  * @brief Given two parsers, p1 and p2, this parser succeeds in the following cases:
  * - if p1 succeeds and p2 fails
- * - if both succeed but p1's result is as long as or longer than p2's
+ * - if both succeed and p2's result is shorter than p1's
  *
  * @param p1 First parser
  * @param p2 Second parser
@@ -1060,7 +1063,7 @@ HParser *h_butnot__m(HAllocator *mm__, const HParser *p1, const HParser *p2);
 /**
  * @brief Given two parsers, p1 and p2, this parser succeeds in the following cases:
  * - if p1 succeeds and p2 fails
- * - if both succeed but p2's result is shorter than p1's
+ * - if both succeed and p1's result is as long as or longer than p2's
  *
  * @param p1 First parser
  * @param p2 Second parser
@@ -1545,7 +1548,7 @@ void h_benchmark_report(FILE *stream, HBenchmarkResults *results);
 
 struct result_buf;
 
-bool h_append_buf(struct result_buf *buf, const char *input, int len);
+bool h_append_buf(struct result_buf *buf, const char *input, size_t len);
 bool h_append_buf_c(struct result_buf *buf, char v);
 bool h_append_buf_formatted(struct result_buf *buf, const char *format, ...);
 
