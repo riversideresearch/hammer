@@ -1038,7 +1038,7 @@ bool h_parse_chunk(HSuspendedParser *s, const uint8_t *input, size_t length) {
     s->done = s->parser->backend_vtable->parse_chunk(s, &input_stream);
     s->endianness = input_stream.endianness;
     s->pos += input_stream.index;
-    s->bit_offset = (uint8_t)input_stream.bit_offset;
+    s->bit_offset = input_stream.bit_offset;
 
     return s->done;
 }
