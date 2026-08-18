@@ -183,7 +183,22 @@ static void test_trace_formatter_with_input(void) {
         g_check_cmp_ptr(strstr(execution_trace, "h_packrat_parse: begin"), !=, NULL);
         g_check_cmp_ptr(strstr(execution_trace, "-> h_sequence"), !=, NULL);
         g_check_cmp_ptr(strstr(execution_trace, "h_packrat_parse: end (FAILURE)"), !=, NULL);
+
+        FILE *trace_stream = tmpfile();
+        g_check_cmp_ptr(trace_stream, !=, NULL);
+        if (trace_stream) {
+            h_parse_diagnostic_trace_fprint(trace_stream, diagnostic);
+            rewind(trace_stream);
+            char *printed_trace = g_malloc(execution_length);
+            size_t printed_length = fread(printed_trace, 1, execution_length, trace_stream);
+            g_check_cmp_size(printed_length, ==, execution_length);
+            g_check_cmp_int(memcmp(printed_trace, execution_trace, execution_length), ==, 0);
+            g_free(printed_trace);
+            fclose(trace_stream);
+        }
     }
+
+    h_parse_diagnostic_trace_fprint(NULL, diagnostic);
 
     FILE *stream = tmpfile();
     g_check_cmp_ptr(stream, !=, NULL);

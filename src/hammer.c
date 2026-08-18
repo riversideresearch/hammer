@@ -704,6 +704,16 @@ const char *h_parse_diagnostic_execution_trace(const HParseDiagnostic *diagnosti
     return diagnostic ? diagnostic->execution_trace : NULL;
 }
 
+void h_parse_diagnostic_trace_fprint(FILE *stream, const HParseDiagnostic *diagnostic) {
+    if (!stream || !diagnostic)
+        return;
+
+    size_t length = 0;
+    const char *trace = h_parse_diagnostic_execution_trace(diagnostic, &length);
+    if (trace && length > 0)
+        fwrite(trace, 1, length, stream);
+}
+
 static void diagnostic_print_byte(FILE *stream, uint8_t byte) {
     if (byte == '\'' || byte == '\\')
         fprintf(stream, "'\\%c'", byte);
