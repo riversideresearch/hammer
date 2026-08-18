@@ -549,7 +549,10 @@ static void test_bug60_abnf(void) {
     /* Have a buffer for the string */
     s_size = strlen(test_string_template) + 3 * BUG60_ABNF_SCAN_UP_TO + 1;
     s = malloc(s_size);
-    g_check_cmp_ptr(s, !=, NULL);
+    if (s == NULL) {
+        g_test_fail();
+        return;
+    }
 
     /*
      * Try to parse all the different strings according to the template up to
