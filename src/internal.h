@@ -88,9 +88,9 @@ typedef struct HInputStream_ {
     size_t pos; // position of this chunk in a multi-chunk stream
     size_t index;
     size_t length;
-    char bit_offset;
-    char margin; // The number of bits on the end that is being read
-                 // towards that should be ignored.
+    uint8_t bit_offset;
+    uint8_t margin; // The number of bits on the end that is being read
+                    // towards that should be ignored.
     char endianness;
     bool overrun;
     bool last_chunk;
@@ -238,7 +238,7 @@ struct HSuspendedParser_ {
     // input stream state
     size_t pos;
     uint8_t bit_offset;
-    uint8_t endianness;
+    char endianness;
 };
 
 struct HParserBackendVTable_ {

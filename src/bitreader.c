@@ -73,12 +73,11 @@ int64_t h_read_bits(HInputStream *state, size_t count, char signed_p) {
         }
     } else {
         while (count) {
-            int segment;
-            size_t segment_len;
+            size_t segment, segment_len;
             // Read a segment...
             if (state->endianness & BIT_BIG_ENDIAN) {
                 if (count + state->bit_offset + state->margin >= 8) {
-                    segment_len = 8 - state->bit_offset - state->margin;
+                    segment_len = 8u - state->bit_offset - state->margin;
                     segment =
                         (state->input[state->index] >> state->margin) & ((1 << segment_len) - 1);
                     state->index++;
@@ -86,13 +85,13 @@ int64_t h_read_bits(HInputStream *state, size_t count, char signed_p) {
                     state->margin = 0;
                 } else {
                     segment_len = count;
-                    state->bit_offset += count;
+                    state->bit_offset += (uint8_t)count;
                     segment = (state->input[state->index] >> (8 - state->bit_offset)) &
                               ((1 << segment_len) - 1);
                 }
             } else { // BIT_LITTLE_ENDIAN
                 if (count + state->bit_offset + state->margin >= 8) {
-                    segment_len = 8 - state->bit_offset - state->margin;
+                    segment_len = 8u - state->bit_offset - state->margin;
                     segment = (state->input[state->index] >> state->bit_offset) &
                               ((1 << segment_len) - 1);
                     state->index++;
@@ -102,13 +101,13 @@ int64_t h_read_bits(HInputStream *state, size_t count, char signed_p) {
                     segment_len = count;
                     segment = (state->input[state->index] >> state->bit_offset) &
                               ((1 << segment_len) - 1);
-                    state->bit_offset += segment_len;
+                    state->bit_offset += (uint8_t)segment_len;
                 }
             }
 
             // have a valid segment; time to assemble the byte
             if (state->endianness & BYTE_BIG_ENDIAN) {
-                out = out << segment_len | segment;
+                out = (out << segment_len | segment);
             } else { // BYTE_LITTLE_ENDIAN
                 if (offset < 64)
                     out |= (uint64_t)segment << offset;
@@ -139,9 +138,12 @@ void h_skip_bits(HInputStream *stream, size_t count) {
     }
 
     // consume from a partial byte?
-    left = 8 - stream->bit_offset - stream->margin;
+    left = (size_t)(8 - stream->bit_offset - stream->margin);
     if (count < left) {
-        stream->bit_offset += count;
+        size_t new_offset = (size_t)stream->bit_offset + count;
+        HAMMER_ASSERT(new_offset < 8U);
+
+        stream->bit_offset = (uint8_t)new_offset;
         return;
     }
     if (left < 8) {
@@ -150,8 +152,8 @@ void h_skip_bits(HInputStream *stream, size_t count) {
         stream->margin = 0;
         count -= left;
     }
-    assert(stream->bit_offset == 0);
-    assert(stream->margin == 0);
+    HAMMER_ASSERT(stream->bit_offset == 0);
+    HAMMER_ASSERT(stream->margin == 0);
 
     // consume full bytes
     left = stream->length - stream->index;
@@ -163,13 +165,13 @@ void h_skip_bits(HInputStream *stream, size_t count) {
         stream->overrun = true;
         return;
     }
-    assert(count < 8);
+    HAMMER_ASSERT(count < 8U);
 
     // final partial byte
     if (count > 0 && stream->index == stream->length)
         stream->overrun = true;
     else
-        stream->bit_offset = count;
+        stream->bit_offset = (uint8_t)count;
 }
 
 void h_seek_bits(HInputStream *stream, size_t pos) {
@@ -178,7 +180,8 @@ void h_seek_bits(HInputStream *stream, size_t pos) {
 
     /* seek within the current byte? */
     if (pos_index == stream->index) {
-        stream->bit_offset = pos_offset;
+        HAMMER_ASSERT(pos_offset < 8U);
+        stream->bit_offset = (uint8_t)pos_offset;
         return;
     }
 
@@ -193,6 +196,7 @@ void h_seek_bits(HInputStream *stream, size_t pos) {
     }
 
     stream->index = pos_index;
-    stream->bit_offset = pos_offset;
+    assert(pos_offset < 8U);
+    stream->bit_offset = (uint8_t)pos_offset;
     stream->margin = 0;
 }

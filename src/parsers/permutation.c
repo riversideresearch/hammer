@@ -166,7 +166,7 @@ HParser *h_permutation__mv(HAllocator *mm__, HParser *p, va_list ap_) {
 HParser *h_permutation__a(void *args[]) { return h_permutation__ma(&system_allocator, args); }
 
 HParser *h_permutation__ma(HAllocator *mm__, void *args[]) {
-    size_t len = -1; // because do...while
+    size_t len = (size_t)-1; // because do...while
     const HParser *arg;
 
     do {

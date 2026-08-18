@@ -347,7 +347,7 @@ static void llk_trace_lookup_failure(const HStringMap *row, HInputStream stream,
     }
     while (map && !map->epsilon_branch) {
         size_t index = stream.pos + stream.index;
-        uint8_t actual = h_read_bits(&stream, 8, false);
+        uint8_t actual = (uint8_t)h_read_bits(&stream, 8, false);
         if (stream.overrun) {
             bool expected[256], expected_eof;
             llk_expected_from_map(map, expected, &expected_eof);
@@ -630,7 +630,7 @@ static HCountedArray *llk_parse_chunk_(HLLkState *s, const HParser *parser, HInp
             HLLkFrame *frame = h_arena_malloc(tarena, sizeof(*frame));
             frame->symbol = x;
             frame->start = symbol_start;
-            frame->bit_offset = stream->bit_offset;
+            frame->bit_offset = (uint8_t)stream->bit_offset;
             h_slist_push(stack, seq);          // save current partial value
             h_slist_push(stack, plan);         // save its deferred action plan
             h_slist_push(stack, frame);        // save the nonterminal and its start position
@@ -685,7 +685,7 @@ static HCountedArray *llk_parse_chunk_(HLLkState *s, const HParser *parser, HInp
                 CF_TRACE_PARSER_ENTER(trace, origin, tok->index, "terminal");
 
             // consume the input token
-            uint8_t input = h_read_bits(stream, 8, false);
+            uint8_t input = (uint8_t)h_read_bits(stream, 8, false);
 
             // when old chunk consumed from window, switch to new chunk
             if (s->win.length > 0 && s->win.index >= kmax) {
@@ -882,7 +882,7 @@ HParseResult *h_llk_parse(HAllocator *mm__, const HParser *parser, HInputStream 
 
     HParseResult *res = llk_parse_finish_(mm__, s);
     if (res)
-        res->bit_length = stream->index * 8 + stream->bit_offset;
+        res->bit_length = stream->index * 8 + (size_t)stream->bit_offset;
 
     CF_TRACE_END(stream->trace, res != NULL);
 

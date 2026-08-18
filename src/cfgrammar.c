@@ -7,6 +7,7 @@
 
 #include <assert.h>
 #include <ctype.h>
+#include <stdint.h>
 
 // type of pairs used as memoization keys by h_follow and h_first
 struct k_nt {
@@ -24,7 +25,7 @@ static bool eq_k_nt(const void *p, const void *q) {
 
 static HHashValue hash_k_nt(const void *p) {
     const struct k_nt *x = p;
-    return h_hash_ptr(x->nt) * x->k;
+    return h_hash_ptr(x->nt) * (HHashValue)(x->k);
 }
 
 HCFGrammar *h_cfgrammar_new(HAllocator *mm__) {
@@ -402,7 +403,7 @@ void *h_stringmap_get_lookahead(const HStringMap *m, HInputStream lookahead) {
 
         // note the lookahead stream is passed by value, i.e. a copy.
         // reading bits from it does not consume them from the real input.
-        uint8_t c = h_read_bits(&lookahead, 8, false);
+        uint8_t c = (uint8_t)h_read_bits(&lookahead, 8, false);
 
         if (lookahead.overrun) {        // end of chunk
             if (lookahead.last_chunk) { // end of input
@@ -888,20 +889,21 @@ static void pprint_charset_char(FILE *f, uint8_t c) {
 }
 
 static void pprint_charset(FILE *f, const HCharset cs) {
-    int i;
+    unsigned int i;
 
     fputc('[', f);
     for (i = 0; i < 256; i++) {
-        if (charset_isset(cs, i)) {
-            pprint_charset_char(f, i);
+        if (charset_isset(cs, (uint8_t)i)) {
+            pprint_charset_char(f, (uint8_t)i);
 
             // detect ranges
-            if (i + 2 < 256 && charset_isset(cs, i + 1) && charset_isset(cs, i + 2)) {
+            if (i + 2 < 256 && charset_isset(cs, (uint8_t)i + 1) &&
+                charset_isset(cs, (uint8_t)i + 2)) {
                 fputc('-', f);
-                for (; i < 256 && charset_isset(cs, i); i++)
+                for (; i < 256 && charset_isset(cs, (uint8_t)i); i++)
                     ;
                 i--; // back to the last in range
-                pprint_charset_char(f, i);
+                pprint_charset_char(f, (uint8_t)i);
             }
         }
     }
@@ -917,7 +919,7 @@ static const char *nonterminal_name(const HCFGrammar *g, const HCFChoice *nt) {
     // NB the start symbol (number 0) is always "A".
     int i;
     for (i = 14; i >= 0 && (n > 0 || i == 14); i--) {
-        buf[i] = 'A' + n % 26;
+        buf[i] = 'A' + (char)(n % 26);
         n = n / 26; // shift one digit
     }
 
@@ -982,9 +984,10 @@ static void pprint_sequence(FILE *f, const HCFGrammar *g, const HCFSequence *seq
     fputc('\n', f);
 }
 
-static void pprint_ntrules(FILE *f, const HCFGrammar *g, const HCFChoice *nt, int indent, int len) {
-    int i;
-    int column = indent + len;
+static void pprint_ntrules(FILE *f, const HCFGrammar *g, const HCFChoice *nt, size_t indent,
+                           size_t len) {
+    size_t i;
+    size_t column = indent + len;
 
     const char *name = nonterminal_name(g, nt);
 
@@ -1013,7 +1016,7 @@ static void pprint_ntrules(FILE *f, const HCFGrammar *g, const HCFChoice *nt, in
     }
 }
 
-void h_pprint_grammar(FILE *file, const HCFGrammar *g, int indent) {
+void h_pprint_grammar(FILE *file, const HCFGrammar *g, size_t indent) {
     HAllocator *mm__ = g->mm__;
 
     if (g->nts->used < 1) {
@@ -1021,7 +1024,7 @@ void h_pprint_grammar(FILE *file, const HCFGrammar *g, int indent) {
     }
 
     // determine maximum string length of symbol names
-    int len;
+    size_t len;
     size_t s;
     for (len = 1, s = 26; s < g->nts->used; len++, s *= 26)
         ;
@@ -1050,8 +1053,8 @@ void h_pprint_grammar(FILE *file, const HCFGrammar *g, int indent) {
     h_free(arr);
 }
 
-void h_pprint_symbolset(FILE *file, const HCFGrammar *g, const HHashSet *set, int indent) {
-    int j;
+void h_pprint_symbolset(FILE *file, const HCFGrammar *g, const HHashSet *set, size_t indent) {
+    size_t j;
     for (j = 0; j < indent; j++)
         fputc(' ', file);
 
@@ -1084,7 +1087,7 @@ void h_pprint_symbolset(FILE *file, const HCFGrammar *g, const HHashSet *set, in
 static bool pprint_stringmap_elems(FILE *file, bool first, char *prefix, size_t n, char sep,
                                    void (*valprint)(FILE *f, void *env, void *val), void *env,
                                    const HStringMap *map) {
-    assert(n < BUFSIZE - 4);
+    HAMMER_ASSERT(n < BUFSIZE - 4);
 
     if (map->epsilon_branch) {
         if (!first) {
@@ -1134,7 +1137,7 @@ static bool pprint_stringmap_elems(FILE *file, bool first, char *prefix, size_t 
             if (hte->key == NULL) {
                 continue;
             }
-            uint8_t c = key_char((HCharKey)hte->key);
+            char c = (char)key_char((HCharKey)hte->key);
             HStringMap *ends = hte->value;
 
             size_t n_ = n;
@@ -1171,7 +1174,13 @@ static bool pprint_stringmap_elems(FILE *file, bool first, char *prefix, size_t 
                 if (isprint(c)) {
                     prefix[n_++] = c;
                 } else {
-                    n_ += sprintf(prefix + n_, "\\x%.2X", c);
+                    size_t available = (size_t)BUFSIZE - n_;
+                    int written =
+                        snprintf(prefix + n_, available, "\\x%02X", (unsigned int)(unsigned char)c);
+                    if (written < 0 || (size_t)written >= available) {
+                        return first; /* formatting error or insufficient buffer */
+                    }
+                    n_ += (size_t)written;
                 }
             }
 
@@ -1188,8 +1197,8 @@ void h_pprint_stringmap(FILE *file, char sep, void (*valprint)(FILE *f, void *en
     pprint_stringmap_elems(file, true, buf, 0, sep, valprint, env, map);
 }
 
-void h_pprint_stringset(FILE *file, const HStringMap *set, int indent) {
-    int j;
+void h_pprint_stringset(FILE *file, const HStringMap *set, size_t indent) {
+    size_t j;
     for (j = 0; j < indent; j++)
         fputc(' ', file);
 

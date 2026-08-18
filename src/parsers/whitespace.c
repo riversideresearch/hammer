@@ -3,18 +3,19 @@
 
 #include <assert.h>
 #include <ctype.h>
+#include <stdint.h>
 
 static HParseResult *parse_whitespace(void *env, HParseState *state) {
-    char c;
+    int c;
     HInputStream bak;
     do {
         bak = state->input_stream;
-        c = h_read_bits(&state->input_stream, 8, false);
+        c = (int)h_read_bits(&state->input_stream, 8, false);
         if (want_suspend(state))
             return NULL; // bail out early, leaving overrun flag
         if (state->input_stream.overrun)
             break;
-    } while (isspace((int)c));
+    } while (isspace(c));
     state->input_stream = bak;
     return h_do_parse((HParser *)env, state);
 }
@@ -25,7 +26,7 @@ static void desugar_whitespace(HAllocator *mm__, HCFStack *stk__, void *env) {
 
     HCharset ws_cs = new_charset(mm__);
     for (size_t i = 0; i < sizeof(SPACE_CHRS); i++)
-        charset_set(ws_cs, SPACE_CHRS[i], 1);
+        charset_set(ws_cs, (uint8_t)SPACE_CHRS[i], 1);
 
     HCFS_BEGIN_CHOICE() {
         HCFS_BEGIN_SEQ() {

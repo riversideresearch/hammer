@@ -2,6 +2,7 @@
 #include "parser_internal.h"
 
 #include <assert.h>
+#include <stdint.h>
 
 typedef struct {
     uint8_t *str;
@@ -48,7 +49,8 @@ static HParsedToken *reshape_token(const HParseResult *p, void *user_data) {
     for (i = 0; i < seq->used; i++) {
         HParsedToken *t = seq->elements[i];
         assert(t->token_type == TT_UINT);
-        arr[i] = t->token_data.uint;
+        assert(t->token_data.uint <= UINT8_MAX);
+        arr[i] = (uint8_t)t->token_data.uint;
     }
 
     // create result token
@@ -78,7 +80,9 @@ static bool token_ctrvm(HRVMProg *prog, void *env) {
     HToken *t = (HToken *)env;
     h_rvm_insert_insn(prog, RVM_PUSH, 0);
     for (size_t i = 0; i < t->len; ++i) {
-        h_rvm_insert_insn(prog, RVM_MATCH, t->str[i] | t->str[i] << 8);
+        h_rvm_insert_insn(
+            prog, RVM_MATCH,
+            (uint16_t)((uint16_t)(uint8_t)t->str[i] | ((uint16_t)(uint8_t)t->str[i] << 8)));
         h_rvm_insert_insn(prog, RVM_STEP, 0);
     }
     h_rvm_insert_insn(prog, RVM_CAPTURE, 0);
