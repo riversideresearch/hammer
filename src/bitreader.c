@@ -141,7 +141,7 @@ void h_skip_bits(HInputStream *stream, size_t count) {
     left = (size_t)(8 - stream->bit_offset - stream->margin);
     if (count < left) {
         size_t new_offset = (size_t)stream->bit_offset + count;
-        assert(new_offset < 8U);
+        HAMMER_ASSERT(new_offset < 8U);
 
         stream->bit_offset = (uint8_t)new_offset;
         return;
@@ -152,8 +152,8 @@ void h_skip_bits(HInputStream *stream, size_t count) {
         stream->margin = 0;
         count -= left;
     }
-    assert(stream->bit_offset == 0);
-    assert(stream->margin == 0);
+    HAMMER_ASSERT(stream->bit_offset == 0);
+    HAMMER_ASSERT(stream->margin == 0);
 
     // consume full bytes
     left = stream->length - stream->index;
@@ -165,15 +165,13 @@ void h_skip_bits(HInputStream *stream, size_t count) {
         stream->overrun = true;
         return;
     }
-    assert(count < 8);
+    HAMMER_ASSERT(count < 8U);
 
     // final partial byte
     if (count > 0 && stream->index == stream->length)
         stream->overrun = true;
-    else {
-        assert(count < 8U);
+    else
         stream->bit_offset = (uint8_t)count;
-    }
 }
 
 void h_seek_bits(HInputStream *stream, size_t pos) {
@@ -182,7 +180,7 @@ void h_seek_bits(HInputStream *stream, size_t pos) {
 
     /* seek within the current byte? */
     if (pos_index == stream->index) {
-        assert(pos_offset < 8U);
+        HAMMER_ASSERT(pos_offset < 8U);
         stream->bit_offset = (uint8_t)pos_offset;
         return;
     }

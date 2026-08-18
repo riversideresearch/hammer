@@ -1087,7 +1087,7 @@ void h_pprint_symbolset(FILE *file, const HCFGrammar *g, const HHashSet *set, si
 static bool pprint_stringmap_elems(FILE *file, bool first, char *prefix, size_t n, char sep,
                                    void (*valprint)(FILE *f, void *env, void *val), void *env,
                                    const HStringMap *map) {
-    assert(n < BUFSIZE - 4);
+    HAMMER_ASSERT(n < BUFSIZE - 4);
 
     if (map->epsilon_branch) {
         if (!first) {
