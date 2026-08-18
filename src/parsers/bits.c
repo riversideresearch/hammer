@@ -19,7 +19,6 @@ static HParseResult *parse_bits(void *env, HParseState *state) {
      * requested bit count; callers that need wider fields should use h_bytes()
      * or compose smaller parsers.
      */
-    // h_read_bits takes int; cast is required by its signature
     if (env_->signedp)
         result->token_data.sint = h_read_bits(&state->input_stream, env_->length, true);
     else

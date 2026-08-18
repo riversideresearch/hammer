@@ -177,7 +177,7 @@ static inline HCharset new_charset(HAllocator *mm__) {
 }
 
 static inline int charset_isset(HCharset cs, uint8_t pos) {
-    return !!(cs[pos / (sizeof(*cs) * 8)] & (1 << (pos % (sizeof(*cs) * 8))));
+    return !!(cs[pos / (sizeof(*cs) * 8)] & (1u << (pos % (sizeof(*cs) * 8))));
 }
 
 static inline void charset_set(HCharset cs, uint8_t pos, int val) {
