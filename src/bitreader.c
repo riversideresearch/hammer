@@ -107,7 +107,7 @@ int64_t h_read_bits(HInputStream *state, size_t count, char signed_p) {
 
             // have a valid segment; time to assemble the byte
             if (state->endianness & BYTE_BIG_ENDIAN) {
-                out = (out << (int64_t)segment_len | (int64_t)segment);
+                out = (out << segment_len | segment);
             } else { // BYTE_LITTLE_ENDIAN
                 if (offset < 64)
                     out |= (uint64_t)segment << offset;
