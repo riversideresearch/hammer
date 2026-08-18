@@ -539,21 +539,15 @@ HParseResult *h_parse__m(HAllocator *mm__, const HParser *parser, const uint8_t 
  * h_parse_diagnostic_free().
  */
 HParseResult *h_parse_debug(const HParser *parser, const uint8_t *input, size_t length,
-                               HParseDiagnostic **diagnostic, bool showDiagnostic);
-HParseResult *h_parse_debug__m(
-    HAllocator *allocator,
-    const HParser *parser,
-    const uint8_t *input,
-    size_t length,
-    HParseDiagnostic **diagnostic,
-    bool showDiagnostic);
+                            HParseDiagnostic **diagnostic, bool showDiagnostic);
+HParseResult *h_parse_debug__m(HAllocator *allocator, const HParser *parser, const uint8_t *input,
+                               size_t length, HParseDiagnostic **diagnostic, bool showDiagnostic);
 const HParseError *h_parse_diagnostic_error(const HParseDiagnostic *diagnostic);
 size_t h_parse_diagnostic_expected_count(const HParseDiagnostic *diagnostic);
 bool h_parse_diagnostic_expected(const HParseDiagnostic *diagnostic, size_t index,
                                  HParseExpectation *expectation);
 /** Borrow the complete execution trace captured for this diagnostic. */
-const char *h_parse_diagnostic_execution_trace(const HParseDiagnostic *diagnostic,
-                                               size_t *length);
+const char *h_parse_diagnostic_execution_trace(const HParseDiagnostic *diagnostic, size_t *length);
 void h_parse_diagnostic_fprint(FILE *stream, const HParseDiagnostic *diagnostic);
 /**
  * Write a normalized diagnostic, its condensed input trail, and a bounded hex/
@@ -1645,18 +1639,17 @@ static inline HParser *h_with_context_at(HParser *parser, const char *label, con
 }
 
 #if defined(__has_builtin)
-#  if __has_builtin(__builtin_COLUMN)
-#    define H_CONTEXT_COLUMN() __builtin_COLUMN()
-#  endif
+#if __has_builtin(__builtin_COLUMN)
+#define H_CONTEXT_COLUMN() __builtin_COLUMN()
+#endif
 #endif
 
 #ifndef H_CONTEXT_COLUMN
-#  define H_CONTEXT_COLUMN() 0
+#define H_CONTEXT_COLUMN() 0
 #endif
 
-#define H_CONTEXT(parser, label)                                                   \
-    h_with_context_at((parser), (label), __FILE__, __func__, __LINE__,             \
-                      H_CONTEXT_COLUMN())
+#define H_CONTEXT(parser, label)                                                                   \
+    h_with_context_at((parser), (label), __FILE__, __func__, __LINE__, H_CONTEXT_COLUMN())
 
 /** @} */
 

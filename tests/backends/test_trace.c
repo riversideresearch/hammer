@@ -833,8 +833,7 @@ static void test_trace_context_preserves_error_kind(gconstpointer backend) {
     HParser *nothing_at = h_with_context(nothing, "required.variant", &source);
     g_check_cmp_int(h_compile(nothing_at, be, NULL), ==, 0);
     HParseDiagnostic *diagnostic = NULL;
-    HParseResult *result =
-        h_parse_debug(nothing_at, (const uint8_t *)"A", 1, &diagnostic, false);
+    HParseResult *result = h_parse_debug(nothing_at, (const uint8_t *)"A", 1, &diagnostic, false);
     g_check_cmp_ptr(result, ==, NULL);
     g_check_cmp_ptr(diagnostic, !=, NULL);
     if (diagnostic) {
