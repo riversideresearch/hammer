@@ -601,7 +601,7 @@ HParseResult *h_parse_debug__m(HAllocator *mm__, const HParser *parser, const ui
     if (diagnostic)
         *diagnostic = NULL;
     HTraceState *trace = h_trace_state_new(dumpExecutionTrace);
-    HParseResult *res = h_parse_with_trace(&system_allocator, parser, input, length, trace);
+    HParseResult *res = h_parse_with_trace(mm__, parser, input, length, trace);
     HParseDiagnostic *collected = NULL;
     if (diagnostic || (!res && h_trace_should_print_summary(trace)))
         TRACE_GET_DIAGNOSTIC(trace, &collected);
