@@ -548,11 +548,8 @@ bool h_parse_diagnostic_expected(const HParseDiagnostic *diagnostic, size_t inde
                                  HParseExpectation *expectation);
 /** Borrow the complete execution trace captured for this diagnostic. */
 const char *h_parse_diagnostic_execution_trace(const HParseDiagnostic *diagnostic, size_t *length);
-<<<<<<< HEAD
 /** Write the complete retained execution trace to a caller-selected stream. */
 void h_parse_diagnostic_trace_fprint(FILE *stream, const HParseDiagnostic *diagnostic);
-=======
->>>>>>> 49a3c165f531227481bfd36d0a326d7f90ba1b60
 void h_parse_diagnostic_fprint(FILE *stream, const HParseDiagnostic *diagnostic);
 /**
  * Write a normalized diagnostic, its condensed input trail, and a bounded hex/
