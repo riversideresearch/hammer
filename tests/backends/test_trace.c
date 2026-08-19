@@ -1097,6 +1097,7 @@ static void test_trace_sequence_truncated(gconstpointer backend) {
     g_check_cmp_int(err->has_actual, ==, false);
     g_check_cmp_int(err->kind, ==, H_PARSE_ERROR_UNEXPECTED_EOF);
     g_check_cmp_ptr(err->deepest_parsers[0], !=, NULL);
+    h_parse_diagnostic_free(diagnostic);
 }
 
 // debugtest/parser5.c: choice of two tokens; "YoS" matches neither "YES" nor
@@ -1116,6 +1117,7 @@ static void test_trace_choice_token_mismatch(gconstpointer backend) {
     g_check_cmp_size(err->index, ==, 1);
     g_check_cmp_int(err->actual, ==, 'o');
     g_check_cmp_ptr(err->deepest_parsers[0], !=, NULL);
+    h_parse_diagnostic_free(diagnostic);
 }
 
 // debugtest/parser6.c: h_many1() needs at least one uppercase letter, but the
@@ -1134,6 +1136,7 @@ static void test_trace_many1_no_letter(gconstpointer backend) {
     g_check_cmp_size(err->index, ==, 0);
     g_check_cmp_int(err->actual, ==, '!');
     g_check_cmp_ptr(err->deepest_parsers[0], !=, NULL);
+    h_parse_diagnostic_free(diagnostic);
 }
 
 // debugtest/parser7.c: h_middle() around a word; the closing ')' is actually a
@@ -1152,13 +1155,13 @@ static void test_trace_middle_bad_close(gconstpointer backend) {
     const HParseError *err = h_parse_diagnostic_error(diagnostic);
     // Furthest progress is index 6, the '{' where ')' was expected. These
     // fields are only populated when the tracer is compiled in (n_deepest > 0).
-    // No free is needed here: the parser names are borrowed from the tracer's
-    // permanent cache, not owned by the struct.
+    // Parser names are borrowed, but the diagnostic itself is caller-owned.
     g_check_cmp_int(err->n_deepest, >, 0);
     if (err->n_deepest > 0) {
         g_check_cmp_size(err->index, ==, 6);
         g_check_cmp_int(err->actual, ==, '{');
     }
+    h_parse_diagnostic_free(diagnostic);
 }
 
 // debugtest/parser8.c: h_int_range() rejects a value outside [1,3]; 0xFF (255)
@@ -1326,6 +1329,7 @@ static void test_trace_repeated_parses_and_nul_byte(gconstpointer backend) {
     g_check_cmp_int(err->kind, ==, H_PARSE_ERROR_NONE);
     g_check_cmp_size(err->n_deepest, ==, 0);
     h_parse_result_free(result);
+    h_parse_diagnostic_free(diagnostic);
 
     result = h_parse_debug(parser, bad, sizeof(bad), &diagnostic, true);
     err = h_parse_diagnostic_error(diagnostic);
@@ -1374,6 +1378,7 @@ static void test_trace_nested_list(gconstpointer backend) {
         g_check_cmp_size(err->index, ==, 7);
         g_check_cmp_int(err->actual, ==, 0x9);
     }
+    h_parse_diagnostic_free(diagnostic);
 }
 
 /* Nested H_CONTEXT occurrences must survive backend compilation as a path,
