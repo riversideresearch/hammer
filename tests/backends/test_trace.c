@@ -88,7 +88,7 @@ static void test_trace_cf_unexpected_eof(gconstpointer backend) {
     h_parse_diagnostic_free(diagnostic);
 }
 
-/* A zero-length input may use a NULL buffer-> Diagnostics must classify the
+/* A zero-length input may use a NULL buffer. Diagnostics must classify the
  * failure as EOF and must never attempt to fetch input[0]. */
 static void test_trace_empty_input_eof(gconstpointer backend) {
     HParserBackend be = (HParserBackend)GPOINTER_TO_INT(backend);
@@ -800,8 +800,8 @@ static void test_with_context_owns_metadata(void) {
 static void test_trace_occurrence_provenance(gconstpointer backend) {
     HParserBackend be = (HParserBackend)GPOINTER_TO_INT(backend);
     HParser *shared = h_ch('A');
-    HSourceLocation first_source = {"grammar->ddl", "make_grammar", 10, 3};
-    HSourceLocation second_source = {"grammar->ddl", "make_grammar", 20, 7};
+    HSourceLocation first_source = {"grammar.ddl", "make_grammar", 10, 3};
+    HSourceLocation second_source = {"grammar.ddl", "make_grammar", 20, 7};
     HParser *first = h_with_context(shared, "first.A", &first_source);
     HParser *second = h_with_context(shared, "second.A", &second_source);
     HParser *parser = h_sequence(first, second, NULL);
@@ -827,7 +827,7 @@ static void test_trace_occurrence_provenance(gconstpointer backend) {
         g_check_cmp_size(error->index, ==, 1);
         g_check_cmp_ptr(error->source, !=, NULL);
         if (error->source) {
-            g_check_string(error->source->file_name, ==, "grammar->ddl");
+            g_check_string(error->source->file_name, ==, "grammar.ddl");
             g_check_cmp_size(error->source->line, ==, 20);
             g_check_cmp_size(error->source->column, ==, 7);
         }
@@ -842,7 +842,7 @@ static void test_trace_occurrence_provenance(gconstpointer backend) {
 
 static void test_trace_context_preserves_error_kind(gconstpointer backend) {
     HParserBackend be = (HParserBackend)GPOINTER_TO_INT(backend);
-    HSourceLocation source = {"grammar->ddl", "make_grammar", 30, 2};
+    HSourceLocation source = {"grammar.ddl", "make_grammar", 30, 2};
 
     HParser *nothing = h_nothing_p();
     HParser *nothing_at = h_with_context(nothing, "required.variant", &source);
@@ -1056,7 +1056,7 @@ static bool trace_validate_checksum(HParseResult *p, void *user_data) {
     return checksum == ((data + 1) ^ 0xFF);
 }
 
-// Action from debugtest/parser10.c: sum the two bytes of the pair->
+// Action from debugtest/parser10.c: sum the two bytes of the pair.
 static HParsedToken *trace_sum_action(const HParseResult *p, void *user_data) {
     (void)user_data;
     uint64_t a = h_seq_index(p->ast, 0)->token_data.uint;
@@ -1356,7 +1356,7 @@ static void test_trace_action_sum(gconstpointer backend) {
     }
 }
 
-// debugtest/parser->c: nested list grammar-> The innermost value 9 is outside the
+// debugtest/parser.c: nested list grammar-> The innermost value 9 is outside the
 // number range [0,8] and is not a '[', so the whole structure fails to parse.
 static void test_trace_nested_list(gconstpointer backend) {
     HParserBackend be = (HParserBackend)GPOINTER_TO_INT(backend);

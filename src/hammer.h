@@ -228,7 +228,7 @@ typedef struct HParseError_ {
     const HSourceLocation *source;
 } HParseError;
 
-/** Opaque, extensible diagnostic returned by h_parse_debug_ex(). */
+/** Opaque, extensible diagnostic returned by h_parse_debug(). */
 typedef struct HParseDiagnostic_ HParseDiagnostic;
 
 typedef enum HParseExpectationKind_ {
