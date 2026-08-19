@@ -195,7 +195,7 @@ void h_hashtable_ensure_capacity(HHashTable *ht, size_t n) {
     HHashTableEntry *old_contents, *new_contents;
     bool do_resize = false;
     size_t old_capacity = ht->capacity;
-    while (n * 1.3 > ht->capacity) {
+    while ((double)n * 1.3 > ht->capacity) {
         ht->capacity *= 2;
         do_resize = true;
     }
@@ -418,7 +418,7 @@ bool h_eq_ptr(const void *p, const void *q) { return (p == q); }
 HHashValue h_hash_ptr(const void *p) {
     // XXX just djbhash it? it does make the benchmark ~7% slower.
     // return h_djbhash((const uint8_t *)&p, sizeof(void *));
-    return (uintptr_t)p >> 4;
+    return (HHashValue)((uintptr_t)p >> 4);
 }
 
 uint32_t h_djbhash(const uint8_t *buf, size_t len) {

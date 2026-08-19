@@ -8,9 +8,7 @@ typedef struct {
 
 // helper
 static void switch_bit_order(HInputStream *input) {
-    assert(input->bit_offset <= 8);
-
-    char tmp = input->bit_offset;
+    uint8_t tmp = input->bit_offset;
     input->bit_offset = input->margin;
     input->margin = tmp;
 }
@@ -39,6 +37,7 @@ static HParseResult *parse_endianness(void *env, HParseState *state) {
 }
 
 static const HParserVtable endianness_vt = {
+    .name = "h_endianness",
     .parse = parse_endianness,
     .isValidRegular = h_false,
     .isValidCF = h_false,

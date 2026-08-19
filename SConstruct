@@ -138,6 +138,7 @@ AddOption(
 env["CC"] = os.getenv("CC") or env["CC"]
 env["CXX"] = os.getenv("CXX") or env["CXX"]
 env["CFLAGS"] = os.getenv("CFLAGS") or env["CFLAGS"]
+env["LINKFLAGS"] = os.getenv("LDFLAGS") or env["LINKFLAGS"]
 
 # Language standard and warnings
 # Using -D_POSIX_C_SOURCE=200809L here, not on an ad-hoc basis when,
@@ -295,6 +296,7 @@ def uninstall_action(target, source, env):
         os.path.join(env["incpath"], h)
         for h in [
             "hammer.h",
+            "hammer_auto_source.h",
             "allocator.h",
             "compiler_specifics.h",
             "glue.h",

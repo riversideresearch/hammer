@@ -19,11 +19,10 @@ static HParseResult *parse_bits(void *env, HParseState *state) {
      * requested bit count; callers that need wider fields should use h_bytes()
      * or compose smaller parsers.
      */
-    // h_read_bits takes int; cast is required by its signature
     if (env_->signedp)
-        result->token_data.sint = h_read_bits(&state->input_stream, (int)env_->length, true);
+        result->token_data.sint = h_read_bits(&state->input_stream, env_->length, true);
     else
-        result->token_data.uint = h_read_bits(&state->input_stream, (int)env_->length, false);
+        result->token_data.uint = (uint64_t)h_read_bits(&state->input_stream, env_->length, false);
     result->index = 0;
     result->bit_length = 0;
     result->bit_offset = 0;
@@ -44,7 +43,7 @@ static HParsedToken *reshape_bits(const HParseResult *p, void *signedp_p) {
     ret->token_type = TT_UINT;
 
     if (signedp && seq->used > 0 && (seq->elements[0]->token_data.uint & 128))
-        ret->token_data.uint = -1; // all ones
+        ret->token_data.uint = (uint64_t)-1; // all ones
 
     for (size_t i = 0; i < seq->used; i++) {
         HParsedToken *t = seq->elements[i];
@@ -56,7 +55,7 @@ static HParsedToken *reshape_bits(const HParseResult *p, void *signedp_p) {
 
     if (signedp) {
         ret->token_type = TT_SINT;
-        ret->token_data.sint = ret->token_data.uint;
+        ret->token_data.sint = (int64_t)ret->token_data.uint;
     }
 
     return ret;
@@ -67,8 +66,8 @@ static void desugar_bits(HAllocator *mm__, HCFStack *stk__, void *env) {
     assert(0 == bits->length % 8);
 
     HCharset match_all = new_charset(mm__);
-    for (int i = 0; i < 256; i++)
-        charset_set(match_all, i, 1);
+    for (int i = 0; i <= 255; i++)
+        charset_set(match_all, (uint8_t)i, 1);
 
     HCFS_BEGIN_CHOICE() {
         HCFS_BEGIN_SEQ() {
@@ -132,6 +131,7 @@ static bool bits_isvalidRegular(void *env) {
 }
 
 static const HParserVtable bits_vt = {
+    .name = "h_bits",
     .parse = parse_bits,
     .isValidRegular = bits_isvalidRegular,
     .isValidCF = bits_isvalidCF,

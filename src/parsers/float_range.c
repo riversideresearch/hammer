@@ -1,4 +1,5 @@
 /* Copyright (c) 2026 Riverside Research */
+#include "../trace.h"
 #include "parser_internal.h"
 
 typedef struct {
@@ -7,7 +8,16 @@ typedef struct {
     double upper;
 } HFloatRange;
 
-static bool float_range_match(const HParsedToken *token, const HFloatRange *range) {
+void h_float_range_trace_failure(HTraceState *trace, const HParser *parser,
+                                 const HParsedToken *token) {
+    if (!parser || !h_is_float_range_parser(parser))
+        return;
+    const HFloatRange *range = parser->env;
+    h_trace_note_float_range(trace, token, range->lower, range->upper);
+}
+
+static bool float_range_match(const HParsedToken *token, const HFloatRange *range,
+                              HTraceState *trace) {
     double value;
 
     if (!token)
@@ -28,7 +38,10 @@ static bool float_range_match(const HParsedToken *token, const HFloatRange *rang
      * Writing this as a conjunction deliberately rejects NaNs.  It also
      * preserves double-precision bounds when p produces a TT_FLOAT.
      */
-    return range->lower <= value && value <= range->upper;
+    bool valid = range->lower <= value && value <= range->upper;
+    if (!valid)
+        h_trace_note_float_range(trace, token, range->lower, range->upper);
+    return valid;
 }
 
 static HParseResult *parse_float_range(void *env, HParseState *state) {
@@ -38,12 +51,12 @@ static HParseResult *parse_float_range(void *env, HParseState *state) {
     if (!ret || !ret->ast)
         return NULL;
 
-    return float_range_match(ret->ast, r_env) ? ret : NULL;
+    return float_range_match(ret->ast, r_env, state->input_stream.trace) ? ret : NULL;
 }
 
 static bool float_range_predicate(HParseResult *p, void *user_data) {
     HFloatRange *range = (HFloatRange *)user_data;
-    return p && float_range_match(p->ast, range);
+    return p && float_range_match(p->ast, range, NULL);
 }
 
 static void desugar_float_range(HAllocator *mm__, HCFStack *stk__, void *env) {
@@ -88,7 +101,8 @@ static bool h_svm_action_validate_float_range(HArena *arena, HSVMContext *ctx, v
                 r_env->upper >= (double)head->token_data.flt;
         break;
     default:
-        return false;
+        valid = false;
+        break;
     }
 
     if (valid) {
@@ -109,6 +123,17 @@ static bool h_svm_action_validate_float_range(HArena *arena, HSVMContext *ctx, v
         }
         return false;
     }
+    ctx->failure.kind = SVM_FAILURE_FLOAT_RANGE;
+    ctx->failure.start = head->index;
+    ctx->failure.end = ctx->input_pos;
+    ctx->failure.actual_type = head->token_type;
+    ctx->failure.float_lower = r_env->lower;
+    ctx->failure.float_upper = r_env->upper;
+    if (head->token_type == TT_FLOAT)
+        ctx->failure.float_actual = (double)head->token_data.flt;
+    else if (head->token_type == TT_DOUBLE)
+        ctx->failure.float_actual = head->token_data.dbl;
+    ctx->failure.parser = "h_float_range";
     return false;
 }
 
@@ -139,6 +164,7 @@ static bool float_range_isValidCF(void *env) {
 }
 
 static const HParserVtable float_range_vt = {
+    .name = "h_float_range",
     .parse = parse_float_range,
     .isValidRegular = float_range_isValidRegular,
     .isValidCF = float_range_isValidCF,
@@ -166,4 +192,8 @@ HParser *h_float_range__m(HAllocator *mm__, const HParser *p, const double lower
     r_env->lower = lower;
     r_env->upper = upper;
     return h_new_parser(mm__, &float_range_vt, r_env);
+}
+
+bool h_is_float_range_parser(const HParser *parser) {
+    return parser && parser->vtable == &float_range_vt;
 }

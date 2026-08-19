@@ -13,6 +13,7 @@ static HParseResult *parse_and(void *env, HParseState *state) {
 }
 
 static const HParserVtable and_vt = {
+    .name = "h_and",
     .parse = parse_and,
     .isValidRegular = h_false, /* TODO: strictly speaking this should be regular,
                                   but it will be a huge amount of work and

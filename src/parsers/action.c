@@ -248,6 +248,7 @@ static bool action_ctrvm(HRVMProg *prog, void *env) {
 }
 
 static const HParserVtable action_vt = {
+    .name = "h_action",
     .parse = parse_action,
     .isValidRegular = action_isValidRegular,
     .isValidCF = action_isValidCF,
@@ -437,6 +438,7 @@ static bool action_stash_ctrvm(HRVMProg *prog, void *env) {
 }
 
 static const HParserVtable action_stash_vt = {
+    .name = "h_action_stash",
     .parse = parse_action_stash,
     .isValidRegular = action_stash_isValidRegular,
     .isValidCF = action_stash_isValidCF,
@@ -561,6 +563,7 @@ static bool action_apply_ctrvm(HRVMProg *prog, void *env) {
 }
 
 static const HParserVtable action_apply_vt = {
+    .name = "h_action_apply",
     .parse = parse_action_apply,
     .isValidRegular = action_apply_isValidRegular,
     .isValidCF = action_apply_isValidCF,

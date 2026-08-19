@@ -9,8 +9,20 @@
 
 #define MIN(a, b) (((a) < (b)) ? (a) : (b))
 
+typedef union SLOBAlignment_ {
+    void *ptr;
+    void (*fn)(void);
+    long l;
+    long long ll;
+    double d;
+    long double ld;
+} SLOBAlignment;
+
+#define SLOB_ALIGNMENT sizeof(SLOBAlignment)
+
 struct alloc {
     size_t size;
+    size_t padding;
     uint8_t data[];
 };
 
@@ -25,17 +37,37 @@ struct slob {
     uint8_t data[];
 };
 
+static size_t slob_align_up(size_t size) {
+    size_t rem = size % SLOB_ALIGNMENT;
+    if (rem == 0)
+        return size;
+    if (size > SIZE_MAX - (SLOB_ALIGNMENT - rem))
+        return 0;
+    return size + (SLOB_ALIGNMENT - rem);
+}
+
+static size_t slob_align_down(size_t size) { return size - (size % SLOB_ALIGNMENT); }
+
+static void *slob_align_region(void *mem, size_t *size) {
+    uintptr_t addr = (uintptr_t)mem;
+    size_t rem = addr % SLOB_ALIGNMENT;
+    size_t padding = rem == 0 ? 0 : SLOB_ALIGNMENT - rem;
+    if (padding > *size)
+        return NULL;
+    *size -= padding;
+    return (uint8_t *)mem + padding;
+}
+
 SLOB *slobinit(void *mem, size_t size) {
-    SLOB *slob = mem;
+    SLOB *slob = slob_align_region(mem, &size);
 
-    if (size < sizeof(SLOB) + sizeof(struct block))
+    if (!slob || size < sizeof(SLOB) + sizeof(struct block))
         return NULL;
-    if (size >= UINTPTR_MAX - (uintptr_t)mem)
+    if (size >= UINTPTR_MAX - (uintptr_t)slob)
         return NULL;
 
-    slob = mem;
-    slob->size = size - sizeof(SLOB);
-    slob->head = (struct block *)((uint8_t *)mem + sizeof(SLOB));
+    slob->size = slob_align_down(size - sizeof(SLOB));
+    slob->head = (struct block *)((uint8_t *)slob + sizeof(SLOB));
     slob->head->size = slob->size - sizeof(struct alloc);
     slob->head->next = NULL;
 
@@ -47,9 +79,14 @@ void *sloballoc(SLOB *slob, size_t size) {
     size_t fitblock, remblock;
 
     // size must be enough to extend to a struct block in case of free
-    fitblock = sizeof(struct block) - sizeof(struct alloc);
+    fitblock = sizeof(struct block) > sizeof(struct alloc)
+                   ? sizeof(struct block) - sizeof(struct alloc)
+                   : SLOB_ALIGNMENT;
     if (size < fitblock)
         size = fitblock;
+    size = slob_align_up(size);
+    if (size == 0)
+        return NULL;
 
     // need this much to fit another block in the remaining space
     remblock = size + sizeof(struct block);
@@ -86,6 +123,9 @@ void *slobrealloc(SLOB *slob, void *a_, size_t size) {
         slobfree(slob, a_);
         return NULL;
     }
+    size = slob_align_up(size);
+    if (size == 0)
+        return NULL;
     struct alloc *a = (struct alloc *)((uint8_t *)a_ - sizeof(struct alloc));
     assert((uint8_t *)a >= slob->data);
     assert(a->data + a->size <= slob->data + slob->size);
@@ -225,31 +265,36 @@ int slobcheck(SLOB *slob) {
 
 #include "hammer.h"
 
+static size_t h_slob_offset(void) { return slob_align_up(sizeof(HAllocator)); }
+
+static SLOB *h_slob_get(HAllocator *mm) { return (SLOB *)((uint8_t *)mm + h_slob_offset()); }
+
 static void *h_slob_alloc(HAllocator *mm, size_t size) {
-    SLOB *slob = (SLOB *)(mm + 1);
+    SLOB *slob = h_slob_get(mm);
     return sloballoc(slob, size);
 }
 
 static void h_slob_free(HAllocator *mm, void *p) {
-    SLOB *slob = (SLOB *)(mm + 1);
+    SLOB *slob = h_slob_get(mm);
     slobfree(slob, p);
 }
 
 static void *h_slob_realloc(HAllocator *mm, void *p, size_t size) {
-    SLOB *slob = (SLOB *)(mm + 1);
+    SLOB *slob = h_slob_get(mm);
 
     return slobrealloc(slob, p, size);
 }
 
 HAllocator *h_sloballoc(void *mem, size_t size) {
-    if (size < sizeof(HAllocator))
+    HAllocator *mm = slob_align_region(mem, &size);
+    size_t slob_offset = h_slob_offset();
+    if (!mm || size < slob_offset)
         return NULL;
 
-    HAllocator *mm = mem;
-    SLOB *slob = slobinit((uint8_t *)mem + sizeof(HAllocator), size - sizeof(HAllocator));
+    SLOB *slob = slobinit((uint8_t *)mm + slob_offset, size - slob_offset);
     if (!slob)
         return NULL;
-    assert(slob == (SLOB *)(mm + 1));
+    assert(slob == h_slob_get(mm));
 
     mm->alloc = h_slob_alloc;
     mm->realloc = h_slob_realloc;

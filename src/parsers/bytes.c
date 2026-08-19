@@ -1,6 +1,8 @@
 /* Copyright (c) 2026 Riverside Research */
 #include "parser_internal.h"
 
+#include <stdint.h>
+
 struct bytes_env {
     size_t length; // Length in bytes
 };
@@ -12,7 +14,7 @@ static HParseResult *parse_bytes(void *env_, HParseState *state) {
 
     bs = a_new(uint8_t, env->length);
     for (i = 0; i < env->length && !state->input_stream.overrun; i++)
-        bs[i] = h_read_bits(&state->input_stream, 8, false);
+        bs[i] = (uint8_t)h_read_bits(&state->input_stream, 8, false);
 
     HParsedToken *result = a_new(HParsedToken, 1);
     result->token_type = TT_BYTES;
@@ -63,8 +65,8 @@ static void desugar_bytes(HAllocator *mm__, HCFStack *stk__, void *env) {
     }
 
     HCharset cs = new_charset(mm__);
-    for (int i = 0; i < 256; i++)
-        charset_set(cs, i, 1);
+    for (int i = 0; i <= 255; i++)
+        charset_set(cs, (uint8_t)i, 1);
 
     HCFS_BEGIN_CHOICE() {
         HCFS_BEGIN_SEQ();
@@ -91,7 +93,8 @@ static bool bytes_ctrvm(HRVMProg *prog, void *env) {
     return true;
 }
 
-static const HParserVtable bytes_vt = {.parse = parse_bytes,
+static const HParserVtable bytes_vt = {.name = "h_bytes",
+                                       .parse = parse_bytes,
                                        .desugar = desugar_bytes,
                                        .isValidRegular = h_true,
                                        .isValidCF = h_true,

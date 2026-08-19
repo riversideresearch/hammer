@@ -22,11 +22,14 @@
 #include "glue.h"
 #include "internal.h"
 #include "parsers/parser_internal.h"
+#include "trace.h"
 
 #include <assert.h>
 #include <ctype.h>
+#include <inttypes.h>
 #include <limits.h>
 #include <stdarg.h>
+#include <stdint.h>
 #include <string.h>
 
 static HParserBackendVTable *backends[PB_MAX + 1] = {
@@ -295,7 +298,7 @@ static char *h_get_backend_text_with_no_params(HAllocator *mm__, HParserBackend 
                                                int description) {
     char *text = NULL;
     const char *src = NULL;
-    int size;
+    size_t size;
 
     if (!(mm__ != NULL && be != PB_INVALID && be >= PB_MIN && be <= PB_MAX))
         goto done;
@@ -373,7 +376,7 @@ HParsedToken *act_backend_name(const HParseResult *p, void *user_data) {
     r->name = h_arena_malloc(p->arena, r->len + 1);
     for (size_t i = 0; i < r->len; ++i) {
 
-        r->name[i] = flat->token_data.seq->elements[i]->token_data.uint;
+        r->name[i] = (uint8_t)flat->token_data.seq->elements[i]->token_data.uint;
     }
     r->name[r->len] = 0;
 
@@ -386,7 +389,7 @@ HParsedToken *act_param(const HParseResult *p, void *user_data) {
     r->len = h_seq_len(p->ast);
     r->param = h_arena_malloc(p->arena, r->len + 1);
     for (size_t i = 0; i < r->len; ++i)
-        r->param[i] = H_FIELD_UINT(i);
+        r->param[i] = (uint8_t)(H_FIELD_UINT(i));
     r->param[r->len] = 0;
 
     return H_MAKE(backend_param_t, r);
@@ -400,7 +403,7 @@ HParsedToken *act_param_name(const HParseResult *p, void *user_data) {
     r->len = h_seq_len(flat);
     r->param_name = h_arena_malloc(p->arena, r->len + 1);
     for (size_t i = 0; i < r->len; ++i)
-        r->param_name[i] = flat->token_data.seq->elements[i]->token_data.uint;
+        r->param_name[i] = (uint8_t)flat->token_data.seq->elements[i]->token_data.uint;
     r->param_name[r->len] = 0;
 
     return H_MAKE(backend_param_name_t, r);
@@ -554,11 +557,8 @@ HParserBackendWithParams *h_get_backend_with_params_by_name(const char *name_wit
     return result;
 }
 
-HParseResult *h_parse(const HParser *parser, const uint8_t *input, size_t length) {
-    return h_parse__m(&system_allocator, parser, input, length);
-}
-HParseResult *h_parse__m(HAllocator *mm__, const HParser *parser, const uint8_t *input,
-                         size_t length) {
+static HParseResult *h_parse_with_trace(HAllocator *mm__, const HParser *parser,
+                                        const uint8_t *input, size_t length, HTraceState *trace) {
     // Set up a parse state...
     HInputStream input_stream = {.pos = 0,
                                  .index = 0,
@@ -567,9 +567,52 @@ HParseResult *h_parse__m(HAllocator *mm__, const HParser *parser, const uint8_t 
                                  .endianness = DEFAULT_ENDIANNESS,
                                  .length = length,
                                  .input = input,
-                                 .last_chunk = true};
+                                 .last_chunk = true,
+                                 .trace = trace};
 
     return parser->backend_vtable->parse(mm__, parser, &input_stream);
+}
+
+HParseResult *h_parse(const HParser *parser, const uint8_t *input, size_t length) {
+    return h_parse__m(&system_allocator, parser, input, length);
+}
+HParseResult *h_parse__m(HAllocator *mm__, const HParser *parser, const uint8_t *input,
+                         size_t length) {
+    return h_parse_with_trace(mm__, parser, input, length, NULL);
+}
+
+// Twin of h_parse() that attaches an independent diagnostic collector to this
+// one parse. The complete execution trace is captured by the extensible
+// diagnostic API. The runtime option controls only whether a concise failure
+// report is also written to stderr.
+//
+// If `diagnostic` is non-NULL it receives an owned diagnostic object, including
+// the furthest-failure record (see HParseError), so callers can react to failures
+// without scraping the textual trace. The out-pointer is set to NULL up front so
+// the compiled-out case leaves well-defined contents.
+HParseResult *h_parse_debug(const HParser *parser, const uint8_t *input, size_t length,
+                            HParseDiagnostic **diagnostic, bool dumpExecutionTrace) {
+    return h_parse_debug__m(&system_allocator, parser, input, length, diagnostic,
+                            dumpExecutionTrace);
+}
+HParseResult *h_parse_debug__m(HAllocator *mm__, const HParser *parser, const uint8_t *input,
+                               size_t length, HParseDiagnostic **diagnostic,
+                               bool dumpExecutionTrace) {
+    if (diagnostic)
+        *diagnostic = NULL;
+    HTraceState *trace = h_trace_state_new(dumpExecutionTrace);
+    HParseResult *res = h_parse_with_trace(mm__, parser, input, length, trace);
+    HParseDiagnostic *collected = NULL;
+    if (diagnostic || (!res && h_trace_should_print_summary(trace)))
+        TRACE_GET_DIAGNOSTIC(trace, &collected);
+    if (diagnostic)
+        *diagnostic = collected;
+    if (!res && h_trace_should_print_summary(trace) && collected)
+        h_parse_diagnostic_fprint_with_input(stderr, collected, input, length);
+    if (!diagnostic)
+        h_parse_diagnostic_free(collected);
+    h_trace_state_free(trace);
+    return res;
 }
 
 void h_parse_result_free__m(HAllocator *alloc, HParseResult *result) {
@@ -580,6 +623,293 @@ void h_parse_result_free(HParseResult *result) {
     if (result == NULL)
         return;
     h_delete_arena(result->arena);
+}
+void h_parse_error_free(HParseError *error) {
+    if (!error)
+        return;
+    for (size_t i = 0; i < error->n_deepest; i++) {
+        free((void *)error->deepest_parsers[i]); // cast drops the const for free()
+        error->deepest_parsers[i] = NULL;
+    }
+    error->n_deepest = 0;
+    free((void *)error->parser);
+    error->parser = NULL;
+    free((void *)error->message);
+    error->message = NULL;
+    for (size_t i = 0; i < error->n_context; i++) {
+        free((void *)error->context[i]);
+        error->context[i] = NULL;
+    }
+    error->n_context = 0;
+    if (error->source) {
+        free((void *)error->source->file_name);
+        free((void *)error->source->function_name);
+        free((void *)error->source);
+        error->source = NULL;
+    }
+}
+
+const HParseError *h_parse_diagnostic_error(const HParseDiagnostic *diagnostic) {
+    return diagnostic ? &diagnostic->error : NULL;
+}
+
+size_t h_parse_diagnostic_expected_count(const HParseDiagnostic *diagnostic) {
+    if (!diagnostic)
+        return 0;
+    size_t count = diagnostic->expected_eof ? 1 : 0;
+    for (size_t lo = 0; lo < 256;) {
+        if (!diagnostic->expected_bytes[lo]) {
+            lo++;
+            continue;
+        }
+        count++;
+        do {
+            lo++;
+        } while (lo < 256 && diagnostic->expected_bytes[lo]);
+    }
+    return count;
+}
+
+bool h_parse_diagnostic_expected(const HParseDiagnostic *diagnostic, size_t index,
+                                 HParseExpectation *expectation) {
+    if (!diagnostic || !expectation)
+        return false;
+    size_t current = 0;
+    for (size_t lo = 0; lo < 256;) {
+        if (!diagnostic->expected_bytes[lo]) {
+            lo++;
+            continue;
+        }
+        size_t hi = lo;
+        while (hi + 1 < 256 && diagnostic->expected_bytes[hi + 1])
+            hi++;
+        if (current++ == index) {
+            expectation->kind = H_PARSE_EXPECT_BYTE_RANGE;
+            expectation->lower = (uint8_t)lo;
+            expectation->upper = (uint8_t)hi;
+            return true;
+        }
+        lo = hi + 1;
+    }
+    if (diagnostic->expected_eof && current == index) {
+        expectation->kind = H_PARSE_EXPECT_END_OF_INPUT;
+        expectation->lower = expectation->upper = 0;
+        return true;
+    }
+    return false;
+}
+
+const char *h_parse_diagnostic_execution_trace(const HParseDiagnostic *diagnostic, size_t *length) {
+    if (length)
+        *length = diagnostic ? diagnostic->execution_trace_length : 0;
+    return diagnostic ? diagnostic->execution_trace : NULL;
+}
+
+void h_parse_diagnostic_trace_fprint(FILE *stream, const HParseDiagnostic *diagnostic) {
+    if (!stream || !diagnostic)
+        return;
+
+    size_t length = 0;
+    const char *trace = h_parse_diagnostic_execution_trace(diagnostic, &length);
+    if (trace && length > 0)
+        fwrite(trace, 1, length, stream);
+}
+
+static void diagnostic_print_byte(FILE *stream, uint8_t byte) {
+    if (byte == '\'' || byte == '\\')
+        fprintf(stream, "'\\%c'", byte);
+    else if (isprint(byte))
+        fprintf(stream, "'%c'", byte);
+    else
+        fprintf(stream, "0x%02x", byte);
+}
+
+void h_trace_fprint_error_detail(FILE *stream, const HParseDiagnostic *diagnostic,
+                                 bool choice_failure) {
+    if (!stream || !diagnostic)
+        return;
+    const HParseError *error = &diagnostic->error;
+    size_t last_index = error->end_index > error->index ? error->end_index - 1 : error->end_index;
+    bool summarize_choice = choice_failure && !error->message;
+
+    if (error->message)
+        fprintf(stream, "%s", error->message);
+    else if (summarize_choice)
+        fprintf(stream, "no alternative matched at index %zu", error->index);
+    else if (diagnostic->input_too_short)
+        fprintf(stream, "ran out of bits to parse at index %zu", error->index);
+    else if (error->kind == H_PARSE_ERROR_RANGE &&
+             diagnostic->numeric_range.kind == H_TRACE_NUMERIC_RANGE_SINT)
+        fprintf(stream, "unexpected int %" PRId64, diagnostic->numeric_range.actual.sint);
+    else if (error->kind == H_PARSE_ERROR_RANGE &&
+             diagnostic->numeric_range.kind == H_TRACE_NUMERIC_RANGE_UINT)
+        fprintf(stream, "unexpected int %" PRIu64, diagnostic->numeric_range.actual.uint);
+    else if (error->kind == H_PARSE_ERROR_RANGE &&
+             diagnostic->numeric_range.kind == H_TRACE_NUMERIC_RANGE_FLOAT)
+        fprintf(stream, "unexpected float %.17g", diagnostic->numeric_range.actual.floating);
+    else if (error->kind == H_PARSE_ERROR_RANGE)
+        fputs("mismatched token type", stream);
+    else if (error->kind == H_PARSE_ERROR_SEMANTIC_PREDICATE)
+        fputs("semantic predicate failed", stream);
+    else if (error->kind == H_PARSE_ERROR_ACTION)
+        fputs("semantic action failed", stream);
+    else if (error->kind == H_PARSE_ERROR_EXPLICIT_FAILURE)
+        fprintf(stream, "parser always fails at index %zu", error->index);
+    else if (error->kind == H_PARSE_ERROR_XOR)
+        fputs("both XOR alternatives matched; exactly one must match", stream);
+    else if (error->kind == H_PARSE_ERROR_DIFFERENCE)
+        fputs("difference rejected a longer right-hand match", stream);
+    else if (error->kind == H_PARSE_ERROR_BUTNOT)
+        fputs("but-not rejected a right-hand match that was not shorter", stream);
+    else if (error->kind == H_PARSE_ERROR_NO_VALUE)
+        fputs("no value to retrieve from provided name", stream);
+    else if (error->kind == H_PARSE_ERROR_REUSED_NAME)
+        fputs("provided name already exists, can't put again", stream);
+    else if (error->kind == H_PARSE_ERROR_DISPATCH && diagnostic->dispatch_failure.has_opcode)
+        fprintf(stream, "no dispatch case for opcode %zu", diagnostic->dispatch_failure.opcode);
+    else if (error->kind == H_PARSE_ERROR_DISPATCH)
+        fputs("dispatch discriminator produced an invalid opcode", stream);
+    else if (!error->has_actual)
+        fprintf(stream, "unexpected end of input at index %zu", error->index);
+    else {
+        fputs("unexpected byte ", stream);
+        diagnostic_print_byte(stream, error->actual);
+        fprintf(stream, " (0x%02x = %u) at index %zu", error->actual, error->actual, error->index);
+    }
+
+    if (error->message) {
+        if (error->end_index > error->index)
+            fprintf(stream, " from index %zu to index %zu", error->index, error->end_index - 1);
+        else
+            fprintf(stream, " at index %zu", error->index);
+    }
+    if (error->bit_offset)
+        fprintf(stream, ".%ub", error->bit_offset);
+
+    if (!error->message && !summarize_choice &&
+        (error->kind == H_PARSE_ERROR_RANGE || error->kind == H_PARSE_ERROR_SEMANTIC_PREDICATE ||
+         error->kind == H_PARSE_ERROR_ACTION || error->kind == H_PARSE_ERROR_XOR ||
+         error->kind == H_PARSE_ERROR_DIFFERENCE || error->kind == H_PARSE_ERROR_BUTNOT ||
+         error->kind == H_PARSE_ERROR_DISPATCH)) {
+        if (error->index != last_index)
+            fprintf(stream, " from index %zu to index %zu", error->index, last_index);
+        else
+            fprintf(stream, " at index %zu", error->index);
+    }
+
+    if (!error->message && !summarize_choice && error->kind == H_PARSE_ERROR_RANGE) {
+        if (diagnostic->numeric_range.kind == H_TRACE_NUMERIC_RANGE_SINT ||
+            diagnostic->numeric_range.kind == H_TRACE_NUMERIC_RANGE_UINT)
+            fprintf(stream, "; expected value between %" PRId64 " and %" PRId64,
+                    diagnostic->numeric_range.expected.integer.lower,
+                    diagnostic->numeric_range.expected.integer.upper);
+        else if (diagnostic->numeric_range.kind == H_TRACE_NUMERIC_RANGE_FLOAT)
+            fprintf(stream, "; expected value between %.17g and %.17g",
+                    diagnostic->numeric_range.expected.floating.lower,
+                    diagnostic->numeric_range.expected.floating.upper);
+    }
+
+    if (!error->message && !summarize_choice && error->kind == H_PARSE_ERROR_DISPATCH &&
+        diagnostic->dispatch_failure.expected_count > 0) {
+        fputs("; expected opcode ", stream);
+        for (size_t i = 0; i < diagnostic->dispatch_failure.expected_count; i++) {
+            if (i)
+                fputs(", ", stream);
+            fprintf(stream, "%" PRIu32, diagnostic->dispatch_failure.expected[i]);
+        }
+        if (diagnostic->dispatch_failure.expected_truncated)
+            fputs(", ...", stream);
+    }
+
+    size_t count = error->message ? 0 : h_parse_diagnostic_expected_count(diagnostic);
+    if (count > 0) {
+        fputs("; expected ", stream);
+        for (size_t i = 0; i < count; i++) {
+            HParseExpectation expected = {0};
+            if (!h_parse_diagnostic_expected(diagnostic, i, &expected))
+                continue;
+            if (i)
+                fputs(", ", stream);
+            if (expected.kind == H_PARSE_EXPECT_END_OF_INPUT) {
+                fputs("end of input", stream);
+            } else {
+                diagnostic_print_byte(stream, expected.lower);
+                if (expected.upper != expected.lower) {
+                    fputc('-', stream);
+                    diagnostic_print_byte(stream, expected.upper);
+                }
+            }
+        }
+    }
+}
+
+void h_parse_diagnostic_fprint(FILE *stream, const HParseDiagnostic *diagnostic) {
+    if (!stream || !diagnostic)
+        return;
+    const HParseError *error = &diagnostic->error;
+    fprintf(stream, "=== h_parse_error ===\n");
+    fputs("error: ", stream);
+    if (error->source) {
+        if (error->source->file_name)
+            fprintf(stream, "%s", error->source->file_name);
+        else
+            fputs("<unknown source>", stream);
+        if (error->source->line)
+            fprintf(stream, ":%zu", error->source->line);
+        if (error->source->column)
+            fprintf(stream, ":%zu", error->source->column);
+        if (error->source->function_name)
+            fprintf(stream, " in %s", error->source->function_name);
+        fputs(": ", stream);
+    }
+    bool choice_failure = diagnostic->choice_root != H_TRACE_CHOICE_NONE &&
+                          diagnostic->choice_root < diagnostic->choice_node_count;
+    h_trace_fprint_error_detail(stream, diagnostic, choice_failure);
+    if (error->n_deepest > 0) {
+        fputs(" while running [", stream);
+        for (size_t i = 0; i < error->n_deepest; i++) {
+            const char *name = error->deepest_parsers[i];
+            fprintf(stream, "%s", i ? ", " : "");
+            if (name && strncmp(name, "parse_", 6) == 0)
+                fprintf(stream, "h%s", name + 5);
+            else
+                fprintf(stream, "%s", name ? name : "?(no parser)");
+        }
+        fputc(']', stream);
+    } else if (error->parser) {
+        if (strncmp(error->parser, "parse_", 6) == 0)
+            fprintf(stream, " while running [h%s]", error->parser + 5);
+        else
+            fprintf(stream, " while running [%s]", error->parser);
+    }
+    fputc('\n', stream);
+    if (choice_failure)
+        h_trace_fprint_choice(stream, diagnostic->choice_nodes, diagnostic->choice_node_count,
+                              diagnostic->choice_alternatives, diagnostic->choice_alternative_count,
+                              diagnostic->choice_root);
+    h_trace_fprint_input_trail(stream, diagnostic->input_frames, diagnostic->input_frame_count);
+}
+
+void h_parse_diagnostic_fprint_with_input(FILE *stream, const HParseDiagnostic *diagnostic,
+                                          const uint8_t *input, size_t length) {
+    if (!stream || !diagnostic)
+        return;
+    h_parse_diagnostic_fprint(stream, diagnostic);
+    const HParseError *error = &diagnostic->error;
+    if (error->kind == H_PARSE_ERROR_NONE)
+        return;
+    size_t last_index = error->end_index > error->index ? error->end_index - 1 : error->end_index;
+    h_trace_fprint_input_context(stream, input, length, error->index, last_index);
+}
+
+void h_parse_diagnostic_free(HParseDiagnostic *diagnostic) {
+    if (!diagnostic)
+        return;
+    h_parse_error_free(&diagnostic->error);
+    for (size_t i = 0; i < diagnostic->choice_alternative_count; i++)
+        h_parse_error_free(&diagnostic->choice_alternatives[i].error);
+    free(diagnostic->execution_trace);
+    free(diagnostic);
 }
 
 bool h_false(void *env) {
@@ -746,6 +1076,299 @@ void h_parser_free__m(HAllocator *mm__, HParser *parser) {
 
     if (parser->free_env != NULL) // callback handles explicit environment clenaup
         parser->free_env(mm__, parser->env);
+    mm__->free(mm__, parser->diagnostic_label);
+    mm__->free(mm__, parser->diagnostic_message);
+    if (parser->diagnostic_source) {
+        mm__->free(mm__, (void *)parser->diagnostic_source->file_name);
+        mm__->free(mm__, (void *)parser->diagnostic_source->function_name);
+        mm__->free(mm__, parser->diagnostic_source);
+    }
     h_desugar_context_release(parser->desugar_ctx);
     mm__->free(mm__, parser);
+}
+
+static bool h_parser_set_diagnostic_text(HParser *parser, char **field, const char *text) {
+    if (!parser || !field || !parser->owner_mm__)
+        return false;
+
+    HAllocator *allocator = parser->owner_mm__;
+    char *copy = NULL;
+    if (text) {
+        size_t length = strlen(text) + 1;
+        copy = allocator->alloc(allocator, length);
+        if (!copy)
+            return false;
+        memcpy(copy, text, length);
+    }
+
+    allocator->free(allocator, *field);
+    *field = copy;
+    return true;
+}
+
+bool h_parser_set_label(HParser *parser, const char *label) {
+    return parser && h_parser_set_diagnostic_text(parser, &parser->diagnostic_label, label);
+}
+
+bool h_parser_set_error_message(HParser *parser, const char *message) {
+    return parser && h_parser_set_diagnostic_text(parser, &parser->diagnostic_message, message);
+}
+
+static char *h_parser_copy_diagnostic_text(HAllocator *allocator, const char *text) {
+    if (!text)
+        return NULL;
+
+    size_t length = strlen(text) + 1;
+    char *copy = allocator->alloc(allocator, length);
+    if (copy)
+        memcpy(copy, text, length);
+    return copy;
+}
+
+static void h_parser_free_source_location(HAllocator *allocator, HSourceLocation *source) {
+    if (!source)
+        return;
+    allocator->free(allocator, (void *)source->file_name);
+    allocator->free(allocator, (void *)source->function_name);
+    allocator->free(allocator, source);
+}
+
+static HSourceLocation *h_parser_copy_source_location(HAllocator *allocator,
+                                                      const HSourceLocation *source) {
+    HSourceLocation *copy = allocator->alloc(allocator, sizeof(*copy));
+    if (!copy)
+        return NULL;
+
+    *copy = *source;
+    copy->file_name = h_parser_copy_diagnostic_text(allocator, source->file_name);
+    if (source->file_name && !copy->file_name) {
+        allocator->free(allocator, copy);
+        return NULL;
+    }
+
+    copy->function_name = h_parser_copy_diagnostic_text(allocator, source->function_name);
+    if (source->function_name && !copy->function_name) {
+        allocator->free(allocator, (void *)copy->file_name);
+        allocator->free(allocator, copy);
+        return NULL;
+    }
+    return copy;
+}
+
+typedef struct HContextEnv_ {
+    const HParser *child;
+    HParser *wrapper;
+} HContextEnv;
+
+typedef struct HContextCFClone_ {
+    const HCFChoice *source;
+    HCFChoice *clone;
+    struct HContextCFClone_ *next;
+} HContextCFClone;
+
+static HDiagnosticContext *context_extend_cf_provenance(HAllocator *mm__,
+                                                        const HDiagnosticContext *source,
+                                                        const HParser *context) {
+    HDiagnosticContext *head = NULL;
+    HDiagnosticContext *tail = NULL;
+    for (; source; source = source->next) {
+        HDiagnosticContext *node = h_new(HDiagnosticContext, 1);
+        if (!node)
+            return NULL;
+        *node = *source;
+        node->next = NULL;
+        if (tail)
+            tail->next = node;
+        else
+            head = node;
+        tail = node;
+    }
+    HDiagnosticContext *outer = h_new(HDiagnosticContext, 1);
+    if (!outer)
+        return NULL;
+    outer->parser = context;
+    outer->choice = NULL;
+    outer->choice_alternative = 0;
+    outer->choice_id = 0;
+    outer->next = NULL;
+    if (tail)
+        tail->next = outer;
+    else
+        head = outer;
+    return head;
+}
+
+static HParseResult *parse_context(void *env, HParseState *state) {
+    return h_do_parse(((HContextEnv *)env)->child, state);
+}
+
+static bool context_is_valid_regular(void *env) {
+    const HParser *child = ((HContextEnv *)env)->child;
+    return child->vtable->isValidRegular(child->env);
+}
+
+static bool context_is_valid_cf(void *env) {
+    const HParser *child = ((HContextEnv *)env)->child;
+    return child->vtable->isValidCF(child->env);
+}
+
+static bool context_compile_to_rvm(HRVMProg *prog, void *env) {
+    HContextEnv *context = env;
+    return h_compile_regex(prog, context->child);
+}
+
+static HCFChoice *context_clone_cf_choice(HAllocator *mm__, const HCFChoice *source,
+                                          const HParser *context, HContextCFClone **seen) {
+    for (HContextCFClone *entry = *seen; entry; entry = entry->next)
+        if (entry->source == source)
+            return entry->clone;
+
+    HCFChoice *clone = h_new(HCFChoice, 1);
+    HContextCFClone *entry = h_new(HContextCFClone, 1);
+    if (!clone || !entry)
+        return NULL;
+    *clone = *source;
+    HDiagnosticContext *provenance =
+        context_extend_cf_provenance(mm__, source->diagnostic_context, context);
+    if (!provenance)
+        return NULL;
+    clone->diagnostic_context = provenance;
+    entry->source = source;
+    entry->clone = clone;
+    entry->next = *seen;
+    *seen = entry;
+
+    if (source->type != HCF_CHOICE)
+        return clone;
+
+    size_t alternative_count = 0;
+    while (source->data.seq[alternative_count])
+        alternative_count++;
+    clone->data.seq = h_new(HCFSequence *, alternative_count + 1);
+    if (!clone->data.seq)
+        return NULL;
+
+    for (size_t i = 0; i < alternative_count; i++) {
+        HCFSequence *source_sequence = source->data.seq[i];
+        size_t item_count = 0;
+        while (source_sequence->items[item_count])
+            item_count++;
+
+        HCFSequence *clone_sequence = h_new(HCFSequence, 1);
+        if (!clone_sequence)
+            return NULL;
+        clone_sequence->items = h_new(HCFChoice *, item_count + 1);
+        if (!clone_sequence->items)
+            return NULL;
+        for (size_t j = 0; j < item_count; j++) {
+            clone_sequence->items[j] =
+                context_clone_cf_choice(mm__, source_sequence->items[j], context, seen);
+            if (!clone_sequence->items[j])
+                return NULL;
+        }
+        clone_sequence->items[item_count] = NULL;
+        clone->data.seq[i] = clone_sequence;
+    }
+    clone->data.seq[alternative_count] = NULL;
+    return clone;
+}
+
+static void desugar_context(HAllocator *mm__, HCFStack *stk__, void *env) {
+    HContextEnv *context = env;
+    HCFChoice *child = h_desugar(mm__, NULL, context->child);
+    HContextCFClone *seen = NULL;
+    HCFChoice *clone = child ? context_clone_cf_choice(mm__, child, context->wrapper, &seen) : NULL;
+
+    HCFS_BEGIN_CHOICE() {
+        HCFS_BEGIN_SEQ() {
+            if (clone)
+                HCFS_APPEND(clone);
+        }
+        HCFS_END_SEQ();
+        HCFS_THIS_CHOICE->reshape = h_act_first;
+        HDiagnosticContext *provenance = h_new(HDiagnosticContext, 1);
+        if (provenance) {
+            provenance->parser = context->wrapper;
+            provenance->choice = NULL;
+            provenance->choice_alternative = 0;
+            provenance->choice_id = 0;
+            provenance->next = NULL;
+            HCFS_THIS_CHOICE->diagnostic_context = provenance;
+        }
+    }
+    HCFS_END_CHOICE();
+}
+
+static const HParserVtable context_vt = {
+    .name = "h_context",
+    .parse = parse_context,
+    .isValidRegular = context_is_valid_regular,
+    .isValidCF = context_is_valid_cf,
+    .compile_to_rvm = context_compile_to_rvm,
+    .desugar = desugar_context,
+    .higher = true,
+};
+
+bool h_is_context_parser(const HParser *parser) { return parser && parser->vtable == &context_vt; }
+
+const HParser *h_context_parser_child(const HParser *parser) {
+    return h_is_context_parser(parser) ? ((const HContextEnv *)parser->env)->child : NULL;
+}
+
+HParser *h_with_context(HParser *parser, const char *label, const HSourceLocation *source) {
+    if (!parser || !source || !parser->owner_mm__)
+        return NULL;
+
+    HAllocator *allocator = parser->owner_mm__;
+    HContextEnv *env = allocator->alloc(allocator, sizeof(*env));
+    if (!env)
+        return NULL;
+    env->child = parser;
+    env->wrapper = NULL;
+
+    HParser *wrapper = h_new_parser(allocator, &context_vt, env);
+    if (!wrapper) {
+        allocator->free(allocator, env);
+        return NULL;
+    }
+    env->wrapper = wrapper;
+
+    HSourceLocation *copy = h_parser_copy_source_location(allocator, source);
+    if (!copy) {
+        h_parser_free__m(allocator, wrapper);
+        return NULL;
+    }
+
+    const char *effective_label = label ? label : parser->diagnostic_label;
+    if (effective_label &&
+        !h_parser_set_diagnostic_text(wrapper, &wrapper->diagnostic_label, effective_label)) {
+        h_parser_free_source_location(allocator, copy);
+        h_parser_free__m(allocator, wrapper);
+        return NULL;
+    }
+    if (parser->diagnostic_message &&
+        !h_parser_set_diagnostic_text(wrapper, &wrapper->diagnostic_message,
+                                      parser->diagnostic_message)) {
+        h_parser_free_source_location(allocator, copy);
+        h_parser_free__m(allocator, wrapper);
+        return NULL;
+    }
+
+    wrapper->diagnostic_source = copy;
+    return wrapper;
+}
+
+HParser *h_parser_auto_source_at(HParser *parser, const char *file, const char *function,
+                                 size_t line, size_t column) {
+    if (!parser || !parser->owner_mm__ || parser->diagnostic_source)
+        return parser;
+
+    HSourceLocation source = {file, function, line, column};
+
+    HSourceLocation *copy = h_parser_copy_source_location(parser->owner_mm__, &source);
+
+    if (copy)
+        parser->diagnostic_source = copy;
+
+    return parser;
 }

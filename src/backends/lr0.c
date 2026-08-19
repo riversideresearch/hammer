@@ -43,11 +43,20 @@ static void expand_to_closure(HCFGrammar *g, HHashSet *items) {
                 }
             } else if (sym->type == HCF_CHARSET) {
                 for (unsigned int i = 0; i < 256; i++) {
-                    if (charset_isset(sym->data.charset, i)) {
+                    if (charset_isset(sym->data.charset, (uint8_t)i)) {
                         HCFChoice **rhs = h_arena_malloc(arena, 2 * sizeof(*rhs));
                         rhs[0] = h_arena_malloc(arena, sizeof(*rhs[0]));
                         rhs[0]->type = HCF_CHAR;
-                        rhs[0]->data.chr = i;
+                        rhs[0]->data.chr = (uint8_t)i;
+                        rhs[0]->reshape = NULL;
+                        rhs[0]->action = NULL;
+                        rhs[0]->plan_action = NULL;
+                        rhs[0]->pred = NULL;
+                        rhs[0]->parser = sym->parser;
+                        rhs[0]->diagnostic_context = sym->diagnostic_context;
+                        rhs[0]->env = NULL;
+                        rhs[0]->user_data = NULL;
+                        rhs[0]->dispatch_opcode = 0;
                         rhs[1] = NULL;
                         HLRItem *it = h_lritem_new(arena, sym, rhs, 0);
                         h_hashset_put(items, it);
@@ -168,7 +177,7 @@ HLRDFA *h_lr0_dfa(HCFGrammar *g) {
 
 static inline void put_shift(HLRTable *table, size_t state, const HCFChoice *symbol,
                              size_t nextstate) {
-    HLRAction *action = h_shift_action(table->arena, nextstate);
+    HLRAction *action = h_shift_action(table->arena, nextstate, symbol);
 
     switch (symbol->type) {
     case HCF_END:
@@ -195,6 +204,23 @@ HLRTable *h_lr0_table(HCFGrammar *g, const HLRDFA *dfa) {
 
     // remember start symbol
     table->start = g->start;
+
+    // Retain a useful parser name for each runtime state. A state can contain
+    // several items; prefer the parser immediately after the LR mark, falling
+    // back to the production's parser for a completed item.
+    for (size_t i = 0; i < dfa->nstates; i++) {
+        H_FOREACH_KEY(dfa->states[i], HLRItem * item)
+        HCFChoice *symbol = item->rhs[item->mark];
+        if (symbol && (symbol->diagnostic_context || symbol->parser)) {
+            table->expected_parsers[i] = h_cfchoice_diagnostic_parser(symbol, NULL);
+            table->expected_contexts[i] = symbol->diagnostic_context;
+        } else if (!table->expected_parsers[i] &&
+                   (item->lhs->diagnostic_context || item->lhs->parser)) {
+            table->expected_parsers[i] = h_cfchoice_diagnostic_parser(item->lhs, NULL);
+            table->expected_contexts[i] = item->lhs->diagnostic_context;
+        }
+        H_END_FOREACH
+    }
 
     // shift to the accepting end state for the start symbol
     put_shift(table, 0, g->start, HLR_SUCCESS);

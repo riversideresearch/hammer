@@ -1,3 +1,17 @@
+libhammer (3.2.0-1) unstable; urgency=medium
+
+  * Add structured, parse-scoped error diagnostics across all parser backends
+  * Add parser labels, custom error messages, and source-location reporting
+  * Add normalized diagnostic formatting, input context, and execution traces
+  * Add detailed expectation, choice, range, dispatch, and EOF failure reporting
+  * Consolidate debug parsing into h_parse_debug(), which now returns the owned
+    extensible diagnostic object directly
+  * Add h_parse_diagnostic_trace_fprint() for writing retained execution traces
+  * Add optional automatic parser source annotation through
+    hammer_auto_source.h
+
+ -- Mahmoud Elbasiouny <melbasiouny@riversideresearch.org>  Wed, 19 Aug 2026 15:30:12 -0400
+
 libhammer (3.1.0-1) unstable; urgency=medium
 
   * Add h_parser_free support and parser ownership cleanup across combinators

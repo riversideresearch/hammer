@@ -11,10 +11,12 @@ Import("env testruns binding_results binding_test_stamps")
 
 dist_headers = [
     "hammer.h",
+    "hammer_auto_source.h",
     "allocator.h",
     "compiler_specifics.h",
     "glue.h",
     "internal.h",
+    "trace.h",
     "platform.h",
 ]
 
@@ -66,6 +68,7 @@ backends = [
     for s in ["missing", "packrat", "params", "regex", "lr", "lr0", "lalr", "llk", "glr"]
 ]
 
+
 misc_hammer_parts = [
     "allocator.c",
     "benchmark.c",
@@ -80,6 +83,7 @@ misc_hammer_parts = [
     "registry.c",
     "system_allocator.c",
     "sloballoc.c",
+    "trace.c",
 ]
 
 misc_hammer_parts += ["platform.c"]
@@ -202,10 +206,13 @@ if GetOption("with_tests"):
     test_sources = [os.path.join(tests_dir, t) for t in ctests] + [
         os.path.join(tests_dir, "test_suite.c")
     ]
+    ctest_program_kwargs = {}
+    if testenv.GetOption("coverage"):
+        ctest_program_kwargs["LINKFLAGS"] = "--coverage"
     ctestexec = testenv.Program(
         os.path.join("$BUILD_BASE", "test_suite"),
         test_sources,
-        LINKFLAGS="--coverage" if testenv.GetOption("coverage") else None,
+        **ctest_program_kwargs,
     )
     _libdir = libhammer_shared[0].dir.abspath if libhammer_shared is not None else ""
     _exe = ctestexec[0].path

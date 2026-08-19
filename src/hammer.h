@@ -156,7 +156,7 @@ typedef struct HParsedToken_ {
 #endif
     size_t index;
     size_t bit_length;
-    char bit_offset;
+    uint8_t bit_offset;
 } HParsedToken;
 
 /**
@@ -170,6 +170,77 @@ typedef struct HParseResult_ {
     size_t bit_length;
     HArena *arena; /**< Memory arena for the parse result */
 } HParseResult;
+
+/** Maximum number of distinct parsers recorded at the deepest input position
+ *  reached during a traced parse. See ::HParseError and h_parse_debug(). */
+#define H_PARSE_ERROR_MAX_PARSERS 16
+
+typedef enum HParseErrorKind_ {
+    H_PARSE_ERROR_NONE = 0,
+    H_PARSE_ERROR_PRIMITIVE_MISMATCH,
+    H_PARSE_ERROR_UNEXPECTED_EOF,
+    H_PARSE_ERROR_SEMANTIC_PREDICATE,
+    H_PARSE_ERROR_RANGE,
+    H_PARSE_ERROR_HIGHER_ORDER,
+    H_PARSE_ERROR_ACTION,
+    H_PARSE_ERROR_EXPLICIT_FAILURE,
+    H_PARSE_ERROR_XOR,
+    H_PARSE_ERROR_DIFFERENCE,
+    H_PARSE_ERROR_BUTNOT,
+    H_PARSE_ERROR_NO_VALUE,
+    H_PARSE_ERROR_REUSED_NAME,
+    /** The dispatch discriminator produced no selectable parser body. */
+    H_PARSE_ERROR_DISPATCH
+} HParseErrorKind;
+
+typedef struct HSourceLocation_ {
+    const char *file_name;
+    const char *function_name;
+    size_t line;
+    size_t column;
+} HSourceLocation;
+
+/**
+ * @struct HParseError
+ * @brief Structured furthest-failure information from a traced parse.
+ *
+ * Filled in by h_parse_debug() so callers can inspect where and why a parse got
+ * stuck programmatically, instead of scraping the textual trace from
+ * stderr/stdout. It records the originating failed parser, its location and
+ * kind, tied failures, and enclosing parser context. On a successful parse the
+ * structure is left empty.
+ */
+typedef struct HParseError_ {
+    size_t index;       /**< Start byte offset of the selected failure. */
+    size_t end_index;   /**< Exclusive end offset after any input was consumed. */
+    uint8_t actual;     /**< Input byte at that offset (0 at end of input). */
+    bool has_actual;    /**< Whether actual contains an input byte. */
+    uint8_t bit_offset; /**< Sub-byte bit position, for bitwise grammars. */
+    HParseErrorKind kind;
+    const char *parser;
+    /** Names of originating parsers tied at the selected failure position. */
+    const char *deepest_parsers[H_PARSE_ERROR_MAX_PARSERS];
+    size_t n_deepest; /**< Number of valid entries in deepest_parsers. */
+    const char *context[H_PARSE_ERROR_MAX_PARSERS];
+    size_t n_context;
+    const char *message; /**< User-defined failure message, or NULL. */
+    /** Owned copy of the selected parser's grammar-construction location. */
+    const HSourceLocation *source;
+} HParseError;
+
+/** Opaque, extensible diagnostic returned by h_parse_debug(). */
+typedef struct HParseDiagnostic_ HParseDiagnostic;
+
+typedef enum HParseExpectationKind_ {
+    H_PARSE_EXPECT_BYTE_RANGE = 0,
+    H_PARSE_EXPECT_END_OF_INPUT
+} HParseExpectationKind;
+
+typedef struct HParseExpectation_ {
+    HParseExpectationKind kind;
+    uint8_t lower; /**< Inclusive lower byte for H_PARSE_EXPECT_BYTE_RANGE. */
+    uint8_t upper; /**< Inclusive upper byte for H_PARSE_EXPECT_BYTE_RANGE. */
+} HParseExpectation;
 
 /**
  * TODO: document me.
@@ -205,6 +276,9 @@ typedef struct HParser_ {
     HCFChoice *augmented;
     HAllocator *owner_mm__;
     HDesugarContext *desugar_ctx;
+    char *diagnostic_label;
+    char *diagnostic_message;
+    HSourceLocation *diagnostic_source;
 } HParser;
 
 typedef struct HSuspendedParser_ HSuspendedParser;
@@ -439,6 +513,50 @@ HParseResult *h_parse__m(HAllocator *mm__, const HParser *parser, const uint8_t 
                          size_t length);
 
 /**
+ * @brief Like h_parse(), but collects a parse-scoped furthest-position
+ * diagnostic. Parsing behavior and return value are identical to h_parse().
+ *
+ * If @p diagnostic is non-NULL and the library is built with AST tracing
+ * (-DHAMMER_TRACE_AST=1), it receives an owned diagnostic object with structured
+ * failure information (see ::HParseError) and the complete execution trace.
+ * Pass NULL when no diagnostic object is needed. Without AST tracing, this
+ * behaves exactly like h_parse() and sets the caller's diagnostic pointer to
+ * NULL.
+ *
+ * @param parser Parser to use
+ * @param input Input data
+ * @param length Length of input data
+ * @param diagnostic Out-parameter for structured failure info, or NULL
+ * @param showDiagnostic on true, print the normalized diagnostic, condensed
+ * input trail, and bounded input context to stderr; on false, emit no text.
+ * @note On failure, legacy failure fields are available through
+ * h_parse_diagnostic_error(), while expected byte ranges and end-of-input are
+ * exposed by the expectation accessors. The complete backend execution trace is
+ * retained regardless of @p showDiagnostic. The caller must release a returned
+ * diagnostic object with h_parse_diagnostic_free().
+ */
+HParseResult *h_parse_debug(const HParser *parser, const uint8_t *input, size_t length,
+                            HParseDiagnostic **diagnostic, bool showDiagnostic);
+HParseResult *h_parse_debug__m(HAllocator *allocator, const HParser *parser, const uint8_t *input,
+                               size_t length, HParseDiagnostic **diagnostic, bool showDiagnostic);
+const HParseError *h_parse_diagnostic_error(const HParseDiagnostic *diagnostic);
+size_t h_parse_diagnostic_expected_count(const HParseDiagnostic *diagnostic);
+bool h_parse_diagnostic_expected(const HParseDiagnostic *diagnostic, size_t index,
+                                 HParseExpectation *expectation);
+/** Borrow the complete execution trace captured for this diagnostic. */
+const char *h_parse_diagnostic_execution_trace(const HParseDiagnostic *diagnostic, size_t *length);
+/** Write the complete retained execution trace to a caller-selected stream. */
+void h_parse_diagnostic_trace_fprint(FILE *stream, const HParseDiagnostic *diagnostic);
+void h_parse_diagnostic_fprint(FILE *stream, const HParseDiagnostic *diagnostic);
+/**
+ * Write a normalized diagnostic, its condensed input trail, and a bounded hex/
+ * ASCII view of the original input. The input is borrowed only for this call.
+ */
+void h_parse_diagnostic_fprint_with_input(FILE *stream, const HParseDiagnostic *diagnostic,
+                                          const uint8_t *input, size_t length);
+void h_parse_diagnostic_free(HParseDiagnostic *diagnostic);
+
+/**
  * @brief Initialize a parser for iteratively consuming an input stream in chunks.
  *
  * @param parser Parser to use
@@ -657,7 +775,7 @@ HParser *h_float32(void);
  */
 HParser *h_float64(void);
 
-HParser *h_floating_point__m(HAllocator *mm__, int bits);
+HParser *h_floating_point__m(HAllocator *mm__, size_t bits);
 /** @} */
 
 /**
@@ -1243,6 +1361,7 @@ HParser *h_tell__m(HAllocator *mm__);
  * @param result Result to free
  */
 void h_parse_result_free(HParseResult *result);
+void h_parse_error_free(HParseError *error);
 void h_parse_result_free__m(HAllocator *mm__, HParseResult *result);
 
 /** @} */
@@ -1423,7 +1542,7 @@ void h_benchmark_report(FILE *stream, HBenchmarkResults *results);
 
 struct result_buf;
 
-bool h_append_buf(struct result_buf *buf, const char *input, int len);
+bool h_append_buf(struct result_buf *buf, const char *input, size_t len);
 bool h_append_buf_c(struct result_buf *buf, char v);
 bool h_append_buf_formatted(struct result_buf *buf, const char *format, ...);
 
@@ -1466,6 +1585,72 @@ void h_parser_free(HParser *p);
  * @param p Parser to free.
  */
 void h_parser_free__m(HAllocator *mm__, HParser *p);
+
+/** @defgroup error labeling
+ * @{
+ */
+
+/**
+ * @brief Give a parser a stable user-defined name in debug diagnostics.
+ *
+ * @param parser the HParser to modify.
+ * @param label copied and replaces the backend-derived parser name whenever
+ * this parser is selected as the source of a failure. Pass NULL to clear it.
+ * @note This annotation does not affect parsing behavior.
+ *
+ * @return true on success, false for an invalid parser or allocation failure.
+ */
+bool h_parser_set_label(HParser *parser, const char *label);
+
+/**
+ * @brief Override the formatted debug message when this parser fails.
+ *
+ * @param parser the HParser to modify.
+ * @param parser the parser The message is copied. The underlying HParseErrorKind and structured
+ * byte expectations remain available to callers. Pass NULL to clear it.
+ * @note This annotation does not affect parsing behavior.
+ *
+ * @return true on success, false for an invalid parser or allocation failure.
+ */
+bool h_parser_set_error_message(HParser *parser, const char *message);
+
+/**
+ * @brief Wrap one parser occurrence with a stable label and grammar-construction location.
+ *
+ * @param parser the HParser to wrap. The child parser is not modified.
+ * @param label replaces the backend-derived parser name whenever
+ * this parser is selected as the source of a failure, NULL preserves existing label.
+ * @param source provides the location of the parser whenever
+ * this parser is selected as the source of a failure.
+ * @note This annotation does not affect parsing behavior.
+ * @note The wrapper does not take ownership of parser; parser must remain alive while the wrapper
+ * is compiled or parsed.
+ *
+ * @return a new context-wrapper parser on success, or NULL for invalid arguments or allocation
+ * failure. The wrapper and child remain independently owned and must each be freed by their owner.
+ */
+HParser *h_with_context(HParser *parser, const char *label, const HSourceLocation *source);
+
+static inline HParser *h_with_context_at(HParser *parser, const char *label, const char *file_name,
+                                         const char *function_name, size_t line, size_t column) {
+    HSourceLocation source = {file_name, function_name, line, column};
+    return h_with_context(parser, label, &source);
+}
+
+#if defined(__has_builtin)
+#if __has_builtin(__builtin_COLUMN)
+#define H_CONTEXT_COLUMN() __builtin_COLUMN()
+#endif
+#endif
+
+#ifndef H_CONTEXT_COLUMN
+#define H_CONTEXT_COLUMN() 0
+#endif
+
+#define H_CONTEXT(parser, label)                                                                   \
+    h_with_context_at((parser), (label), __FILE__, __func__, __LINE__, H_CONTEXT_COLUMN())
+
+/** @} */
 
 #ifdef __cplusplus
 }

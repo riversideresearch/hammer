@@ -39,6 +39,7 @@ extern void register_xor_tests(void);
 extern void register_missing_tests(void);
 extern void register_packrat_tests(void);
 extern void register_regex_tests(void);
+extern void register_trace_tests(void);
 extern void register_contextfree_backend_tests(void);
 extern void register_hammer_tests(void);
 extern void register_glue_tests(void);
@@ -81,6 +82,7 @@ int main(int argc, char **argv) {
     register_token_tests();
     register_value_tests();
     register_whitespace_tests();
+    register_trace_tests();
     register_xor_tests();
     register_missing_tests();
     register_packrat_tests();

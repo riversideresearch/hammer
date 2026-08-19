@@ -1,4 +1,5 @@
 /* Copyright (c) 2026 Riverside Research */
+#include "../trace.h"
 #include "parser_internal.h"
 
 #include <limits.h>
@@ -54,45 +55,66 @@ static size_t next_pow2(size_t n) {
     return p;
 }
 
-static size_t extract_opcode(HParseResult *result) {
+static bool extract_opcode(HParseResult *result, size_t *opcode_out) {
     if (!result || !result->ast)
-        return (size_t)-1;
+        return false;
     size_t opcode;
     switch (result->ast->token_type) {
     case (TT_BYTES): {
         const HBytes b = result->ast->token_data.bytes;
-        if (b.len == 0) {
-            opcode = (size_t)-1;
-            break;
-        }
+        if (b.len == 0)
+            return false;
         size_t val = 0;
         for (size_t i = 0; i < b.len; i++) {
-            if (val > (SIZE_MAX >> 8)) {
-                opcode = (size_t)-1; // overflow: opcode can't be represented as type size_t
-                break;
-            }
+            if (val > (UINT32_MAX >> 8))
+                return false; // dispatch map opcodes are uint32_t
 
             val = (val << 8) | b.token[i];
         }
         opcode = val;
         break;
     }
-    case (TT_SINT):
-        opcode = (size_t)(result->ast->token_data.sint);
+    case (TT_SINT): {
+        int64_t value = result->ast->token_data.sint;
+        if (value < 0 || (uint64_t)value > UINT32_MAX)
+            return false;
+        opcode = (size_t)value;
         break;
-    case (TT_UINT):
-        opcode = (size_t)(result->ast->token_data.uint);
-        break;
-    case (TT_DOUBLE):
-        opcode = (size_t)(result->ast->token_data.dbl);
-        break;
-    case (TT_FLOAT):
-        opcode = (size_t)(result->ast->token_data.flt);
-        break;
-    default:
-        opcode = -1;
     }
-    return opcode;
+    case (TT_UINT): {
+        uint64_t value = result->ast->token_data.uint;
+        if (value > UINT32_MAX)
+            return false;
+        opcode = (size_t)value;
+        break;
+    }
+    case (TT_DOUBLE): {
+        double value = result->ast->token_data.dbl;
+        if (!(value >= 0.0 && value <= 4294967295.0))
+            return false;
+        uint32_t narrowed = (uint32_t)value;
+        if (value != (double)narrowed)
+            return false;
+        opcode = narrowed;
+        break;
+    }
+    case (TT_FLOAT): {
+        float value = result->ast->token_data.flt;
+        /* UINT32_MAX rounds up when represented as binary32, so compare
+         * against the first out-of-range value before converting. */
+        if (!(value >= 0.0f && value < 4294967296.0f))
+            return false;
+        uint32_t narrowed = (uint32_t)value;
+        if (value != (float)narrowed)
+            return false;
+        opcode = narrowed;
+        break;
+    }
+    default:
+        return false;
+    }
+    *opcode_out = opcode;
+    return true;
 }
 
 static HParser *extract_parser(DispatchBucket *buckets, size_t bucket_count, size_t h, size_t mask,
@@ -115,7 +137,8 @@ static HParseResult *parse_dispatch(void *env, HParseState *state) {
     }
 
     // Extract opcode value from discriminator
-    size_t opcode = extract_opcode(disc_result);
+    size_t opcode = 0;
+    bool has_opcode = extract_opcode(disc_result, &opcode);
 
     size_t bucket_count = next_pow2(d->size * 2);
     if (bucket_count == SIZE_MAX || bucket_count < d->size) {
@@ -146,9 +169,14 @@ static HParseResult *parse_dispatch(void *env, HParseState *state) {
         buckets[h].used = true;
     }
 
-    size_t h = (opcode ^ (opcode >> 16)) & mask;
-    HParser *body = extract_parser(buckets, bucket_count, h, mask, opcode, d->default_parser);
+    HParser *body = d->default_parser;
+    if (has_opcode) {
+        size_t h = (opcode ^ (opcode >> 16)) & mask;
+        body = extract_parser(buckets, bucket_count, h, mask, opcode, d->default_parser);
+    }
     if (!body) {
+        h_trace_note_dispatch(state->input_stream.trace, disc_result->ast, has_opcode, opcode,
+                              d->map, d->size);
         return NULL;
     }
 
@@ -209,6 +237,7 @@ static void desugar_dispatch(HAllocator *mm__, HCFStack *stk__, void *env) {
 }
 
 static const HParserVtable dispatch_vt = {
+    .name = "h_dispatch",
     .parse = parse_dispatch,
     .isValidRegular = dispatch_isValidRegular,
     .isValidCF = h_false,

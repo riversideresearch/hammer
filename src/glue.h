@@ -313,7 +313,7 @@ void h_seq_append(HParsedToken *xs, const HParsedToken *ys);
  * @param n Number of elements to remove.
  * @note if n is larger than the sequence it will remove all elements without error
  */
-void h_seq_remove(HParsedToken *xs, uint8_t n);
+void h_seq_remove(HParsedToken *xs, size_t n);
 
 /**
  * @brief Flatten nested sequences into one.

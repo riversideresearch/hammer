@@ -198,12 +198,11 @@ struct result_buf {
     bool failed;
 };
 
-static inline bool ensure_capacity(struct result_buf *buf, int amt) {
+static inline bool ensure_capacity(struct result_buf *buf, size_t amt) {
     if (buf->failed)
         return false;
-    if (amt < 0 || (size_t)amt >= SIZE_MAX - buf->len)
+    if (amt >= SIZE_MAX - buf->len)
         return false;
-
     size_t needed = buf->len + (size_t)amt + 1;
     size_t new_capacity = buf->capacity;
 
@@ -228,7 +227,7 @@ static inline bool ensure_capacity(struct result_buf *buf, int amt) {
     return true;
 }
 
-bool h_append_buf(struct result_buf *buf, const char *input, int len) {
+bool h_append_buf(struct result_buf *buf, const char *input, size_t len) {
     if (buf->failed)
         return false;
     if (ensure_capacity(buf, len) && !buf->failed) {
@@ -269,7 +268,7 @@ bool h_append_buf_formatted(struct result_buf *buf, const char *format, ...) {
         buf->failed = true;
         return false;
     }
-    result = h_append_buf(buf, tmpbuf, len);
+    result = h_append_buf(buf, tmpbuf, (size_t)len);
     free(tmpbuf);
     return result;
 }
@@ -292,7 +291,7 @@ static void unamb_sub(const HParsedToken *tok, struct result_buf *buf) {
             for (size_t i = 0; i < tok->token_data.bytes.len; i++) {
                 const char *HEX = "0123456789abcdef";
                 h_append_buf_c(buf, (i == 0) ? '<' : '.');
-                char c = tok->token_data.bytes.token[i];
+                char c = (char)tok->token_data.bytes.token[i];
                 h_append_buf_c(buf, HEX[(c >> 4) & 0xf]);
                 h_append_buf_c(buf, HEX[(c >> 0) & 0xf]);
             }
@@ -357,3 +356,5 @@ char *h_write_result_unamb(const HParsedToken *tok) {
 
     return buf.output;
 }
+
+// TODO: pprint_json

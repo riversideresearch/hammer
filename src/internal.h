@@ -78,6 +78,7 @@ static inline void h_generic_free(HAllocator *allocator, void *ptr) {
 
 extern HAllocator system_allocator;
 typedef struct HCFStack_ HCFStack;
+typedef struct HTraceState_ HTraceState;
 
 #define DEFAULT_ENDIANNESS (BIT_BIG_ENDIAN | BYTE_BIG_ENDIAN)
 
@@ -87,12 +88,14 @@ typedef struct HInputStream_ {
     size_t pos; // position of this chunk in a multi-chunk stream
     size_t index;
     size_t length;
-    char bit_offset;
-    char margin; // The number of bits on the end that is being read
-                 // towards that should be ignored.
+    uint8_t bit_offset;
+    uint8_t margin; // The number of bits on the end that is being read
+                    // towards that should be ignored.
     char endianness;
     bool overrun;
     bool last_chunk;
+    /* Internal, parse-scoped diagnostic collector. NULL for ordinary parses. */
+    HTraceState *trace;
 } HInputStream;
 
 typedef struct HSlistNode_ {
@@ -174,7 +177,7 @@ static inline HCharset new_charset(HAllocator *mm__) {
 }
 
 static inline int charset_isset(HCharset cs, uint8_t pos) {
-    return !!(cs[pos / (sizeof(*cs) * 8)] & (1 << (pos % (sizeof(*cs) * 8))));
+    return !!(cs[pos / (sizeof(*cs) * 8)] & (1u << (pos % (sizeof(*cs) * 8))));
 }
 
 static inline void charset_set(HCharset cs, uint8_t pos, int val) {
@@ -235,7 +238,7 @@ struct HSuspendedParser_ {
     // input stream state
     size_t pos;
     uint8_t bit_offset;
-    uint8_t endianness;
+    char endianness;
 };
 
 struct HParserBackendVTable_ {
@@ -371,7 +374,7 @@ extern HParserBackendVTable h__glr_backend_vtable;
 char *h_get_description_with_no_params(HAllocator *mm__, HParserBackend be, void *params);
 char *h_get_short_name_with_no_params(HAllocator *mm__, HParserBackend be, void *params);
 
-int64_t h_read_bits(HInputStream *state, int count, char signed_p);
+int64_t h_read_bits(HInputStream *state, size_t count, char signed_p);
 void h_skip_bits(HInputStream *state, size_t count);
 void h_seek_bits(HInputStream *state, size_t pos);
 static inline size_t h_input_stream_pos(HInputStream *state) {
@@ -501,6 +504,40 @@ typedef struct HCFSequence_ HCFSequence;
 typedef HParsedToken *(*HCFPlanAction)(const HParseResult *result, void *user_data,
                                        HActionPlan **plan);
 
+/* Immutable grammar-occurrence provenance. Each node describes the current
+ * occurrence and points to its enclosing parent. */
+#ifndef HAMMER_DIAGNOSTIC_CONTEXT_DECLARED
+#define HAMMER_DIAGNOSTIC_CONTEXT_DECLARED
+typedef struct HDiagnosticContext_ HDiagnosticContext;
+#endif
+struct HDiagnosticContext_ {
+    const HParser *parser;
+    const HParser *choice;
+    size_t choice_alternative;
+    size_t choice_id;
+    const struct HDiagnosticContext_ *next;
+};
+
+bool h_is_context_parser(const HParser *parser);
+const HParser *h_context_parser_child(const HParser *parser);
+
+static inline const HParser *h_diagnostic_context_parser(const HDiagnosticContext *context,
+                                                         const HParser *fallback) {
+    const HParser *occurrence = fallback;
+    bool found = false;
+    for (; context; context = context->next) {
+        if (!context->parser)
+            continue;
+        if (!found) {
+            occurrence = context->parser;
+            found = true;
+        }
+        if (h_is_context_parser(context->parser))
+            return context->parser;
+    }
+    return occurrence;
+}
+
 struct HCFChoice_ {
     enum HCFChoiceType { HCF_END, HCF_CHOICE, HCF_CHARSET, HCF_CHAR } type;
     union {
@@ -513,6 +550,9 @@ struct HCFChoice_ {
     HAction action;
     HCFPlanAction plan_action;
     HPredicate pred;
+    HParser *parser; // if this is a parser, then this is the parser that produced it.
+    const HDiagnosticContext *diagnostic_context; // current occurrence followed by its parents
+    void *env;
     void *user_data;
     size_t dispatch_opcode;
 };
@@ -520,6 +560,15 @@ struct HCFChoice_ {
 struct HCFSequence_ {
     HCFChoice **items; // last one is NULL
 };
+
+static inline const HParser *h_cfchoice_diagnostic_parser(const HCFChoice *choice,
+                                                          const HParser *fallback) {
+    if (!choice)
+        return fallback;
+    if (choice->diagnostic_context)
+        return h_diagnostic_context_parser(choice->diagnostic_context, fallback);
+    return choice->parser ? choice->parser : fallback;
+}
 
 // HCFStack - used for desugaring
 struct HCFStack_ {
@@ -597,6 +646,11 @@ static inline HCFChoice *h_cfstack_new_choice_raw(HAllocator *mm__, HCFStack *st
     ret->action = NULL;
     ret->plan_action = NULL;
     ret->pred = NULL;
+    ret->parser = NULL;
+    ret->diagnostic_context = NULL;
+    ret->env = NULL;
+    ret->user_data = NULL;
+    ret->dispatch_opcode = 0;
     ret->type = ~0; // invalid type
     // Add it to the current sequence...
     if (stk__->count > 0) {
@@ -682,12 +736,17 @@ static inline void h_cfstack_end_choice(HAllocator *mm__, HCFStack *stk__) {
 #define HCFS_SET_DISPATCH_OPCODE(op) (HCFS_THIS_CHOICE->dispatch_opcode = (op))
 
 struct HParserVtable_ {
+    const char *name; /* Stable internal diagnostic name. */
     HParseResult *(*parse)(void *env, HParseState *state);
     bool (*isValidRegular)(void *env);
     bool (*isValidCF)(void *env);
     bool (*compile_to_rvm)(HRVMProg *prog, void *env);
     void (*desugar)(HAllocator *mm__, HCFStack *stk__, void *env);
     bool higher; // false if primitive
+    /* Optional Packrat diagnostic metadata. Implementations return the byte
+     * offset of the failure and add the bytes or EOF accepted there. */
+    size_t (*trace_expectations)(void *env, size_t consumed, bool overrun, bool expected[256],
+                                 bool *expected_eof);
 };
 
 // {{{ Token type registry internal
@@ -706,6 +765,22 @@ const HTTEntry *h_get_token_type_entry(HTokenType token_type);
 bool h_false(void *);
 bool h_true(void *);
 bool h_not_regular(HRVMProg *, void *);
+bool h_is_choice_parser(const HParser *parser);
+// internal checks to verify parser type for error reporting
+bool h_is_nothing_parser(const HParser *parser);
+bool h_is_xor_parser(const HParser *parser);
+bool h_is_difference_parser(const HParser *parser);
+bool h_is_butnot_parser(const HParser *parser);
+bool h_is_get_value_parser(const HParser *parser); // either h_get_value or h_free_value parser
+bool h_is_put_value_parser(const HParser *parser);
+bool h_is_not_in_parser(const HParser *parser);
+bool h_is_int_range_parser(const HParser *parser);
+bool h_is_float_range_parser(const HParser *parser);
+void h_int_range_trace_failure(HTraceState *trace, const HParser *parser,
+                               const HParsedToken *token);
+void h_float_range_trace_failure(HTraceState *trace, const HParser *parser,
+                                 const HParsedToken *token);
+bool h_is_attr_bool_parser(const HParser *parser);
 
 #if 0
 #include <stdlib.h>

@@ -3,11 +3,12 @@
 
 #include <assert.h>
 #include <float.h>
+#include <stddef.h>
 #include <stdint.h>
 #include <string.h>
 
 typedef struct {
-    int bit_len;
+    size_t bit_len;
 } float_env;
 
 static bool supports_binary32(void) {
@@ -82,7 +83,7 @@ static float float16_from_bits(uint16_t raw_bits) {
     return float32_from_bits(float_bits);
 }
 
-static HParsedToken *make_float_token(HArena *arena, const HParsedToken *source, int bit_len,
+static HParsedToken *make_float_token(HArena *arena, const HParsedToken *source, size_t bit_len,
                                       uint64_t raw_bits) {
     HParsedToken *result = a_new_(arena, HParsedToken, 1);
     if (!result)
@@ -116,7 +117,7 @@ static HParsedToken *reshape_float(const HParseResult *p, void *user_data) {
     assert(p->ast->token_type == TT_SEQUENCE);
 
     HCountedArray *seq = p->ast->token_data.seq;
-    int bit_len = (int)(seq->used * 8);
+    size_t bit_len = seq->used * 8;
     uint64_t bits = 0;
     for (size_t i = 0; i < seq->used; ++i) {
         HParsedToken *token = seq->elements[i];
@@ -135,18 +136,18 @@ static HParsedToken *reshape_float(const HParseResult *p, void *user_data) {
 static HParseResult *parse_float(void *env_, HParseState *state) {
     float_env *env = env_;
     const size_t start_index = state->input_stream.index;
-    const char start_bit_offset = state->input_stream.bit_offset;
+    const unsigned char start_bit_offset = state->input_stream.bit_offset;
     uint64_t raw_bits;
 
     switch (env->bit_len) {
     case 16:
-        raw_bits = h_read_bits(&state->input_stream, 16, false);
+        raw_bits = (uint64_t)h_read_bits(&state->input_stream, 16, false);
         break;
     case 32:
-        raw_bits = h_read_bits(&state->input_stream, 32, false);
+        raw_bits = (uint64_t)h_read_bits(&state->input_stream, 32, false);
         break;
     case 64:
-        raw_bits = h_read_bits(&state->input_stream, 64, false);
+        raw_bits = (uint64_t)h_read_bits(&state->input_stream, 64, false);
         break;
     default:
         return NULL;
@@ -167,8 +168,8 @@ static void desugar_float(HAllocator *mm__, HCFStack *stk__, void *env) {
     float_env *env_ = env;
 
     HCharset match_all = new_charset(mm__);
-    for (int i = 0; i < 256; i++)
-        charset_set(match_all, i, 1);
+    for (unsigned int i = 0; i < 256; i++)
+        charset_set(match_all, (uint8_t)i, 1);
 
     HCFS_BEGIN_CHOICE() {
         HCFS_BEGIN_SEQ() {
@@ -229,6 +230,7 @@ static bool float_ctrvm(HRVMProg *prog, void *env) {
 }
 
 static const HParserVtable float_vt = {
+    .name = "h_float",
     .parse = parse_float,
     .desugar = desugar_float,
     .isValidRegular = h_true,
@@ -237,7 +239,7 @@ static const HParserVtable float_vt = {
     .higher = false,
 };
 
-HParser *h_floating_point__m(HAllocator *mm__, int bit_len) {
+HParser *h_floating_point__m(HAllocator *mm__, size_t bit_len) {
     if (bit_len != 16 && bit_len != 32 && bit_len != 64)
         return NULL;
 

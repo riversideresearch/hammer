@@ -81,23 +81,23 @@ void h_bit_writer_put(HBitWriter *w, uint64_t data, size_t nbits) {
         uint16_t bits;
         if (w->flags & BYTE_BIG_ENDIAN) {
             // read from the top few bits; masking will be done later.
-            bits = data >> (nbits - count);
+            bits = (uint16_t)(data >> (nbits - count));
         } else {
             // just copy the bottom byte over.
             bits = data & 0xff;
             data >>= count; // remove the bits that have just been used.
         }
         // mask off the unnecessary bits.
-        bits &= (1 << count) - 1;
+        bits &= (uint16_t)((1 << count) - 1);
 
         // Now, push those bits onto the current byte...
         if (w->flags & BIT_BIG_ENDIAN)
             w->buf[w->index] = (w->buf[w->index] << count) | bits;
         else
-            w->buf[w->index] = (w->buf[w->index] | (bits << 8)) >> count;
+            w->buf[w->index] = (uint8_t)((w->buf[w->index] | ((uint16_t)bits << 8)) >> count);
 
         // update index and bit_offset.
-        w->bit_offset += count;
+        w->bit_offset += (char)count;
         if (w->bit_offset == 8) {
             w->bit_offset = 0;
             w->index++;

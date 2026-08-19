@@ -38,19 +38,31 @@ static bool h_svm_action_ch(HArena *arena, HSVMContext *ctx, void *env) {
 static bool ch_ctrvm(HRVMProg *prog, void *env) {
     uint8_t c = (uint8_t)(uintptr_t)(env);
     h_rvm_insert_insn(prog, RVM_PUSH, 0);
-    h_rvm_insert_insn(prog, RVM_MATCH, c | c << 8);
+    h_rvm_insert_insn(prog, RVM_MATCH,
+                      (uint16_t)((uint16_t)(uint8_t)c | ((uint16_t)(uint8_t)c << 8)));
     h_rvm_insert_insn(prog, RVM_STEP, 0);
     h_rvm_insert_insn(prog, RVM_CAPTURE, 0);
     h_rvm_insert_insn(prog, RVM_ACTION, h_rvm_create_action(prog, h_svm_action_ch, NULL));
     return true;
 }
 
+static size_t trace_expectations_ch(void *env, size_t consumed, bool overrun, bool expected[256],
+                                    bool *expected_eof) {
+    (void)consumed;
+    (void)overrun;
+    (void)expected_eof;
+    expected[(uint8_t)(uintptr_t)env] = true;
+    return 0;
+}
+
 static const HParserVtable ch_vt = {
+    .name = "h_ch",
     .parse = parse_ch,
     .isValidRegular = h_true,
     .isValidCF = h_true,
     .compile_to_rvm = ch_ctrvm,
     .desugar = desugar_ch,
+    .trace_expectations = trace_expectations_ch,
     .higher = false,
 };
 

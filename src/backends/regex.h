@@ -9,11 +9,17 @@
 #define HAMMER_BACKEND_REGEX__H
 
 #include "../hammer.h"
+#include "../trace.h"
 
 #include <setjmp.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
+
+#ifndef HAMMER_DIAGNOSTIC_CONTEXT_DECLARED
+#define HAMMER_DIAGNOSTIC_CONTEXT_DECLARED
+typedef struct HDiagnosticContext_ HDiagnosticContext;
+#endif
 
 // each insn is an 8-bit opcode and a 16-bit parameter
 // [a] are actions; they add an instruction to the stackvm that is being output.
@@ -38,6 +44,16 @@ typedef enum HRVMOp_ {
     RVM_OPCOUNT
 } HRVMOp;
 
+// Stack VM
+typedef enum HSVMOp_ {
+    SVM_PUSH,    // Push a mark. There is no VM insn to push an object.
+    SVM_NOP,     // Used to start the chain, and possibly elsewhere. Does nothing.
+    SVM_ACTION,  // Same meaning as RVM_ACTION
+    SVM_CAPTURE, // Same meaning as RVM_CAPTURE
+    SVM_ACCEPT,
+    SVM_OPCOUNT
+} HSVMOp;
+
 typedef struct HRVMInsn_ {
     uint8_t op;
     uint16_t arg;
@@ -45,15 +61,43 @@ typedef struct HRVMInsn_ {
 
 #define TT_MARK TT_RESERVED_1
 
-typedef struct HSVMContext_ {
+typedef enum HSVMFailureKind_ {
+    SVM_FAILURE_NONE = 0,
+    SVM_FAILURE_INT_RANGE,
+    SVM_FAILURE_FLOAT_RANGE,
+    SVM_FAILURE_SEMANTIC_PREDICATE,
+} HSVMFailureKind;
+
+typedef struct HSVMFailure_ {
+    HSVMFailureKind kind;
+    size_t start;
+    size_t end;
+    HTokenType actual_type;
+    int64_t lower;
+    int64_t upper;
+    double float_lower;
+    double float_upper;
+    double float_actual;
+    union {
+        int64_t sint;
+        uint64_t uint;
+    } actual;
+    const char *parser;
+} HSVMFailure;
+
+struct HSVMContext_ {
     HParsedToken **stack;
     size_t stack_count; // number of items on the stack. Thus stack[stack_count] is the first unused
                         // item on the stack.
     size_t stack_capacity;
     size_t input_pos;
+    const HParser *parser;
+    const HDiagnosticContext *diagnostic_context;
     struct HActionPlan_ *action_plan;
     void *action_plan_frames;
-} HSVMContext;
+    HSVMFailure failure;
+    HTraceState *trace_state;
+};
 
 // These actions all assume that the items on the stack are not
 // aliased anywhere.
@@ -63,13 +107,30 @@ typedef struct HSVMAction_ {
     void *env;
 } HSVMAction;
 
+struct HRVMTrace_ {
+    struct HRVMTrace_ *next; // When parsing, these are
+                             // reverse-threaded. There is a postproc
+                             // step that inverts all the pointers.
+    size_t input_pos;
+    const HParser *parser;
+    const HDiagnosticContext *diagnostic_context;
+    uint16_t arg;
+    uint8_t opcode;
+};
+
 struct HRVMProg_ {
     HAllocator *allocator;
     HArena *arena; // storage for action payloads that outlive their source parsers
     size_t length;
     size_t action_count;
     HRVMInsn *insns;
+    const HParser **insn_parsers;
+    const HDiagnosticContext **insn_contexts;
     HSVMAction *actions;
+    const HParser *current_parser;
+    const HDiagnosticContext *current_context;
+    size_t next_choice_id;
+    const HParser *root_parser;
     jmp_buf except;
 };
 

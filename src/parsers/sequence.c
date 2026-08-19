@@ -84,7 +84,7 @@ static bool sequence_ctrvm(HRVMProg *prog, void *env) {
     HSequence *s = (HSequence *)env;
     h_rvm_insert_insn(prog, RVM_PUSH, 0);
     for (size_t i = 0; i < s->len; ++i) {
-        if (!s->p_array[i]->vtable->compile_to_rvm(prog, s->p_array[i]->env))
+        if (!h_compile_regex(prog, s->p_array[i]))
             return false;
     }
     h_rvm_insert_insn(prog, RVM_ACTION,
@@ -93,6 +93,7 @@ static bool sequence_ctrvm(HRVMProg *prog, void *env) {
 }
 
 static const HParserVtable sequence_vt = {
+    .name = "h_sequence",
     .parse = parse_sequence,
     .isValidRegular = sequence_isValidRegular,
     .isValidCF = sequence_isValidCF,
@@ -175,7 +176,7 @@ HParser *h_sequence__mv(HAllocator *mm__, HParser *p, va_list ap_) {
 HParser *h_sequence__a(void *args[]) { return h_sequence__ma(&system_allocator, args); }
 
 HParser *h_sequence__ma(HAllocator *mm__, void *args[]) {
-    size_t len = -1; // because do...while
+    size_t len = (size_t)-1; // because do...while
     const HParser *arg;
 
     do {
@@ -231,7 +232,7 @@ HParser *h_drop_from___mv(HAllocator *mm__, HParser *p, va_list ap) {
     int arg = 0;
 
     for (arg = va_arg(ap, int); arg >= 0; arg = va_arg(ap, int)) {
-        indices[count] = arg;
+        indices[count] = (size_t)arg;
         count++;
     }
     va_end(ap);
