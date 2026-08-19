@@ -586,41 +586,22 @@ HParseResult *h_parse__m(HAllocator *mm__, const HParser *parser, const uint8_t 
 // diagnostic API. The runtime option controls only whether a concise failure
 // report is also written to stderr.
 //
-// If `error` is non-NULL it also receives the furthest-failure record in
-// structured form (see HParseError), so callers can react to failures without
-// scraping the textual trace. It is zeroed up front so the compiled-out case
-// (and a NULL trace) leaves well-defined, empty contents.
+// If `diagnostic` is non-NULL it receives an owned diagnostic object, including
+// the furthest-failure record (see HParseError), so callers can react to failures
+// without scraping the textual trace. The out-pointer is set to NULL up front so
+// the compiled-out case leaves well-defined contents.
 HParseResult *h_parse_debug(const HParser *parser, const uint8_t *input, size_t length,
-                            HParseError *error, bool dumpExecutionTrace) {
-    return h_parse_debug__m(&system_allocator, parser, input, length, error, dumpExecutionTrace);
+                            HParseDiagnostic **diagnostic, bool dumpExecutionTrace) {
+    return h_parse_debug__m(&system_allocator, parser, input, length, diagnostic,
+                            dumpExecutionTrace);
 }
 HParseResult *h_parse_debug__m(HAllocator *mm__, const HParser *parser, const uint8_t *input,
-                               size_t length, HParseError *error, bool dumpExecutionTrace) {
-    if (error)
-        memset(error, 0, sizeof(*error));
-    HTraceState *trace = h_trace_state_new(dumpExecutionTrace);
-    HParseResult *res = h_parse_with_trace(mm__, parser, input, length, trace);
-    if (!res) {
-        TRACE_GET_ERROR(trace, error);
-        if (h_trace_should_print_summary(trace)) {
-            HParseDiagnostic *diagnostic = NULL;
-            TRACE_GET_DIAGNOSTIC(trace, &diagnostic);
-            if (diagnostic) {
-                h_parse_diagnostic_fprint_with_input(stderr, diagnostic, input, length);
-                h_parse_diagnostic_free(diagnostic);
-            }
-        }
-    }
-    h_trace_state_free(trace);
-    return res;
-}
-
-HParseResult *h_parse_debug_ex(const HParser *parser, const uint8_t *input, size_t length,
-                               HParseDiagnostic **diagnostic, bool dumpExecutionTrace) {
+                               size_t length, HParseDiagnostic **diagnostic,
+                               bool dumpExecutionTrace) {
     if (diagnostic)
         *diagnostic = NULL;
     HTraceState *trace = h_trace_state_new(dumpExecutionTrace);
-    HParseResult *res = h_parse_with_trace(&system_allocator, parser, input, length, trace);
+    HParseResult *res = h_parse_with_trace(mm__, parser, input, length, trace);
     HParseDiagnostic *collected = NULL;
     if (diagnostic || (!res && h_trace_should_print_summary(trace)))
         TRACE_GET_DIAGNOSTIC(trace, &collected);
@@ -722,6 +703,16 @@ const char *h_parse_diagnostic_execution_trace(const HParseDiagnostic *diagnosti
     if (length)
         *length = diagnostic ? diagnostic->execution_trace_length : 0;
     return diagnostic ? diagnostic->execution_trace : NULL;
+}
+
+void h_parse_diagnostic_trace_fprint(FILE *stream, const HParseDiagnostic *diagnostic) {
+    if (!stream || !diagnostic)
+        return;
+
+    size_t length = 0;
+    const char *trace = h_parse_diagnostic_execution_trace(diagnostic, &length);
+    if (trace && length > 0)
+        fwrite(trace, 1, length, stream);
 }
 
 static void diagnostic_print_byte(FILE *stream, uint8_t byte) {
@@ -897,15 +888,6 @@ void h_parse_diagnostic_fprint(FILE *stream, const HParseDiagnostic *diagnostic)
                               diagnostic->choice_alternatives, diagnostic->choice_alternative_count,
                               diagnostic->choice_root);
     h_trace_fprint_input_trail(stream, diagnostic->input_frames, diagnostic->input_frame_count);
-}
-
-void h_parse_error_fprint(FILE *stream, const HParseError *error) {
-    if (!stream || !error)
-        return;
-    HParseDiagnostic diagnostic = {0};
-    diagnostic.error = *error;
-    diagnostic.choice_root = H_TRACE_CHOICE_NONE;
-    h_parse_diagnostic_fprint(stream, &diagnostic);
 }
 
 void h_parse_diagnostic_fprint_with_input(FILE *stream, const HParseDiagnostic *diagnostic,
