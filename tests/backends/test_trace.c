@@ -1356,7 +1356,7 @@ static void test_trace_action_sum(gconstpointer backend) {
     }
 }
 
-// debugtest/parser.c: nested list grammar-> The innermost value 9 is outside the
+// debugtest/parser.c: nested list grammar. The innermost value 9 is outside the
 // number range [0,8] and is not a '[', so the whole structure fails to parse.
 static void test_trace_nested_list(gconstpointer backend) {
     HParserBackend be = (HParserBackend)GPOINTER_TO_INT(backend);

@@ -516,13 +516,12 @@ HParseResult *h_parse__m(HAllocator *mm__, const HParser *parser, const uint8_t 
  * @brief Like h_parse(), but collects a parse-scoped furthest-position
  * diagnostic. Parsing behavior and return value are identical to h_parse().
  *
- * If @p diagnostic is non-NULL, the furthest-failure information is also written
- * there in structured form (see ::HParseError), so callers can react to a
- * failed parse programmatically. Pass NULL if only the optional execution trace
- * is wanted. The struct is zero-initialized
- * before use, and its parser-name list is only populated when the library is
- * built with AST tracing (-DHAMMER_TRACE_AST=1); otherwise this behaves exactly
- * like h_parse() and @p diagnostic is left zeroed.
+ * If @p diagnostic is non-NULL and the library is built with AST tracing
+ * (-DHAMMER_TRACE_AST=1), it receives an owned diagnostic object with structured
+ * failure information (see ::HParseError) and the complete execution trace.
+ * Pass NULL when no diagnostic object is needed. Without AST tracing, this
+ * behaves exactly like h_parse() and sets the caller's diagnostic pointer to
+ * NULL.
  *
  * @param parser Parser to use
  * @param input Input data
@@ -530,13 +529,11 @@ HParseResult *h_parse__m(HAllocator *mm__, const HParser *parser, const uint8_t 
  * @param diagnostic Out-parameter for structured failure info, or NULL
  * @param showDiagnostic on true, print the normalized diagnostic, condensed
  * input trail, and bounded input context to stderr; on false, emit no text.
- * @note On completion, @p diagnostic receives an owned diagnostic object, including
- * the execution trace for successful and failed parses. On failure, the legacy
- * failure fields are available through h_parse_diagnostic_error(), while
- * expected byte ranges and end-of-input are exposed by the expectation
- * accessors. The complete backend execution trace is also retained regardless
- * of @p showDiagnostic. The caller must release the object with
- * h_parse_diagnostic_free().
+ * @note On failure, legacy failure fields are available through
+ * h_parse_diagnostic_error(), while expected byte ranges and end-of-input are
+ * exposed by the expectation accessors. The complete backend execution trace is
+ * retained regardless of @p showDiagnostic. The caller must release a returned
+ * diagnostic object with h_parse_diagnostic_free().
  */
 HParseResult *h_parse_debug(const HParser *parser, const uint8_t *input, size_t length,
                             HParseDiagnostic **diagnostic, bool showDiagnostic);
